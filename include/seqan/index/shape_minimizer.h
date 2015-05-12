@@ -36,10 +36,6 @@
 namespace seqan
 {
 
-const float _boundAlpha = 0.8;
-struct ReverseComplement_;
-typedef Tag<ReverseComplement_> const   ReverseComplement;
-
 // ----------------------------------------------------------------------------
 // Struct MinimizerShape
 // ----------------------------------------------------------------------------
@@ -59,12 +55,10 @@ public:
 
     unsigned span;
     unsigned weight;
-    int first;
-    int bound;
-    THashValue hValue;      //minimizer hash
-    THashValue mhValue;  
-    THashValue last_hValue;
-    THashValue u_hValue;
+    unsigned hPointer;
+    THashValue hValue;      //minimizer hash value;
+    THashValue u_hValue;    //ungapped hash value;
+    THashValue hashBuffer[TSPAN - TWEIGHT + 1];
     static const THashValue leftFactor = Power<ValueSize<TValue>::VALUE, TSPAN - 1>::VALUE;
     static const THashValue m_leftFactor = Power<ValueSize<TValue>::VALUE, TWEIGHT - 1>::VALUE;
     TValue  m_leftChar; 
@@ -72,9 +66,7 @@ public:
 
     Shape():
         span(TSPAN),
-        weight(TWEIGHT),
-        first(-1),
-        bound((unsigned)(TWEIGHT * _boundAlpha))
+        weight(TWEIGHT)
     {}
 };
 
@@ -115,50 +107,10 @@ weight(Shape<TValue, MinimizerShape<TSPAN, TWEIGHT, TSpec> > const &me)
 // ----------------------------------------------------------------------------
 // return lexicographically smaller hash as the minimizer
 
-template <typename TValue, unsigned TSPAN, unsigned TWEIGHT, typename TSpec, typename TString>
+template <typename TValue, unsigned TSPAN, unsigned TWEIGHT, typename TSpec, typename TIter>
 inline typename Value< Shape<TValue, MinimizerShape<TSPAN, TWEIGHT, TSpec> > >::Type 
-_minHash(Shape<TValue, MinimizerShape<TSPAN, TWEIGHT, TSpec> > &me, TString const & str)
+_minHash(Shape<TValue, MinimizerShape<TSPAN, TWEIGHT, TSpec> > &me, TIter const & it)
 {
-    typedef typename Iterator<TString const, Standard>::Type                TIter;
-    typedef typename Value<Shape<TValue, UngappedShape<TWEIGHT> > >::Type   THValue;
-  
-    SEQAN_ASSERT_GT((unsigned)me.span, 0u);
-    SEQAN_ASSERT_GT((unsigned)me.span, (unsigned)me.weight); 
-
-    Shape<TValue, UngappedShape<TWEIGHT> > tmpShape;
-
-    TIter strIt = begin(str, Standard());
-    TIter strEnd = end(str, Standard()) - weight(me) + 1;
-
-    THValue miniTmp = hash(tmpShape, strIt);
-    THValue preMiniTmp; 
-    me.first = 0;
-    for (strIt++; strIt != strEnd; strIt++)
-    {
-        preMiniTmp = miniTmp; 
-        miniTmp = _min(miniTmp, hashNext(tmpShape, strIt));
-        if(preMiniTmp != miniTmp)
-            me.first = strIt - begin(str, Standard()); 
-    } 
-    
-    me.mhValue = miniTmp;
-
-    if (me.first < me.bound) 
-    {
-        me.hValue = _max(me.mhValue, (Power<ValueSize<TValue>::VALUE, TWEIGHT>::VALUE - me.mhValue - 1));
-    }
-    else 
-        me.hValue = me.mhValue;
-
-    return me.hValue;
-}
-
-
-template <typename TValue, unsigned TSPAN, unsigned TWEIGHT, typename TSpec, typename TString>
-inline typename Value< Shape<TValue, MinimizerShape<TSPAN, TWEIGHT, TSpec> > >::Type 
-_minXorMaxHash(Shape<TValue, MinimizerShape<TSPAN, TWEIGHT, TSpec> > &me, TString const & str)
-{
-    typedef typename Iterator<TString const, Standard>::Type                TIter;
     typedef typename Value<Shape<TValue, UngappedShape<TWEIGHT> > >::Type   THValue;
   
     SEQAN_ASSERT_GT((unsigned)me.span, 0u);
@@ -167,301 +119,78 @@ _minXorMaxHash(Shape<TValue, MinimizerShape<TSPAN, TWEIGHT, TSpec> > &me, TStrin
     Shape<TValue, UngappedShape<TSPAN> > u_tmpShape;
     Shape<TValue, UngappedShape<TWEIGHT> > tmpShape;
    
-    TIter strBegin = begin(str, Standard());
-
     THValue miniTmp;
-    //THValue maxTmp = tmpShape.hValue;
-    //THValue miniTmp2 = tmpShape.hValue;
-    //THValue maxTmp2 = tmpShape.hValue;
-
-    //me.u_hValue = hashInit(u_tmpShape, strBegin);    
-
-    me.first = 0;
-    hashInit(tmpShape, strBegin);
-    miniTmp = hashNext(tmpShape, strBegin);
-    for (unsigned k = 1; k < TSPAN - TWEIGHT + 1; k++)
+    me.hValue = hash(tmpShape, it); 
+    me.hashBuffer[0] = tmpShape.hValue;
+    for (unsigned k = 1; k < TSPAN - TWEIGHT + 1; k++ )
     {
-       // miniTmp2 = _min(miniTmp2, _max(miniTmp,hashNext(tmpShape, strIt)));
-        //miniTmp = _min(miniTmp, tmpShape.hValue);
-        //maxTmp2 = _max(maxTmp2, _min(maxTmp, tmpShape.hValue));
-        //maxTmp = _max(maxTmp, tmpShape.hValue);
-        hashNext(tmpShape, strBegin + k);
-        //std::cout << miniTmp << " " << tmpShape.hValue << std::endl;
-        if (miniTmp >= tmpShape.hValue)
-        {
-            miniTmp = tmpShape.hValue;
-            me.first = k; 
-        }
-    } 
-    //std::cout << "done" << std::endl;
-    me.hValue = miniTmp;
-    //me.hValue = atomicXor(maxTmp, miniTmp);
-    //me.hValue = atomicXor(maxTmp2,  me.hValue);
-    //me.hValue = atomicXor(miniTmp2, me.hValue);
-    me.last_hValue = tmpShape.hValue; 
+        me.hashBuffer[k] = hashNext(tmpShape, it + k);
+        if (me.hValue > me.hashBuffer[k])
+            me.hValue = me.hashBuffer[k];
+    }
+    me.m_leftChar = *(it + TSPAN - TWEIGHT);
+    me.leftChar = *(it + TSPAN - 1);
+    me.hPointer = TSPAN - TWEIGHT;
+    me.u_hValue = hash(u_tmpShape, it);
+
     return me.hValue;
 }
-
-/*
-template <typename TValue, unsigned TSPAN, unsigned TWEIGHT, typename TSpec, typename TString>
-inline typename Value< Shape<TValue, MinimizerShape<TSPAN, TWEIGHT, TSpec> > >::Type 
-_minXorMaxHash(Shape<TValue, MinimizerShape<TSPAN, TWEIGHT, TSpec> > &me, TString const & str)
-{
-    typedef typename Value<Shape<TValue, UngappedShape<TWEIGHT> > >::Type   THValue;
-  
-    SEQAN_ASSERT_GT((unsigned)me.span, 0u);
-    SEQAN_ASSERT_GT((unsigned)me.span, (unsigned)me.weight); 
-    Shape<TValue, UngappedShape<TWEIGHT> > tmpShape;
-
-    //TIter miniIt = it;
-    //THValue maxTmp = tmpShape.hValue;
-    //THValue miniTmp2 = tmpShape.hValue;
-    //THValue maxTmp2 = tmpShape.hValue;
-    me.first = 0;
-    unsigned level = 0;
-    unsigned chr[TSPAN];
-    unsigned miniIt = 0;
-  
-    for (unsigned k = 0; k < TSPAN; k++)
-        chr[k] = (unsigned)ordValue((TValue)str[k]);
-    
-    for (unsigned k = 1; k < TSPAN - TWEIGHT + 1 ; k++)
-    {
-        unsigned thisLevel = level;
-        for (unsigned j = 0; j <= thisLevel; j++)
-        {
-            if (chr[k] < chr[miniIt + j])
-            {
-                miniIt = k - j;
-                level = 0;
-                break;
-            } 
-            if(chr[k] == chr[miniIt + j])
-            {
-                if (j == thisLevel)
-                    if ( ++level == TWEIGHT)
-                    {
-                        miniIt = k - TWEIGHT + 1;
-                        level = TWEIGHT - 1;
-                    }
-                continue;
-            }
-            else
-                level = 0;
-        }
-       // miniTmp2 = _min(miniTmp2, _max(miniTmp,hashNext(tmpShape, strIt)));
-        //miniTmp = _min(miniTmp, tmpShape.hValue);
-        //maxTmp2 = _max(maxTmp2, _min(maxTmp, tmpShape.hValue));
-        //maxTmp = _max(maxTmp, tmpShape.hValue);
-        //std::cout << miniTmp << " " << tmpShape.hValue << std::endl;
-    } 
-    if (level != 0)
-    for (unsigned k = TSPAN - TWEIGHT + 1; k <= TSPAN - 1; k++)
-    {
-        if (chr[k] < chr[miniIt + level])
-        {
-            miniIt = k - level;
-            break;         
-        }
-        if (chr[k] == chr[miniIt + level])
-        {
-            if(++level == TWEIGHT)
-            {
-                miniIt = k - TWEIGHT + 1;
-                break;
-            }
-        }
-        else
-            break; 
-    }
-    //std::cout << "done" << std::endl;
-    //me.hValue = atomicXor(maxTmp, miniTmp);
-    //me.hValue = atomicXor(maxTmp2,  me.hValue);
-    //me.hValue = atomicXor(miniTmp2, me.hValue);
-    me.first = miniIt; 
-    me.last_hValue = hash(tmpShape, begin(str) + TSPAN - TWEIGHT);
-    return hash(tmpShape, begin(str) + miniIt);
-}
-*/
-
-/*
-template <typename TValue, unsigned TSPAN, unsigned TWEIGHT, typename TSpec, typename TString>
-inline typename Value< Shape<TValue, MinimizerShape<TSPAN, TWEIGHT, TSpec> > >::Type 
-_minXorMaxHash(Shape<TValue, MinimizerShape<TSPAN, TWEIGHT, TSpec> > &me, TString const & str)
-{
-    typedef typename Value<Shape<TValue, UngappedShape<TWEIGHT> > >::Type   THValue;
-  
-    SEQAN_ASSERT_GT((unsigned)me.span, 0u);
-    SEQAN_ASSERT_GT((unsigned)me.span, (unsigned)me.weight); 
-    Shape<TValue, UngappedShape<TWEIGHT> > tmpShape;
-
-    //TIter miniIt = it;
-    //THValue maxTmp = tmpShape.hValue;
-    //THValue miniTmp2 = tmpShape.hValue;
-    //THValue maxTmp2 = tmpShape.hValue;
-    me.first = 0;
-    unsigned level = 0;
-    unsigned chr[TSPAN];
-    int loc[TSPAN];
-    unsigned mini = 10;//ValueSize<TValue>::VALUE;
-    unsigned size = TSPAN - TWEIGHT + 1;
-            
-    for (unsigned k = 0; k < TSPAN; k++)
-    {
-        chr[k] = (unsigned)ordValue((TValue)str[k]);
-        loc[k] = k;
-    }
-    chr[TSPAN] = ValueSize<TValue>::VALUE;
-  
-    unsigned j;
-    for (j = 0; j < TWEIGHT; j++)
-    {
-        unsigned this_size = size;
-        for (unsigned k = 0; k < this_size; k++)
-        {
-            if(chr[loc[k] + j] < mini)
-            {
-                mini = chr[loc[k] + j];
-                loc[0] = loc[k];
-                size = 1;
-                continue;
-            }
-            if(chr[loc[k] + j] == mini)
-            {
-                loc[size++] = loc[k];
-            }
-        }        
-        if(size == 1)
-            break;
-        mini = 10;//ValueSize<TValue>::VALUE;
-    } 
-            
-    me.first = loc[0]; 
-    me.last_hValue = hash(tmpShape, begin(str) + TSPAN - TWEIGHT);
-    //return hash(tmpShape, begin(str) + me.first);
-    //std::cout << ValueSize<TValue>::VALUE << std::endl;
-    
-    return hash(tmpShape, begin(str) + me.first);
-}
-*/
-// ----------------------------------------------------------------------------
-// Function hash()
-// ----------------------------------------------------------------------------
 
 template <typename TValue, unsigned TSPAN, unsigned TWEIGHT, typename TSpec, typename TIter>
 inline typename Value<Shape<TValue, MinimizerShape<TSPAN, TWEIGHT, TSpec> > >::Type
-hash(Shape<TValue, MinimizerShape<TSPAN, TWEIGHT, TSpec> > &me, TIter const &it)
+hash(Shape<TValue, MinimizerShape<TSPAN, TWEIGHT, TSpec> > &me, TIter const & it)
 {
-    Range<TIter> range(it, it + length(me));
-    Shape<TValue, UngappedShape<TSPAN> > u_tmpShape;
-
-    me.hValue = _minXorMaxHash(me, range);
-    me.m_leftChar = *(it + TSPAN -TWEIGHT);
-    return me.hValue;
+     return _minHash(me, it);
 }
 
-// ----------------------------------------------------------------------------
-// Function hash(); ReverseComplement
-// ----------------------------------------------------------------------------
-// Uses the lexicographically smaller of S and the reverse complement of S as the minimizer
-
-template <typename TValue, unsigned TSPAN, unsigned TWEIGHT, typename TIter>
-inline typename Value<Shape<TValue, MinimizerShape<TSPAN, TWEIGHT, ReverseComplement> > >::Type
-hash(Shape<TValue, MinimizerShape<TSPAN, TWEIGHT, ReverseComplement> > &me, TIter const &it)
-{
-    typedef Range<TIter>                        TContainer;
-    typedef typename Value<TContainer>::Type    TAlphabet;
-    typedef typename RemoveConst<TAlphabet>::Type TNCAlphabet;
-    typedef ModifiedString<TContainer, ModView<FunctorComplement<TNCAlphabet> > > TComplement;
-    typedef ModifiedString<TComplement, ModReverse>                             TRC;
-
-    Range<TIter> range(it, it + length(me));
-    TRC revComplRange(range);
-
-    me.hValue = _min(_minHash(me, range), _minHash(me, revComplRange));
-    return me.hValue;
-}
 
 // ----------------------------------------------------------------------------
 // Function hashNext()
 // ----------------------------------------------------------------------------
 
-/*template <typename TValue, unsigned TSPAN, unsigned TWEIGHT, typename TSpec, typename TIter>
-inline typename Value<Shape<TValue, MinimizerShape<TSPAN, TWEIGHT, TSpec> > >::Type
-hashNext(Shape<TValue, MinimizerShape<TSPAN, TWEIGHT, TSpec> > &me, TIter const &it)
-{
-    Shape<TValue, UngappedShape<TWEIGHT> > tmpShape;
-    if(me.first > 0) 
-    {
-        hash(tmpShape, it + me.span - me.weight);
-        if(me.mhValue < tmpShape.hValue)
-            me.first--;
-        else 
-        {
-            me.mhValue = tmpShape.hValue;
-            me.first = TSPAN - TWEIGHT;
-        }
-
-        if (me.first < me.bound) 
-        {
-            me.hValue = _max(me.mhValue, (Power<ValueSize<TValue>::VALUE, TWEIGHT>::VALUE - me.mhValue - 1));
-        }
-        else 
-            me.hValue = me.mhValue;
-        me.hValue = hash(me, it);
-    return me.hValue;
-}
-*/
 
 template <typename TValue, unsigned TSPAN, unsigned TWEIGHT, typename TSpec, typename TIter>
 inline void hashInit(Shape<TValue, MinimizerShape<TSPAN, TWEIGHT, TSpec> > &me, TIter const &it)
 {
-    hash(me, it);
     Shape<TValue, UngappedShape<TSPAN> > tmpShape;
     Shape<TValue, UngappedShape<TWEIGHT> > u_shape;
-    me.last_hValue = hash(u_shape, it + TSPAN - TWEIGHT -1);
-    me.m_leftChar = *(it + TSPAN - TWEIGHT - 1);
+    hashInit(u_shape, it); 
+    for(unsigned k = 0; k < TSPAN - TWEIGHT + 1; k++) 
+    {
+        me.hashBuffer[k] = hashNext(u_shape, it + k);
+    }
+    me.m_leftChar = *(it + TSPAN - TWEIGHT -1);
+    me.hPointer = TSPAN - TWEIGHT - 1;
     me.u_hValue = hashInit(tmpShape, it);
     me.leftChar = 0;
 }
 
-
 template <typename TValue, unsigned TSPAN, unsigned TWEIGHT, typename TSpec, typename TIter>
-inline typename Value<Shape<TValue, MinimizerShape<TSPAN, TWEIGHT, TSpec> > >::Type
+inline typename Value<Shape<TValue, MinimizerShape<TSPAN, TWEIGHT, TSpec> > >::Type 
 hashNext(Shape<TValue, MinimizerShape<TSPAN, TWEIGHT, TSpec> > &me, TIter const &it)
 {
-    Shape<TValue, UngappedShape<TWEIGHT> > tmpShape;
-    Shape<TValue, UngappedShape<TSPAN> > u_tmpShape;  
     typedef typename Value<Shape<TValue, UngappedShape<TWEIGHT> > >::Type THValue;
     typedef typename Size<Shape<TValue, UngappedShape<TWEIGHT> > >::Type TSize;
-    if(me.first > 0) 
+    Shape<TValue, UngappedShape<TSPAN> > u_shape;
+    unsigned prehPointer = me.hPointer;
+    me.hPointer = (me.hPointer + 1) % (TSPAN - TWEIGHT + 1);
+
+    me.hashBuffer[me.hPointer] =  (me.hashBuffer[prehPointer] - ordValue(me.m_leftChar) 
+                                * (THValue)me.m_leftFactor) * ValueSize<TValue>::VALUE + ordValue((TValue) * (it + (TSize)TSPAN - 1));
+
+    me.m_leftChar = *(it + TSPAN - TWEIGHT);
+    me.hValue = me.hashBuffer[0];
+    for(unsigned k = 0; k < TSPAN - TWEIGHT + 1; k++)
     {
-        me.last_hValue =
-        (me.last_hValue - ordValue(me.m_leftChar) * (THValue)me.m_leftFactor) * ValueSize<TValue>::VALUE
-        + ordValue((TValue)*(it + ((TSize)TSPAN - 1)));
-        me.m_leftChar = *(it + TSPAN - TWEIGHT);
-        if (me.hValue < me.last_hValue)
-            me.first--; 
-        else 
-        {
-            me.hValue = me.last_hValue;
-            me.first = TSPAN - TWEIGHT;
-        }
-
+        if (me.hValue > me.hashBuffer[k]) 
+            me.hValue = me.hashBuffer[k];
     }
-    else 
-        me.hValue = hash(me, it);
-
-    //std::cout << "me.u_hValue = " << me.u_hValue << "me.leftChar = " << me.leftChar << std::endl;
-    
-    me.u_hValue = 
-            (me.u_hValue - ordValue(me.leftChar) * (THValue)me.leftFactor) * ValueSize<TValue>::VALUE
-            + ordValue((TValue)*(it + ((TSize)TSPAN - 1)));
+    me.u_hValue = (me.u_hValue - ordValue(me.leftChar) * (THValue)me.leftFactor) * ValueSize<TValue>::VALUE 
+                  + ordValue((TValue)*(it + ((TSize)TSPAN -1)));
     me.leftChar = *it;
     return me.hValue;
-}
+} 
 
 }	// namespace seqan
-
 
 #endif
