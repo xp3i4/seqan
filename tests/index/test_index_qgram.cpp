@@ -55,11 +55,18 @@ using namespace seqan;
 
 SEQAN_BEGIN_TESTSUITE(test_index)
 {
-	SEQAN_CALL_TEST(testStepSize);
+/*	SEQAN_CALL_TEST(testStepSize);
 	SEQAN_CALL_TEST(testGappedShapes);
 	SEQAN_CALL_TEST(testUngappedShapes);
 	SEQAN_CALL_TEST(testUngappedQGramIndex);
+*/
 	SEQAN_CALL_TEST(testUngappedQGramIndexMulti);
+
 	SEQAN_CALL_TEST(testQGramFind);
+    SEQAN_CALL_TEST(test_index_minimizer_hash);
+    SEQAN_CALL_TEST(test_index_minimizer_hashNext);
+    SEQAN_CALL_TEST(test_index_minimizer_getOccurrences);
+    SEQAN_CALL_TEST(test_index_minimizer_getOccurrences_from_file);
+
 }
 SEQAN_END_TESTSUITE

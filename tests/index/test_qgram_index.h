@@ -34,8 +34,10 @@
 
 #ifndef TESTS_INDEX_TEST_QGRAM_INDEX_H
 #define TESTS_INDEX_TEST_QGRAM_INDEX_H
-
-
+#include <ctime>
+#include <string>
+#include <seqan/parallel.h>
+#include <seqan/store.h>
 //////////////////////////////////////////////////////////////////////////////
 
 namespace SEQAN_NAMESPACE_MAIN
@@ -318,6 +320,7 @@ SEQAN_DEFINE_TEST(testUngappedQGramIndexMulti)
         SEQAN_ASSERT_EQ_MSG(dirAt(i, refIndex), dirAt(i, testIndex), "i is %d", i);
     for (unsigned i = 0; i < length(indexSA(refIndex)); ++i)
         SEQAN_ASSERT_EQ_MSG(saAt(i, refIndex), saAt(i, testIndex), "i is %d", i);
+
 }
 
 
@@ -344,7 +347,204 @@ SEQAN_DEFINE_TEST(testQGramFind)
 
 //////////////////////////////////////////////////////////////////////////////
 
+SEQAN_DEFINE_TEST(test_index_minimizer_hash)
+{
+    String<Dna5Q> text =  "CACGCATTTTGCATTAACCGGGGGGGCTCCCCCCCCCCCCCCCCCCCTGCCCCCCCCTTTTTTTTTT";
+    StringSet<DnaString> set1;
+    appendValue(set1, text);
+    const unsigned SHAPE_LENGTH = 4;
+    const unsigned SHAPE_WEIGHT = 2;
+    const unsigned FLAG = 1;
+    const unsigned UNFLAG = 0;
 
+    typedef Shape<Dna5Q, MinimizerShape<SHAPE_LENGTH, SHAPE_WEIGHT> > MiniShape;
+    typedef Shape<Dna5Q, UngappedShape<SHAPE_LENGTH> > Ungapped_L_Shape;
+    typedef Shape<Dna5Q, UngappedShape<SHAPE_WEIGHT> > Ungapped_W_Shape;
+
+    MiniShape m_shape; 
+    Ungapped_L_Shape ul_shape;
+    std::cout << text << std::endl;
+    hashInit(m_shape, begin(text));
+    hashInit(ul_shape, begin(text));
+    for (unsigned k = 0; k < length(text) - SHAPE_LENGTH + 1; k++)
+    {   
+        hash(m_shape, begin(text) + k);
+        hash(ul_shape, begin(text) + k); 
+        SEQAN_ASSERT_EQ(m_shape.u_hValue, ul_shape.hValue);
+    }
+    
+    Ungapped_W_Shape uw_shape;
+    for (unsigned k = 0; k < length(text) - SHAPE_LENGTH + 1; k++)
+    {
+        hash(m_shape, begin(text) + k);
+        unsigned flag = UNFLAG;
+        for(unsigned j = 0; j < SHAPE_LENGTH - SHAPE_WEIGHT + 1; j++)
+        {
+            hash(uw_shape, begin(text) + k + j);
+            if (uw_shape.hValue == m_shape.hValue)
+                flag = FLAG;
+            else
+                SEQAN_ASSERT_LT(m_shape.hValue, uw_shape.hValue);
+        }
+        SEQAN_ASSERT_EQ(flag, FLAG);
+    } 
+    std::cout << std::endl;
+}
+
+SEQAN_DEFINE_TEST(test_index_minimizer_hashNext)
+{
+    String<Dna5Q> text =  "CACGCATTTTGCATTAACCGGGGGGGCTCCCCCCCCCCCCCCCCCCCTGCCCCCCCCTTTTTTTTTT";
+    StringSet<DnaString> set1;
+    appendValue(set1, text);
+    const unsigned SHAPE_LENGTH = 4;
+    const unsigned SHAPE_WEIGHT = 2;
+    const unsigned FLAG = 1;
+    const unsigned UNFLAG = 0;
+
+    typedef Shape<Dna5Q, MinimizerShape<SHAPE_LENGTH, SHAPE_WEIGHT> > MiniShape;
+    typedef Shape<Dna5Q, UngappedShape<SHAPE_LENGTH> > Ungapped_L_Shape;
+    typedef Shape<Dna5Q, UngappedShape<SHAPE_WEIGHT> > Ungapped_W_Shape;
+
+    MiniShape m_shape; 
+    Ungapped_L_Shape ul_shape;
+    std::cout << text << std::endl;
+    hashInit(m_shape, begin(text));
+    hashInit(ul_shape, begin(text));
+    for (unsigned k = 0; k < length(text) - SHAPE_LENGTH + 1; k++)
+    {   
+        hashNext(m_shape, begin(text) + k);
+        hashNext(ul_shape, begin(text) + k); 
+        SEQAN_ASSERT_EQ(m_shape.u_hValue, ul_shape.hValue);
+    }
+    
+    Ungapped_W_Shape uw_shape;
+    hashInit(m_shape, begin(text));
+    hashInit(uw_shape, begin(text));
+    for (unsigned k = 0; k < length(text) - SHAPE_LENGTH + 1; k++)
+    {
+        hashNext(m_shape, begin(text) + k);
+        unsigned flag = UNFLAG;
+        for(unsigned j = 0; j < SHAPE_LENGTH - SHAPE_WEIGHT + 1; j++)
+        {
+            hash(uw_shape, begin(text) + k + j);
+            if (uw_shape.hValue == m_shape.hValue)
+                flag = FLAG;
+            else
+                SEQAN_ASSERT_LT(m_shape.hValue, uw_shape.hValue);
+        }
+        SEQAN_ASSERT_EQ(flag, FLAG);
+    } 
+    std::cout << std::endl;
+}
+
+//////////////////////////////////////////////////////////////////////////////
+
+SEQAN_DEFINE_TEST(test_index_minimizer_getOccurrences)
+{
+    const unsigned SHAPE_LENGTH = 5;
+    const unsigned SHAPE_WEIGHT = 2;
+    
+    typedef String<Dna5Q>                                             TText;
+    //typedef Infix<TText>::Type                                      TTextInfix;
+    typedef Iterator<TText, Standard>::Type                         TTextIter;
+    typedef Index<TText, IndexQGram<MinimizerShape<SHAPE_LENGTH, SHAPE_WEIGHT>, Minimizer > >      TIndex;
+    typedef Fibre<TIndex, FibreSA>::Type const                      TSA;
+    typedef Infix<TSA>::Type                                        TOccurrences;
+    typedef Shape<Dna5Q, MinimizerShape<SHAPE_LENGTH, SHAPE_WEIGHT> >                     MiniShape;
+    typedef Shape<Dna5Q, UngappedShape<SHAPE_LENGTH> >                                    Ungapped_L_Shape;
+    //typedef Shape<Dna5Q, UngappedShape<SHAPE_WEIGHT> >                                  Ungapped_W_Shape;
+
+    TText text = "CACGCATTTTGCATTGCTGCTCGGTCAACCGGGGGGGCTCCCCCCCCCCCCCCCCCCCTGCCCCCCCCTTTTTTTTTT"; 
+    TText queryText = "CAGTCGGGCTCCCCCCCCCCGTGTCTGGC";
+    TIndex index(text);
+    const TTextIter itBegin = begin(text, Standard());
+    const TTextIter itEnd = end(text, Standard()) - length(indexShape(index)) + 1;
+    const unsigned FLAG = 1;
+    const unsigned UNFLAG =0;
+
+    std::cout << text << std::endl;
+    indexCreate(index, FibreSADir());
+
+    MiniShape m_shape; 
+    Ungapped_L_Shape ul_shape;
+    Ungapped_L_Shape ul_tmpShape;
+    hashInit(m_shape, itBegin);
+    hashInit(ul_shape, itBegin);
+    for (unsigned k = 0; k < itEnd - itBegin; k++)
+    {
+        unsigned flag = UNFLAG;     
+        hashNext(m_shape, itBegin + k);
+        hashNext(ul_shape, itBegin + k);
+        TOccurrences occ = getOccurrences(index, m_shape);
+        SEQAN_ASSERT_LT(0u, length(occ));
+        for (long unsigned int j = 0; j < length(occ); j++)
+        {
+            if(occ[j] == k)
+                flag = FLAG;
+            SEQAN_ASSERT_EQ(ul_shape.hValue, hash(ul_tmpShape, itBegin + occ[j]));
+        }
+        SEQAN_ASSERT_EQ(flag, FLAG);
+    }
+
+}
+
+SEQAN_DEFINE_TEST(test_index_minimizer_getOccurrences_from_file)
+{
+    const unsigned SHAPE_LENGTH = 25;
+    const unsigned SHAPE_WEIGHT = 10;
+    const unsigned FLAG = 1;
+    const unsigned UNFLAG = 0;
+
+    typedef Iterator<String<Dna5Q> >::Type TIter;
+    typedef Shape<Dna5Q, MinimizerShape<SHAPE_LENGTH, SHAPE_WEIGHT> > MiniShape;
+    typedef FragmentStore<>::TReadSeqStore TReadSeqStore;
+    typedef Shape<Dna5Q, UngappedShape<SHAPE_LENGTH> >                  Ungapped_L_Shape;
+    typedef Index<TReadSeqStore, IndexQGram< MinimizerShape<SHAPE_LENGTH, SHAPE_WEIGHT>, Minimizer> > TIndex;
+    //typedef Index<TReadSeqStore, IndexQGram<UngappedShape<SHAPE_LENGTH>, OpenAddressing > > TIndex;
+
+    typedef Fibre<TIndex, FibreSA>::Type const      TSA;
+    typedef Infix<TSA>::Type                        TOccurrences;
+ 
+    const std::string readsFile = "ecoli.fasta";
+    const std::string genomeFile = "ecoli.fasta";
+
+    FragmentStore<> fragStore; 
+    loadReads(fragStore, readsFile);
+    loadContigs(fragStore, genomeFile); 
+    TIndex index(fragStore.readSeqStore);
+    std::cout << length(fragStore.contigStore) <<std::endl;
+    for (unsigned i = 0; i < length(fragStore.contigStore); ++i)
+    {
+        TIter it = begin(fragStore.contigStore[i].seq);
+        unsigned itLength= end(fragStore.contigStore[i].seq) - begin(fragStore.contigStore[i].seq) - SHAPE_LENGTH + 1;
+        std::cout << itLength << std::endl;
+        indexCreate(index, FibreSADir());
+        
+        MiniShape m_shape; 
+        Ungapped_L_Shape ul_shape;
+        Ungapped_L_Shape ul_tmpShape;
+        hashInit(m_shape, it);
+        hashInit(ul_shape, it);
+        for (long unsigned int k = 0; k < itLength; k++)
+        {
+            unsigned flag = UNFLAG;     
+            hashNext(m_shape, it + k);
+            hashNext(ul_shape, it + k);
+            TOccurrences occ = getOccurrences(index, m_shape);
+            SEQAN_ASSERT_LT(0u, length(occ));
+            //std::cout << length(occ) << std::endl;
+            for (long unsigned int j = 0; j < length(occ); j++)
+            {
+                if(occ[j].i2 == k)
+                    flag = FLAG;
+                SEQAN_ASSERT_EQ(ul_shape.hValue, hash(ul_tmpShape, it + occ[j].i2));
+            }
+            SEQAN_ASSERT_EQ(flag, FLAG);
+        } 
+    }
+}
+
+/////////////////////////////////////////////////////////////////////////////
 } //namespace SEQAN_NAMESPACE_MAIN
 
 #endif //#ifndef SEQAN_HEADER_...

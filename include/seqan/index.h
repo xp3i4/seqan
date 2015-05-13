@@ -89,6 +89,7 @@
 #include <seqan/index/shape_minimizer.h>
 #include <seqan/index/index_qgram.h>
 #include <seqan/index/index_qgram_openaddressing.h>
+#include <seqan/index/index_qgram_minimizer.h>
 
 // ----------------------------------------------------------------------------
 // Suffix array creators.
