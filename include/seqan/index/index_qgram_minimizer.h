@@ -83,7 +83,8 @@ public:
     TSize               stepSize;    // store every <stepSize>'th q-gram in the index
 
     Index():
-    stepSize(1) {}
+    stepSize(1)
+    {}
 
     Index(Index &other):
     text(other.text),
@@ -274,14 +275,12 @@ inline typename Infix<typename Fibre<Index<TText, IndexQGram<MinimizerShape<TSPA
     typedef typename Fibre<TIndex, FibreHashSA>::Type                               THashSA;
     typedef typename Iterator<THashSA>::Type                                        THashSAIterator; 
    
-    THashSAIterator hsBegin = begin(indexHashSA(index));
     unsigned s_begin  = dirAt(shape.hValue, index);
     unsigned s_end = dirAt(shape.hValue + 1, index);
-    unsigned s_r = s_end - s_begin;        
-    THashSAIterator s_hsBegin = hsBegin + s_begin;
+    THashSAIterator s_hsBegin = begin(indexHashSA(index)) + s_begin;
 
     unsigned m = 0;
-    for (; m < s_r; m++)
+    for (; m < s_end - s_begin; m++)
     {
         if(*(s_hsBegin + m) == shape.u_hValue)
         {
@@ -290,7 +289,7 @@ inline typename Infix<typename Fibre<Index<TText, IndexQGram<MinimizerShape<TSPA
     }
 
     unsigned n = m;
-    for (; n < s_r; n++)
+    for (; n < s_end - s_begin; n++)
     {
         if(*(s_hsBegin + n) != shape.u_hValue)
         {
@@ -299,6 +298,279 @@ inline typename Infix<typename Fibre<Index<TText, IndexQGram<MinimizerShape<TSPA
     
     } 
     return infix(indexSA(index), s_begin + m, s_begin + n); 
+}
+
+/*
+template <typename TText, unsigned TSPAN, unsigned TWEIGHT, typename TShapeSpec, typename TValue>
+//inline typename Size< typename Fibre< Index< TText, IndexQGram<TShapeSpec, Minimizer> >, FibreSA>::Type const >::Type 
+inline uint64_t countOccurrences(Index<TText, IndexQGram<MinimizerShape<TSPAN, TWEIGHT, TShapeSpec>, Minimizer> > &index, Shape<TValue, MinimizerShape<TSPAN, TWEIGHT> > &shape)
+{
+    typedef Index<TText, IndexQGram<MinimizerShape<TSPAN, TWEIGHT>, Minimizer> >    TIndex;
+    typedef typename Fibre<TIndex, FibreHashSA>::Type                               THashSA;
+    typedef typename Iterator<THashSA>::Type                                        THashSAIterator; 
+   
+    unsigned s_begin  = dirAt(shape.hValue, index); 
+    unsigned s_end = dirAt(shape.hValue + 1, index);
+    THashSAIterator s_hsBegin = begin(indexHashSA(index)) + s_begin;
+
+    //return 0;//dirAt(shape.hValue + 1, index) ;//- dirAt(shape.hValue, index);
+    uint64_t m = 0, n;
+    //m = s_begin; 
+    //n = s_end;
+
+    if (*(s_hsBegin + m + 4) < shape.u_hValue) 
+        for (m = 0; m < 3; m++)
+            if (*(s_hsBegin + m ) == shape.u_hValue)
+                break;
+    else
+        for (m = 5; m < 8; m++)
+        {
+            if(*(s_hsBegin + m) == shape.u_hValue)
+            {
+                break;
+            }
+        }
+
+    n = m;
+
+    for (; n < s_end - s_begin; n++)
+    {
+        if(*(s_hsBegin + n) != shape.u_hValue)
+        {
+            break;
+        }
+    
+    } 
+
+    return  m; 
+}
+*/
+
+template <typename TText, unsigned TSPAN, unsigned TWEIGHT, typename TShapeSpec, typename TValue>
+//inline typename Size< typename Fibre< Index< TText, IndexQGram<TShapeSpec, Minimizer> >, FibreSA>::Type const >::Type 
+inline uint64_t countOccurrences(Index<TText, IndexQGram<MinimizerShape<TSPAN, TWEIGHT, TShapeSpec>, Minimizer> > &index, Shape<TValue, MinimizerShape<TSPAN, TWEIGHT> > &shape)
+{
+    typedef Index<TText, IndexQGram<MinimizerShape<TSPAN, TWEIGHT>, Minimizer> >    TIndex;
+    typedef typename Fibre<TIndex, FibreHashSA>::Type                               THashSA;
+    typedef typename Iterator<THashSA>::Type                                        THashSAIterator; 
+   
+    unsigned s_begin  = dirAt(shape.hValue, index); 
+    
+    unsigned s_end = dirAt(shape.hValue + 1, index);
+    THashSAIterator s_hsBegin = begin(indexHashSA(index)) + s_begin;
+
+    //return 0;//dirAt(shape.hValue + 1, index) ;//- dirAt(shape.hValue, index);
+    unsigned  m = 0, n;
+    //m = s_begin; 
+    //n = s_end;
+
+    if (*(s_hsBegin + (s_end - s_begin) / 2) < shape.u_hValue) 
+        for (m = 0; m < (s_end - s_begin) / 2; m++)
+            if (*(s_hsBegin + m ) == shape.u_hValue)
+                break;
+    else
+        for (m = (s_end - s_begin) / 2;  m < s_end; m++)
+        {
+            if(*(s_hsBegin + m) == shape.u_hValue)
+            {
+                break;
+            }
+        }
+
+/*
+    n = m;
+
+    for (; n < s_end - s_begin; n++)
+    {
+        if(*(s_hsBegin + n) != shape.u_hValue)
+        {
+            break;
+        }
+    
+    } 
+*/
+    return  m; 
+}
+
+template <typename TText, unsigned TSPAN, unsigned TWEIGHT, typename TShapeSpec, typename TValue>
+inline uint64_t countOccurrences(Index<TText, IndexQGram<MinimizerShape<TSPAN, TWEIGHT, TShapeSpec>, Minimizer> > &index, Shape<TValue, MinimizerShape<TSPAN, TWEIGHT> > &shape, unsigned &s_begin, unsigned &s_end, uint64_t &pre_hash, unsigned s_len)
+{
+    typedef Index<TText, IndexQGram<MinimizerShape<TSPAN, TWEIGHT>, Minimizer> >    TIndex;
+    typedef typename Fibre<TIndex, FibreHashSA>::Type                               THashSA;
+    typedef typename Iterator<THashSA>::Type                                        THashSAIterator; 
+    
+    if (shape.hValue != pre_hash) 
+    {
+        pre_hash = shape.hValue;
+        s_begin  = dirAt(shape.hValue, index); 
+        s_end = dirAt(shape.hValue + 1, index);
+        s_len = (s_end - s_begin) / 2;
+    }
+    
+
+    THashSAIterator s_hsBegin = begin(indexHashSA(index)) + s_begin;
+
+    //return 0;//dirAt(shape.hValue + 1, index) ;//- dirAt(shape.hValue, index);
+    unsigned  m = 0, n;
+    //m = s_begin; 
+    //n = s_end;
+    
+        if (*(s_hsBegin + s_len) < shape.u_hValue) 
+            for (; m < s_len; m++)
+                if (*(s_hsBegin + m ) == shape.u_hValue)
+                    break;
+        
+        else
+            for (m = s_len;  m < 2 * s_len;  m++)
+                if(*(s_hsBegin + m) == shape.u_hValue)
+                    break;
+
+
+/*
+    n = m;
+
+    for (; n < s_end - s_begin; n++)
+    {
+        if(*(s_hsBegin + n) != shape.u_hValue)
+        {
+            break;
+        }
+    
+    } 
+*/
+    return m;
+    
+}
+
+/*
+
+template <typename TText, unsigned TSPAN, unsigned TWEIGHT, typename TShapeSpec, typename TValue>
+//inline typename Size< typename Fibre< Index< TText, IndexQGram<TShapeSpec, Minimizer> >, FibreSA>::Type const >::Type 
+inline uint64_t countOccurrences(Index<TText, IndexQGram<MinimizerShape<TSPAN, TWEIGHT, TShapeSpec>, Minimizer> > &index, Shape<TValue, MinimizerShape<TSPAN, TWEIGHT> > &shape)
+{
+    typedef Index<TText, IndexQGram<MinimizerShape<TSPAN, TWEIGHT>, Minimizer> >    TIndex;
+    typedef typename Fibre<TIndex, FibreHashSA>::Type                               THashSA;
+    typedef typename Iterator<THashSA>::Type                                        THashSAIterator; 
+    //typedef typename Size< typename Fibre< Index< TText, IndexQGram<TShapeSpec, Minimizer> >, FibreSA>::Type const >::Type TOcc;
+   
+    unsigned s_lower = dirAt(shape.hValue, index);
+    THashSAIterator it = begin(indexHashSA(index));
+    
+    uint64_t block_left  = dirAt(shape.hValue, index);  
+    uint64_t block_right = dirAt(shape.hValue + 1, index) ;
+    uint64_t block_p = block_left;
+    //uint64_t s_r = s_end - s_begin;        
+    //uint64_t block_begin = s_begin / 8;
+    //uint64_t block_end = s_end / 8; 
+    //THashSAIterator s_hsBegin = hsBegin + block_p;
+    //TOcc 
+
+    unsigned s_upper = dirAt(shape.hValue + 1, index);
+    
+    if(s_upper - s_lower > 32)
+    while (s_lower < s_upper)
+    {
+        if(*(it + (s_upper + s_lower) / 2) == shape.u_hValue) 
+            break;
+        if(*(it + (s_upper + s_lower) / 2) > shape.u_hValue)
+        {
+            s_upper = (s_upper + s_lower) / 2;
+            continue;
+        }
+        if(*(it + (s_upper + s_lower) /2) < shape.u_hValue)
+        {
+            s_lower = (s_upper + s_lower) / 2;
+            continue;
+        }
+    } 
+    else
+    {
+        unsigned m = 0, n;
+        for (; m < s_upper - s_lower; m++)
+        {
+            if(*(it + s_lower + m) == shape.u_hValue)
+            {
+                break;
+            }
+        }
+
+        n = m;
+        for (; n < s_upper - s_lower; n++)
+        {
+            if(*(it + s_lower + n) != shape.u_hValue)
+            {
+                break;
+            }
+    
+        }
+    }    
+
+    return s_upper - s_lower;
+}
+*/
+template < typename TText, typename TShapeSpec>
+inline bool open(
+    Index< TText, IndexQGram<TShapeSpec, Minimizer> > &index,
+    const char *fileName,
+    int openMode)
+{    
+    String<char> name;
+
+    name = fileName;    append(name, ".txt");
+    if ((!open(getFibre(index, QGramText()), toCString(name), openMode)) &&
+        (!open(getFibre(index, QGramText()), fileName, openMode))) return false;
+
+    name = fileName;    append(name, ".sa");
+    if (!open(getFibre(index, QGramSA()), toCString(name), openMode)) return false;
+
+    name = fileName;    append(name, ".dir");
+    if (!open(getFibre(index, QGramDir()), toCString(name), openMode)) return false;
+    
+    name = fileName;    append(name, ".hsa");
+    if (!open(getFibre(index, QGramHashSA()), toCString(name), openMode)) return false;
+
+    return true;
+}
+
+template < typename TText, typename TShapeSpec>
+inline bool open(
+    Index< TText, IndexQGram<TShapeSpec, Minimizer> > &index,
+    const char *fileName)
+{
+    return open(index, fileName, OPEN_RDONLY);
+}
+
+
+template < typename TText, typename TShapeSpec >
+inline bool save(
+    Index< TText, IndexQGram<TShapeSpec, Minimizer> > &index,
+    const char *fileName,
+    int openMode)
+{
+    String<char> name;
+    std::cout << name << std::endl; 
+    name = fileName;    append(name, ".txt");
+    if ((!save(getFibre(index, QGramText()), toCString(name), openMode)) &&
+        (!save(getFibre(index, QGramText()), fileName, openMode))) return false;
+    
+    name = fileName;    append(name, ".sa");
+    if (!save(getFibre(index, QGramSA()), toCString(name), openMode)) return false;
+
+    name = fileName;    append(name, ".dir");
+    if (!save(getFibre(index, QGramDir()), toCString(name), openMode)) return false;
+
+    name = fileName;    append(name, ".hsa");
+    if(!save(getFibre(index, QGramHashSA()), toCString(name), openMode)) return false;
+
+    return true;
+}
+
+template < typename TText, typename TShapeSpec>
+inline bool save(
+    Index< TText, IndexQGram<TShapeSpec, Minimizer> > &index,
+    const char *fileName)
+{
+    return save(index, fileName, OPEN_WRONLY | OPEN_CREATE);
 }
 
 

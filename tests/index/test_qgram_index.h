@@ -352,8 +352,8 @@ SEQAN_DEFINE_TEST(test_index_minimizer_hash)
     String<Dna5Q> text =  "CACGCATTTTGCATTAACCGGGGGGGCTCCCCCCCCCCCCCCCCCCCTGCCCCCCCCTTTTTTTTTT";
     StringSet<DnaString> set1;
     appendValue(set1, text);
-    const unsigned SHAPE_LENGTH = 4;
-    const unsigned SHAPE_WEIGHT = 2;
+    const unsigned SHAPE_LENGTH = 20;
+    const unsigned SHAPE_WEIGHT = 12;
     const unsigned FLAG = 1;
     const unsigned UNFLAG = 0;
 
@@ -377,6 +377,7 @@ SEQAN_DEFINE_TEST(test_index_minimizer_hash)
     for (unsigned k = 0; k < length(text) - SHAPE_LENGTH + 1; k++)
     {
         hash(m_shape, begin(text) + k);
+        std::cout << m_shape.hValue << " " << k << std::endl; 
         unsigned flag = UNFLAG;
         for(unsigned j = 0; j < SHAPE_LENGTH - SHAPE_WEIGHT + 1; j++)
         {
@@ -393,17 +394,19 @@ SEQAN_DEFINE_TEST(test_index_minimizer_hash)
 
 SEQAN_DEFINE_TEST(test_index_minimizer_hashNext)
 {
-    String<Dna5Q> text =  "CACGCATTTTGCATTAACCGGGGGGGCTCCCCCCCCCCCCCCCCCCCTGCCCCCCCCTTTTTTTTTT";
+    String<Dna> text =  "CACGCATTTTGCATTAACCGGGGGGGCTCCCCCCCCCCCCCCCCCCCTGCCCCCCCCTTTTTTTTTT";
+    DnaString tmp;
+    DnaString tmp1;
     StringSet<DnaString> set1;
     appendValue(set1, text);
-    const unsigned SHAPE_LENGTH = 4;
-    const unsigned SHAPE_WEIGHT = 2;
+    const unsigned SHAPE_LENGTH = 20;
+    const unsigned SHAPE_WEIGHT = 12;
     const unsigned FLAG = 1;
     const unsigned UNFLAG = 0;
 
-    typedef Shape<Dna5Q, MinimizerShape<SHAPE_LENGTH, SHAPE_WEIGHT> > MiniShape;
-    typedef Shape<Dna5Q, UngappedShape<SHAPE_LENGTH> > Ungapped_L_Shape;
-    typedef Shape<Dna5Q, UngappedShape<SHAPE_WEIGHT> > Ungapped_W_Shape;
+    typedef Shape<Dna, MinimizerShape<SHAPE_LENGTH, SHAPE_WEIGHT> > MiniShape;
+    typedef Shape<Dna, UngappedShape<SHAPE_LENGTH> > Ungapped_L_Shape;
+    typedef Shape<Dna, UngappedShape<SHAPE_WEIGHT> > Ungapped_W_Shape;
 
     MiniShape m_shape; 
     Ungapped_L_Shape ul_shape;
@@ -420,13 +423,16 @@ SEQAN_DEFINE_TEST(test_index_minimizer_hashNext)
     Ungapped_W_Shape uw_shape;
     hashInit(m_shape, begin(text));
     hashInit(uw_shape, begin(text));
+    std::cout << std::endl;
     for (unsigned k = 0; k < length(text) - SHAPE_LENGTH + 1; k++)
     {
         hashNext(m_shape, begin(text) + k);
         unsigned flag = UNFLAG;
+        unhash(tmp1, m_shape.hValue, 12);
         for(unsigned j = 0; j < SHAPE_LENGTH - SHAPE_WEIGHT + 1; j++)
         {
             hash(uw_shape, begin(text) + k + j);
+            //std::cout << k << " " << j << " " << tmp << " " << tmp1 << std::endl;
             if (uw_shape.hValue == m_shape.hValue)
                 flag = FLAG;
             else
@@ -441,8 +447,8 @@ SEQAN_DEFINE_TEST(test_index_minimizer_hashNext)
 
 SEQAN_DEFINE_TEST(test_index_minimizer_getOccurrences)
 {
-    const unsigned SHAPE_LENGTH = 5;
-    const unsigned SHAPE_WEIGHT = 2;
+    const unsigned SHAPE_LENGTH = 20;
+    const unsigned SHAPE_WEIGHT = 12;
     
     typedef String<Dna5Q>                                             TText;
     //typedef Infix<TText>::Type                                      TTextInfix;
@@ -454,7 +460,7 @@ SEQAN_DEFINE_TEST(test_index_minimizer_getOccurrences)
     typedef Shape<Dna5Q, UngappedShape<SHAPE_LENGTH> >                                    Ungapped_L_Shape;
     //typedef Shape<Dna5Q, UngappedShape<SHAPE_WEIGHT> >                                  Ungapped_W_Shape;
 
-    TText text = "CACGCATTTTGCATTGCTGCTCGGTCAACCGGGGGGGCTCCCCCCCCCCCCCCCCCCCTGCCCCCCCCTTTTTTTTTT"; 
+    TText text = "CACGCATTTTGCATTAACCGGGGGGGCTCCCCCCCCCCCCCCCCCCCTGCCCCCCCCTTTTTTTTTT";
     TText queryText = "CAGTCGGGCTCCCCCCCCCCGTGTCTGGC";
     TIndex index(text);
     const TTextIter itBegin = begin(text, Standard());
@@ -490,8 +496,8 @@ SEQAN_DEFINE_TEST(test_index_minimizer_getOccurrences)
 
 SEQAN_DEFINE_TEST(test_index_minimizer_getOccurrences_from_file)
 {
-    const unsigned SHAPE_LENGTH = 25;
-    const unsigned SHAPE_WEIGHT = 10;
+    const unsigned SHAPE_LENGTH = 20;
+    const unsigned SHAPE_WEIGHT = 12;
     const unsigned FLAG = 1;
     const unsigned UNFLAG = 0;
 
@@ -512,6 +518,7 @@ SEQAN_DEFINE_TEST(test_index_minimizer_getOccurrences_from_file)
     loadReads(fragStore, readsFile);
     loadContigs(fragStore, genomeFile); 
     TIndex index(fragStore.readSeqStore);
+    TOccurrences occ;
     std::cout << length(fragStore.contigStore) <<std::endl;
     for (unsigned i = 0; i < length(fragStore.contigStore); ++i)
     {
@@ -524,13 +531,16 @@ SEQAN_DEFINE_TEST(test_index_minimizer_getOccurrences_from_file)
         Ungapped_L_Shape ul_shape;
         Ungapped_L_Shape ul_tmpShape;
         hashInit(m_shape, it);
+        //hashInit(indexShape(index), it);
         hashInit(ul_shape, it);
         for (long unsigned int k = 0; k < itLength; k++)
         {
             unsigned flag = UNFLAG;     
             hashNext(m_shape, it + k);
+            //hashNext(indexShape(index), it + k);
             hashNext(ul_shape, it + k);
-            TOccurrences occ = getOccurrences(index, m_shape);
+            occ = getOccurrences(index, m_shape);
+            //TOccurrences occ = getOccurrences(index, indexShape(index));
             SEQAN_ASSERT_LT(0u, length(occ));
             //std::cout << length(occ) << std::endl;
             for (long unsigned int j = 0; j < length(occ); j++)
@@ -541,6 +551,7 @@ SEQAN_DEFINE_TEST(test_index_minimizer_getOccurrences_from_file)
             }
             SEQAN_ASSERT_EQ(flag, FLAG);
         } 
+        std::cout << occ[0] << std::endl;
     }
 }
 

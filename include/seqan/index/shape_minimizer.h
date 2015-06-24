@@ -47,6 +47,8 @@ struct MinimizerShape;
 // Class Shape<MinimizerShape>
 // ----------------------------------------------------------------------------
 
+#define Minimizer_Window_Lengh 9 
+
 template <typename TValue, unsigned TSPAN, unsigned TWEIGHT, typename TSpec>
 class Shape<TValue, MinimizerShape<TSPAN, TWEIGHT, TSpec> >
 {
@@ -56,9 +58,10 @@ public:
     unsigned span;
     unsigned weight;
     unsigned hPointer;
+    unsigned minP;
     THashValue hValue;      //minimizer hash value;
     THashValue u_hValue;    //ungapped hash value;
-    THashValue hashBuffer[TSPAN - TWEIGHT + 1];
+    THashValue hashBuffer[Minimizer_Window_Lengh];
     static const THashValue leftFactor = Power<ValueSize<TValue>::VALUE, TSPAN - 1>::VALUE;
     static const THashValue m_leftFactor = Power<ValueSize<TValue>::VALUE, TWEIGHT - 1>::VALUE;
     TValue  m_leftChar; 
@@ -67,7 +70,39 @@ public:
     Shape():
         span(TSPAN),
         weight(TWEIGHT)
-    {}
+        //hPointer(0),
+        //hValue(0),
+        //u_hValue(0),
+        //m_leftChar(0),
+        //leftChar(0)
+    {
+        /*for (unsigned k = 0; k < TSPAN - TWEIGHT + 1; k++)
+            hashBuffer[k] = 0;       */ 
+    }
+/*
+    Shape(Shape<TValue, MinimizerShape<TSPAN, TWEIGHT, TSpec> > const &other)
+    {
+        *this = other;
+    }
+    
+    inline Shape &
+    operator=(Shape<TValue, MinimizerShape<TSPAN, TWEIGHT, TSpec> > const &other)
+    {
+        span = other.span;
+        hValue = other.hValue;         
+        hPointer = other.hPointer;         
+        hValue = other.hValue;
+        u_hValue = other.u_hValue;
+        m_leftChar = other.m_leftChar;
+        leftChar = other.leftChar;
+        for (unsigned k = 0; k < TSPAN - TWEIGHT + 1; k++)
+        {
+            hashBuffer[k] = other.hashBuffer[k];
+        }
+
+        return *this;
+    }
+    */
 };
 
 // ----------------------------------------------------------------------------
@@ -122,15 +157,24 @@ _minHash(Shape<TValue, MinimizerShape<TSPAN, TWEIGHT, TSpec> > &me, TIter const 
     THValue miniTmp;
     me.hValue = hash(tmpShape, it); 
     me.hashBuffer[0] = tmpShape.hValue;
-    for (unsigned k = 1; k < TSPAN - TWEIGHT + 1; k++ )
+    THValue _max = me.hashBuffer[0]; 
+    THValue _min = me.hashBuffer[0];
+    for (unsigned k = 1; k < Minimizer_Window_Lengh;k++ )
     {
         me.hashBuffer[k] = hashNext(tmpShape, it + k);
-        if (me.hValue > me.hashBuffer[k])
-            me.hValue = me.hashBuffer[k];
+        if (_min > me.hashBuffer[k])
+        {
+            _min = me.hashBuffer[k];
+            me.minP = k;
+            continue;
+        }
+        //if (_max < me.hashBuffer[k])
+        //    _max = me.hashBuffer[k];
     }
-    me.m_leftChar = *(it + TSPAN - TWEIGHT);
+    me.hValue = _min;//atomicXor(_min, _max);
+    me.m_leftChar = *(it + Minimizer_Window_Lengh - 1);
     me.leftChar = *(it + TSPAN - 1);
-    me.hPointer = TSPAN - TWEIGHT;
+    me.hPointer = Minimizer_Window_Lengh - 1;
     me.u_hValue = hash(u_tmpShape, it);
 
     return me.hValue;
@@ -155,14 +199,16 @@ inline void hashInit(Shape<TValue, MinimizerShape<TSPAN, TWEIGHT, TSpec> > &me, 
     Shape<TValue, UngappedShape<TSPAN> > tmpShape;
     Shape<TValue, UngappedShape<TWEIGHT> > u_shape;
     hashInit(u_shape, it); 
-    for(unsigned k = 0; k < TSPAN - TWEIGHT + 1; k++) 
+    for(unsigned k = 0; k < Minimizer_Window_Lengh; k++) 
     {
         me.hashBuffer[k] = hashNext(u_shape, it + k);
     }
-    me.m_leftChar = *(it + TSPAN - TWEIGHT -1);
-    me.hPointer = TSPAN - TWEIGHT - 1;
+    me.m_leftChar = *(it + Minimizer_Window_Lengh - 2);
+    me.hPointer = Minimizer_Window_Lengh - 2;
     me.u_hValue = hashInit(tmpShape, it);
     me.leftChar = 0;
+    me.hValue = 999999999999999;
+    me.minP = (me.hPointer + 1) % Minimizer_Window_Lengh;
 }
 
 template <typename TValue, unsigned TSPAN, unsigned TWEIGHT, typename TSpec, typename TIter>
@@ -173,24 +219,74 @@ hashNext(Shape<TValue, MinimizerShape<TSPAN, TWEIGHT, TSpec> > &me, TIter const 
     typedef typename Size<Shape<TValue, UngappedShape<TWEIGHT> > >::Type TSize;
     Shape<TValue, UngappedShape<TSPAN> > u_shape;
     unsigned prehPointer = me.hPointer;
-    me.hPointer = (me.hPointer + 1) % (TSPAN - TWEIGHT + 1);
 
+
+    me.hPointer = (me.hPointer + 1) % Minimizer_Window_Lengh;
+
+    //me.hashBuffer[me.hPointer] =  (me.hashBuffer[prehPointer] - (ordValue(me.m_leftChar) + 2) % 4 
+     //                           * (THValue)me.m_leftFactor) * ValueSize<TValue>::VALUE + (ordValue((TValue) * (it + (TSize)(Minimizer_Window_Lengh + TWEIGHT - 2))) + 2) % 4;
     me.hashBuffer[me.hPointer] =  (me.hashBuffer[prehPointer] - ordValue(me.m_leftChar) 
-                                * (THValue)me.m_leftFactor) * ValueSize<TValue>::VALUE + ordValue((TValue) * (it + (TSize)TSPAN - 1));
+                                * (THValue)me.m_leftFactor) * ValueSize<TValue>::VALUE + ordValue((TValue) * (it + (TSize)(Minimizer_Window_Lengh + TWEIGHT - 2)));
 
-    me.m_leftChar = *(it + TSPAN - TWEIGHT);
-    me.hValue = me.hashBuffer[0];
-    for(unsigned k = 0; k < TSPAN - TWEIGHT + 1; k++)
+    me.m_leftChar = *(it + Minimizer_Window_Lengh - 1);
+
+    //THValue _max = me.hashBuffer[0];
+    if(me.minP == me.hPointer)
     {
-        if (me.hValue > me.hashBuffer[k]) 
-            me.hValue = me.hashBuffer[k];
+        THValue _min = me.hashBuffer[0];
+        me.hValue = me.hashBuffer[0];
+        me.minP = 0;
+        for(unsigned k = 0; k < Minimizer_Window_Lengh; k++)
+        {
+            if (_min > me.hashBuffer[k]) 
+            //if(me.hValue > me.hashBuffer[k])
+            {
+                _min = me.hashBuffer[k];
+                //me.hValue = me.hashBuffer[k];
+                me.minP = k;
+            }
+            //if (_max < me.hashBuffer[k])
+            //    _max = me.hashBuffer[k];
+        }
+        me.hValue = _min;//atomicXor(_min, _max);
     }
+    else
+    {
+        if(me.hValue > me.hashBuffer[me.hPointer])
+        {
+            me.hValue = me.hashBuffer[me.hPointer];
+            me.minP = me.hPointer;
+        }
+    }
+    DnaString tmp;
+    //me.hValue = atomicXor(me.hValue, (THValue)(pow(2, (p - me.hPointer) % (TSPAN - TWEIGHT + 1) % 4)));
     me.u_hValue = (me.u_hValue - ordValue(me.leftChar) * (THValue)me.leftFactor) * ValueSize<TValue>::VALUE 
                   + ordValue((TValue)*(it + ((TSize)TSPAN -1)));
     me.leftChar = *it;
+    //std::cout << me.hValue << std::endl;
     return me.hValue;
 } 
 
+/*
+template <typename TValue, unsigned TSPAN, unsigned TWEIGHT, typename TSpec, typename TIter>
+inline void hashInit(Shape<TValue, MinimizerShape<TSPAN, TWEIGHT, TSpec> > &me, TIter const &it)
+{
+    
+}
+    
+
+template <typename TValue, unsigned TSPAN, unsigned TWEIGHT, typename TSpec, typename TIter>
+inline typename Value<Shape<TValue, MinimizerShape<TSPAN, TWEIGHT, TSpec> > >::Type 
+beta_hashNext(Shape<TValue, MinimizerShape<TSPAN, TWEIGHT, TSpec> > &me, TIter const &it)
+{
+    me.kmer = me.k_mer * 4 - ordValue(*(it + SHAPE_LENGTH - 4)) * 64  + ordValue(*(it + SHAPE_LENGTH - 1));
+    me.product = me.product - me.left_kmer + shape.hValue;
+    me.module = me.module - me.left_kmer * me.left_kmer + shape.hValue * shape.hValue;
+    me.cos = me.product / sqrt(me.module) / 8;
+    me.left_kmer = me.left_kmer * 4 - ordValue(*(it + SHAPE_LENGTH - 4)) * 64  + ordValue(*(it + SHAPE_LENGTH - 1));
+    me.hValue = 2 * me.cos;
+} 
+*/
 }	// namespace seqan
 
 #endif
