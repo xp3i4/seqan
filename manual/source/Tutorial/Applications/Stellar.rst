@@ -14,25 +14,30 @@ STELLAR is a tool for pairwise local alignments. It has full sensitivity for :ma
 
 Algorithm
 ---------
-Filtration
-    Rasmussen et al. proved that for any given error rate :math:`\epsilon` and alignment length n_0 there exist :math:`\omega, q, e` and :math:`\tau` such that every :math:`\epsilon`-match contains :math:`\tau` q-hits that reside in a :math:`\omega × e` parallelogram. A :math:`\omega × e` parallelogram is the intersection of :math:`e + 1` consecutive diagonals and :math:`w + 1` consecutive columns in the dotplot.
+**Filtration**
+
+    Filter in STELLAR applies SWIFT algorithm (Rasmussen et al. 2006) to find out potential regions.The SWIFT algorithm provides a necessary condition that for any given error rate :math:`\epsilon` and alignment length :math:`n_0` there exist :math:`\omega, q, e` and :math:`\tau` such that every :math:`\epsilon`-match contains :math:`\tau` q-hits that reside in a :math:`\omega × e` parallelogram. A :math:`\omega × e` parallelogram is the intersection of :math:`e + 1` consecutive diagonals and :math:`w + 1` consecutive columns in the dotplot. Where :math:`q,\tau,\omega,e` meets the following two requirments
+
 .. math:: 
-   q < \lceil 1 / \epsilon \rceil \qquad \tau \leq min\lbrace U(n_0, q, \epsilon), U(n_1, q, \epsilon)\rbrace
+   q < \lceil 1 / \epsilon \rceil \quad and \quad \tau \leq min\lbrace U(n_0, q, \epsilon), U(n_1, q, \epsilon)\rbrace 
+
+   \omega = (\tau - 1) + q(e + 1) \quad and \quad e = \lfloor \frac{2(\tau - 1) + (q -1 )}{1/\epsilon - q} \rfloor\quad 
 ..
 
-   where :math:`{n_1=\lceil(\lfloor\epsilon n_0\rfloor + 1) / \epsilon \rceil}`
+   where :math:`{n_1=\lceil(\lfloor\epsilon n_0\rfloor + 1) / \epsilon \rceil \quad and \quad U(n, q, \epsilon) = (n+1)-q(\lfloor \epsilon n \rfloor + 1))}`
 
-.. math:: 
-   \omega = (\tau - 1) + q(e + 1) \quad and \quad e = \lfloor \frac{2(\tau - 1) + (q -1 )}{1/\epsilon - q} \rfloor
-
-
+   Based on that STELLAR detects :math:`\omega × e` parallelograms with :math:`\tau` q-hits in the dotplot. It slides from left to right over one sequence and searches overlapping q-grams in a q-gram index of the other sequence. Parallelograms whose q-gram counter has reached :math:`\tau` is output as a potential alignment region.
 
 .. image:: ./stellar1.jpg  
    :width: 300px
    :align: right
+.. 
 
-Verification
+  The following figure shows an example for SWIFT hits containing either a subalignment of an :math:`\epsilon`-match, whole :math:`\epsilon`-matches, no :math:`\epsilon`-match or an :math:`\epsilon`-match with an X-drop, where :math:`n_0` = 20, :math:`\epsilon` = 0.1, and :math:`q` = 6. Accordingly, :math:`\omega` =20, :math:`\tau` = 3, and :math:`e` = 2. SWIFT searches parallelograms that contain at least τ = 3 q-gram hits by streaming over sequence 1 and searching common q-grams in sequence 2. Subfigure (a) shows an ε-match that results in two SWIFT hits and the :math:`\epsilon`-match is longer than both of the two hits. (b) shows a SWIFT hit that contains two :math:`epsilon`-matches and (c) shows a false positive SWIFT hit induced by three separated q-gram hits. (d) shows a SWIFT hit that contains an :math:`\epsilon`-match with a 3-drop.
 
+**Verification**
+
+    In the verification part, STELLAR will first find all possible :math:`{\epsilon}`-core by applying a banded version of the Waterman-Eggert local alignment algorithm [31], where :math:`{\epsilon}`-core is a segment of an :math:`\epsilon`-match and its match score is bigger than a given minimal value. Then it filters out the ones containing :math:`{\epsilon}`-X-drops. Then it spans those :math:`{\epsilon}`-core from the last step to maximal length. After that it finds the longest extension as a possible :math:`{\epsilon}`-match. At last it remove overlapped :math:`{\epsilon}`-match and choose the maximal-:math:`{\epsilon}`-match as the final :math:`{\epsilon}`-match.
 
 
 Program options
