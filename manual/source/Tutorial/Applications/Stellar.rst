@@ -15,11 +15,22 @@ STELLAR is a tool for pairwise local alignments. It has full sensitivity for :ma
 Algorithm
 ---------
 Filtration
-    Rasmussen et al. proved that for any given ε and n0 there exist w, q, e and τ such that every ε-match contains τ q-hits that reside in a w × e parallelogram. A w × e parallelogram is the intersection of e + 1 consecutive diagonals and w + 1 consecutive columns in the dotplot.
+    Rasmussen et al. proved that for any given error rate :math:`\epsilon` and alignment length n_0 there exist :math:`\omega, q, e` and :math:`\tau` such that every :math:`\epsilon`-match contains :math:`\tau` q-hits that reside in a :math:`\omega × e` parallelogram. A :math:`\omega × e` parallelogram is the intersection of :math:`e + 1` consecutive diagonals and :math:`w + 1` consecutive columns in the dotplot.
+.. math:: 
+   q < \lceil 1 / \epsilon \rceil \qquad \tau \leq min\lbrace U(n_0, q, \epsilon), U(n_1, q, \epsilon)\rbrace
+..
+
+   where :math:`{n_1=\lceil(\lfloor\epsilon n_0\rfloor + 1) / \epsilon \rceil}`
+
+.. math:: 
+   \omega = (\tau - 1) + q(e + 1) \quad and \quad e = \lfloor \frac{2(\tau - 1) + (q -1 )}{1/\epsilon - q} \rfloor
+
+
 
 .. image:: ./stellar1.jpg  
    :width: 300px
    :align: right
+
 Verification
 
 
