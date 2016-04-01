@@ -183,3 +183,6 @@ Output:
 
 References
 ----------
+
+.. bibliography:: ../../seqan.bib
+  :filter: title % "STELLAR"
