@@ -43,8 +43,13 @@ Algorithm
 Program options
 ---------------
 
-Usage: 
+**Usage**
+
+.. code-block:: bash
+
   stellar [Options] <FASTA sequence file 1> <FASTA sequence file 2>
+
+..
 
   <FASTA sequence file 1>
  
@@ -64,7 +69,7 @@ Usage:
   (i.e. 5% errors, an identity of 95%) and a minimal length of 100, and
   dumps all local alignments in an output file named "stellar.gff".
 
-Main options
+**Main options**
   [ -e NUM ],  [ --epsilon NUM ]
   
   Set the maximal error rate for local alignments. NUM must be a floating
@@ -103,6 +108,78 @@ Main options
 
 Usage examples
 --------------
+In this example we selected chromosome of D. melanogaster and D. pseudoobscura for our test runs. 
+
+Input files:
+    Sequences data came from FlyBase
+
+    1. Chromosome arm 2L from D. melanogaster: `dmel-2L-chromosome-r5.26.fasta dpse-4_group3-r2.14.fasta`_
+.. _dmel-2L-chromosome-r5.26.fasta dpse-4_group3-r2.14.fasta: ftp://ftp.flybase.net/genomes/Drosophila_melanogaster/dmel_r5.16_FB2009_03/fasta/
+
+..    
+
+    2. Group 3 from the chromosome 4 assembly of D. pseudoobscura: `dpse-4_group3-r2.14.fasta`_ extracted from dpse-all-chromosome-r2.14.fasta
+.. _dpse-4_group3-r2.14.fasta: ftp://ftp.flybase.net/12_species_analysis/genomes/Drosophila_pseudoobscura/dpse_r2.14_FB2010_08/fasta/
+
+..    
+
+Test: 
+    with minimal length = 200 and default maximal error rate = 0.05
+
+.. code-block:: bash 
+
+    ./stellar -l 200 dmel-2L-chromosome-r5.26.fasta dpse-4_group3-r2.14.fasta 
+
+..
+    
+Output:
+    The output looks like the following console. There are altogether 44 matches found by STELLAR in test one. The alignment result is written into a .gff file as follow
+
+.. code-block:: console
+
+    I/O options:
+      database file   : dmel-2L-chromosome-r5.26.fasta
+      query file      : dpse-4_group3-r2.14.fasta
+      alphabet        : dna5
+      output file     : stellar.gff
+      output format   : gff
+
+    User specified parameters:
+      minimal match length             : 200
+      maximal error rate (epsilon)     : 0.05
+      maximal x-drop                   : 5
+      search forward strand            : yes
+      search reverse complement        : yes
+
+      verification strategy            : exact
+      maximal number of matches        : 50
+      duplicate removal every          : 500
+
+    Calculated parameters:
+      k-mer length : 18
+      s^min        : 18
+      threshold    : 3
+      distance cut : 200
+      delta        : 16
+      overlap      : 10
+
+    Loaded 1 query sequence.
+    Loaded 1 database sequence.
+
+    All matches matches resulting from your search have an E-value of: 
+            1.26922e-74 or smaller  (match score = 1, error penalty = -2)
+
+    Constructing index...
+
+    Aligning all query sequences to database sequence...
+      2L type=chromosome_arm; loc=2L:1..23011544; ID=2L; dbxref=REFSEQ:NT_033779,GB:AE014134; MD5=bfdfb99d39fa5174dae1e2ecd8a231cd; length=23011544; release=r5.26; species=Dmel;
+      2L type=chromosome_arm; loc=2L:1..23011544; ID=2L; dbxref=REFSEQ:NT_033779,GB:AE014134; MD5=bfdfb99d39fa5174dae1e2ecd8a231cd; length=23011544; release=r5.26; species=Dmel;, complement
+
+    # Eps-matches     : 44
+..
+
+.. includefrags:: manual/source/Tutorial/Applications/stellar.gff 
+..
 
 References
 ----------
