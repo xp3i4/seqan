@@ -34,7 +34,6 @@
 
 #ifndef SEQAN_HEADER_INDEX_QGRAM_OPENADRESSING_H
 #define SEQAN_HEADER_INDEX_QGRAM_OPENADRESSING_H
-
 namespace SEQAN_NAMESPACE_MAIN
 {
 
@@ -176,9 +175,218 @@ namespace SEQAN_NAMESPACE_MAIN
 #endif  // PLATFORM_WINDOWS_VS
 
 
+//x-begin: min shape open index 
+ template < typename TObject, unsigned TSPAN, unsigned TWEIGHT>
+    class Index<TObject, IndexQGram<MinimizerShape<TSPAN, TWEIGHT>, OpenAddressing> >
+    {
+    private:
+        static const double defaultAlpha;
+    public:
+        typedef typename Member<Index, QGramText>::Type     TTextMember;
+        typedef typename Fibre<Index, QGramText>::Type        TText;
+        typedef typename Fibre<Index, QGramSA>::Type        TSA;
+        typedef typename Fibre<Index, QGramDir>::Type        TDir;
+        typedef typename Fibre<Index, QGramCounts>::Type    TCounts;
+        typedef typename Fibre<Index, QGramCountsDir>::Type    TCountsDir;
+        typedef typename Fibre<Index, QGramShape>::Type        TShape;
+        typedef typename Fibre<Index, QGramBucketMap>::Type    TBucketMap;
+        typedef typename Cargo<Index>::Type                    TCargo;
+        typedef typename Size<Index>::Type                    TSize;
+
+        TTextMember     text;        // underlying text
+        TSA                sa;            // suffix array sorted by the first q chars
+        TDir            dir;        // bucket directory
+        TCounts            counts;        // counts each q-gram per sequence
+        TCountsDir        countsDir;    // directory for count buckets
+        TShape            shape;        // underlying shape
+        TCargo            cargo;        // user-defined cargo
+        TBucketMap        bucketMap;    // bucketMap table (used by open-addressing index)
+        TSize            stepSize;    // store every <stepSize>'th q-gram in the index
+
+        double            alpha;        // for m entries the hash map has at least size alpha*m
+    //x-begin//
+        uint64_t           start;          // 
+    //x-end//
+        Index():
+            stepSize(1),
+            alpha(defaultAlpha) {}
+
+        Index(Index &other):
+            text(other.text),
+            sa(other.sa),
+            dir(other.dir),
+            counts(other.counts),
+            countsDir(other.countsDir),
+            shape(other.shape),
+            cargo(other.cargo),
+            bucketMap(other.bucketMap),
+            stepSize(1),
+            alpha(defaultAlpha) {}
+
+        Index(Index const &other):
+            text(other.text),
+            sa(other.sa),
+            dir(other.dir),
+            counts(other.counts),
+            countsDir(other.countsDir),
+            shape(other.shape),
+            cargo(other.cargo),
+            bucketMap(other.bucketMap),
+            stepSize(1),
+            alpha(defaultAlpha) {}
+
+        template <typename TText_>
+        Index(TText_ &_text):
+            text(_text),
+            stepSize(1),
+            alpha(defaultAlpha) {}
+
+        template <typename TText_>
+        Index(TText_ const &_text):
+            text(_text),
+            stepSize(1),
+            alpha(defaultAlpha) {}
+
+        template <typename TText_, typename TShape_>
+        Index(TText_ &_text, TShape_ const &_shape):
+            text(_text),
+            shape(_shape),
+            stepSize(1),
+            alpha(defaultAlpha) {}
+
+        template <typename TText_, typename TShape_>
+        Index(TText_ const &_text, TShape_ const &_shape):
+            text(_text),
+            shape(_shape),
+            stepSize(1),
+            alpha(defaultAlpha) {}
+    };
+
+//=============================================================
+//definition of types of elements in dir (uint64_t)
+    //bodyNode=
+    //length1[4] length2[38] YValue[20] code[2]: code={1}
+    //
+    //headNode=
+    //hvalue(/XValue)[62] code[2]: code={2,3}, 2:head, 3:virtual head
+    //
+    //code  0 empty
+    //code  2 head 10
+    //code  3 virtual head 11
+    //code  1 body  01
+
+    static const uint64_t _dirEmpty = (uint64_t)1 << 63;
+    static const uint64_t _bitEmpty = 0;
+    static const uint64_t _bitLength = ((uint64_t)1 << 58) - 1;
+    static const uint64_t _bitValue = ((uint64_t)1 << 56) - 1;
+    static const unsigned _bitLength_END = 60;
+    static const unsigned _bitValue_END = 2;
+    
+    //HeadNode(H):
+    //H :=  (h/X)Value[62]|HeadType[2]: 0:=empty 2:=head 3:=virtual head
+    static const unsigned _HeadValue_bits = 3;
+    static const uint64_t _HeadType_code = 2;
+    static const uint64_t _HeadTypeVtl_code = 3;
+    static const uint64_t _HeadTypeHVl_code = 4;
+    // BodyNode(B):
+    // B := YValue[26]|BodyType[1]: |counth[37]
+    // occ = counth[n+1] - count[n] = (B[n+1] - B[n]) & bit, bit = 00..0011...11
+    static const unsigned _BodyValue_bits = 38;
+    static const unsigned _BodyType_bits = 37;
+    //static const unsigned _BodyValue_bits = 2;
+    static const uint64_t _BodyType_code = 1;
+    static const uint64_t _BodyTypeEnd_code = 0;
+    static const uint64_t _BodyType_key = ~((uint64_t)1 << _BodyType_bits);
+    static const uint64_t _getBody = ((uint64_t)1 << _BodyType_bits) - 1;
+
+    static const uint64_t _bitEmptyType = 0;
+
+    static const uint64_t _bitCode = 3;                                 // node(value) & _bitCode to acquire the type of the node 
+    static const uint64_t _bitValue2 = ((uint64_t)1 << 22) - 1;
+    static const uint64_t _bitEmptyCode = 0;
+    static const uint64_t _bitBodyCode = 1;
+    static const uint64_t _bitHeadCode = 2;
+    static const uint64_t _bitVtlHeadCode = 3;
+    
+    static const uint64_t _Empty_Dir_ = 0;
+    
+//==============================================================
+    template <typename HValue>
+    inline HValue _makeHeadNode(HValue code)
+    {
+        return (code << _HeadValue_bits) + _HeadType_code;
+    } 
+    template <typename HValue>
+    inline HValue _makeVtlHeadNode(HValue code)
+    {
+        return (code << _HeadValue_bits) + _HeadTypeVtl_code;
+    }
+    template <typename HValue>
+    inline HValue _makeHVlHeadNode(HValue code)
+    {
+        return (code << _HeadValue_bits) + _HeadTypeHVl_code; 
+    }
+    template <typename HValue>
+    inline void _setHVlHeadNode(HValue & headNode, HValue const & hValue)
+    {
+        headNode = (hValue << _HeadValue_bits) + _HeadTypeHVl_code; 
+    }
+    template <typename HValue>
+    inline void _setHeadNode(HValue & headNode, HValue const & hValue)
+    {
+        headNode = (hValue << _HeadValue_bits) + _HeadType_code;
+    }
+    
+    template <typename HValue>
+    inline HValue _makeEmptyNode(HValue code)
+    {
+        return (code << _HeadValue_bits) + _bitEmptyType;
+    }
+    template <typename HValue, unsigned TSPAN, unsigned TWEIGHT>
+    inline HValue _getDirStart(Index<StringSet<DnaString>, IndexQGram<MinimizerShape<TSPAN, TWEIGHT>, OpenAddressing> >  & index)
+    {
+        return index.start;
+    }
+    template <typename HValue>
+    inline void _setBodyType_Begin(HValue & code){
+        code &= _BodyType_key; 
+    }
+
+    template <typename HValue>
+    inline HValue _ifBodyType(HValue code){
+        return code & (~_BodyType_key);
+    }
+    
+    template <typename HValue>
+    inline HValue _getHeadValue(HValue  code)
+    {
+        return code >> _HeadValue_bits;  
+    }
+    template <typename HValue>
+    inline void _setBodyNode(HValue & bodyNode, HValue const & YValue, HValue const & type, HValue const & counth)
+    {
+        bodyNode = (YValue << _BodyValue_bits) + (type << _BodyType_bits) + counth;
+    }
+    template <typename HValue>
+    inline HValue _getBodyValue(HValue code)
+    {
+        return code >> _BodyValue_bits;
+    }
+    template <typename HValue>
+    inline HValue _getBodyCounth(HValue & code)
+    {
+        return code & _BodyType_key;
+    }
+    
+//x-end: min shape open index 
+
+
     template < typename TObject, typename TShapeSpec >
     const double Index<TObject, IndexQGram<TShapeSpec, OpenAddressing> >::defaultAlpha = 1.6;
-
+//x-begin
+    template < typename TObject,unsigned TSPAN, unsigned TWEIGHT>
+    const double Index<TObject, IndexQGram<MinimizerShape<TSPAN, TWEIGHT>, OpenAddressing> >::defaultAlpha = 1.6;
+//x-end
     //////////////////////////////////////////////////////////////////////////////
     // Counting sort - Step 1: Clear directory
     template < typename TDir, typename THashValue, typename TParallelTag >
@@ -203,21 +411,24 @@ namespace SEQAN_NAMESPACE_MAIN
         return ((val * 43) ^ (val >> 20)) + val;
 #endif
     }
-
-    template < typename THashValue, typename THashValue2, typename TParallelTag >
+    
+    //x1-begin
+    //template <typename TIndex, typename THashValue, typename TParallelTag>
+/*
+    template<typename TDir, typename THashValue>
     inline THashValue
-    requestBucket(BucketMap<THashValue> &bucketMap, THashValue2 code, Tag<TParallelTag> parallelTag)
+    requestBucket(TDir & dir, THashValue code, unsigned len)//, Tag<TParallelTag> parallelTag)
     {
-        typedef BucketMap<THashValue> TBucketMap;
+        //std::cout << code << " " << len << std::endl;
         typedef unsigned long TSize;
         // get size of the index
 
         // check whether bucket map is disabled and
         // where the hash should be found if no collision took place before
-        TSize hlen = length(bucketMap.qgramCode);
+        TSize hlen = length(dir);
         if (hlen == 0ul) return code;
-
-        TSize h1 = _hashFunction(bucketMap, code);
+        
+        TSize h1 = _hashFunction(dir, code >> _bitValue_END);
 #ifdef SEQAN_OPENADDRESSING_COMPACT
         --hlen;
         h1 %= hlen;
@@ -226,9 +437,183 @@ namespace SEQAN_NAMESPACE_MAIN
         h1 &= hlen;
 #endif
         // was the entry empty or occupied by our code?
+        
+        // if not we have a collision -> probe for our code or an empty entry
+        //
+        // do linear probing if we need to save memory (when SEQAN_OPENADDRESSING_COMPACT is defined)
+        // otherwise do quadratic probing to avoid clustering (Cormen 1998)
+        TSize delta = 0;
+        (void)delta;
+        //std::cout << "done\n";
+        unsigned count = 0;
+        //return h1;
+        for (auto k = 0; k < len; k++)
+        {
+            //if (code == dir[h1 + k])
+            //{
+            //    std::cout << count<< std::endl;
+            //    return h1;
+            //}
+            //std::cout << (dir[h1+k] & _bitCode) << std::endl;
+            switch (dir[h1+k] & _bitCode){
+                case 1:
+                    h1 = (0 + h1 + (dir[h1 + k] >> _bitLength_END) + delta) &  hlen ;
+                    //std::cout << len << " " << (dir[h1+k] >> _bitLength_END) << std::endl;
+                    std::cout << k << std::endl;
+                    ++delta; k=0;
+                    count++;
+                    break;
+                case 2:  
+                    h1 = (0 + h1 + (dir[h1 + k + 1] >> _bitLength_END) + delta) &  hlen ;
+                    std::cout << k << std::endl;
+                    //std::cout << len << " " << (dir[h1 + k + 1] >> _bitLength_END) << std::endl;
+                    ++delta; k=0;
+                    count++ ;
+                    break;
+                case 3:
+                    std::cout << k << std::endl;
+                    h1 = (h1 + 1 + delta) &  hlen ;
+                    ++delta; k=0;
+                    count++;
+                    break;
+            }
+        } 
+        std::cout << len << " count " << count << std::endl;
+        return h1;
+    }
+*/
+    //x1-end
+/*
+    template<typename TDir, typename THashValue>
+    inline THashValue
+    requestBucket(TDir & dir, THashValue code, unsigned len)//, Tag<TParallelTag> parallelTag)
+    {
+        //std::cout << code << " " << len << std::endl;
+        typedef unsigned long TSize;
+        // get size of the index
+
+        // check whether bucket map is disabled and
+        // where the hash should be found if no collision took place before
+        TSize hlen = length(dir);
+        if (hlen == 0ul) return code;
+        
+        TSize h1 = _hashFunction(dir, code >> _bitValue_END);
+#ifdef SEQAN_OPENADDRESSING_COMPACT
+        --hlen;
+        h1 %= hlen;
+#else
+        hlen -= 2;
+        h1 &= hlen;
+#endif
+        // was the entry empty or occupied by our code?
+        
+        // if not we have a collision -> probe for our code or an empty entry
+        //
+        // do linear probing if we need to save memory (when SEQAN_OPENADDRESSING_COMPACT is defined)
+        // otherwise do quadratic probing to avoid clustering (Cormen 1998)
+        TSize delta = 0;
+        (void)delta;
+        //std::cout << "done\n";
+        unsigned count = 0;
+        //return h1;
+        for (auto k = 0; k < len; k++)
+        {
+            switch (dir[h1+k] & _bitCode){
+                case 1:
+                    h1 = (0 + h1 + (dir[h1 + k] >> _bitLength_END) + delta) &  hlen ;
+                    //std::cout << len << " " << (dir[h1+k] >> _bitLength_END) << std::endl;
+                    //std::cout << k << std::endl;
+                    ++delta; k=0;
+                    count++;
+                    break;
+                case 2:  
+                    h1 = (0 + h1 + (dir[h1 + k + 1] >> _bitLength_END) + delta) &  hlen ;
+                    std::cout << k << std::endl;
+                    //std::cout << len << " " << (dir[h1 + k + 1] >> _bitLength_END) << std::endl;
+                    ++delta; k=0;
+                    count++ ;
+                    break;
+                case 3:
+                    //std::cout << k << std::endl;
+                    h1 = (h1 + 1 + delta) &  hlen ;
+                    ++delta; k=0;
+                    count++;
+                    break;
+            }
+        } 
+        std::cout << len << " count " << count << std::endl;
+        return h1;
+    }
+*/
+
+    template<typename TDir, typename THashValue>
+    inline THashValue
+    requestBucket(TDir & dir, THashValue code, THashValue code1)//, Tag<TParallelTag> parallelTag)
+    //code:headNode, code1:pointerTobody
+    {
+        //std::cout << code << " " << len << std::endl;
+        typedef unsigned long TSize;
+        TSize hlen = 536870913 ;
+        //TSize hlen = 2147483649;
+        if (hlen == 0ul) return code;
+        
+        TSize h1 = _hashFunction(dir, _getHeadValue(code));
+#ifdef SEQAN_OPENADDRESSING_COMPACT
+        --hlen;
+        h1 %= hlen;
+#else
+        hlen -= 2;
+        h1 &= hlen;
+#endif
+        TSize delta = 0;
+        (void)delta;
+        while(dir[h1] | dir[h1+1]) 
+        {
+            switch(code ^ dir[h1]){
+                case 0:
+                    return h1;
+                case 1:
+                    return h1;
+                default:
+                    h1 = (h1 + delta + 1) & hlen;
+                    delta++;
+            }
+        }
+        dir[h1] = code;
+        dir[h1 + 1] = code1;
+        return h1;
+    }
+
+
+    template < typename THashValue, typename THashValue2, typename TParallelTag >
+    inline THashValue
+    requestBucket(BucketMap<THashValue> &bucketMap, THashValue2 code, Tag<TParallelTag> parallelTag)
+    {
+        //std::cout << "requestBucket ";
+        typedef BucketMap<THashValue> TBucketMap;
+        typedef unsigned long TSize;
+        // get size of the index
+
+        // check whether bucket map is disabled and
+        // where the hash should be found if no collision took place before
+        TSize hlen = length(bucketMap.qgramCode);
+        if (hlen == 0ul) return code;
+        
+        TSize h1 = _hashFunction(bucketMap, code);
+        //TSize h1 = code;
+#ifdef SEQAN_OPENADDRESSING_COMPACT
+        --hlen;
+        h1 %= hlen;
+#else
+        hlen -= 2;
+        h1 &= hlen;
+        //h1 %= hlen;
+#endif
+        // was the entry empty or occupied by our code?
         THashValue currentCode = atomicCas(bucketMap.qgramCode[h1], TBucketMap::EMPTY, code, parallelTag);
         if (currentCode == TBucketMap::EMPTY || currentCode == code)
-            return h1;
+            //return h1;
+            return 1;
 
         // if not we have a collision -> probe for our code or an empty entry
         //
@@ -236,16 +621,183 @@ namespace SEQAN_NAMESPACE_MAIN
         // otherwise do quadratic probing to avoid clustering (Cormen 1998)
         TSize delta = 0;
         (void)delta;
+        unsigned count = 1;
         do {
 #ifdef SEQAN_OPENADDRESSING_COMPACT
             h1 = (h1 + 1) % hlen;               // linear probing guarantees that all entries are visited
 #else
             h1 = (h1 + delta + 1) & hlen;       // for power2-sized tables the (i*i+i)/2 probing guarantees the same
+            //h1 = (h1 + delta + 1) % hlen; 
             ++delta;
 #endif
             currentCode = atomicCas(bucketMap.qgramCode[h1], TBucketMap::EMPTY, code, parallelTag);
+            count++;
+            //std::cout << h1 << " " << bucketMap.qgramCode[h1] << " " << code << std::endl;
         } while (currentCode != TBucketMap::EMPTY && currentCode != code);
-        return h1;
+        //std::cout << code << " " << bucketMap.qgramCode[h1] << std::endl;
+        //std::cout << count << std::endl;
+        //return h1;
+        return count;
+    }
+    
+    //x-begin2:
+/*
+    template <typename TDir, typename THashValue>
+    inline THashValue
+    getBucket(TDir const &dir,THashValue v1, THashValue v2, THashValue v3) 
+    {
+        typedef unsigned long TSize;
+        // get size of the index
+
+        // check whether bucket map is disabled and
+        // where the hash should be found if no collision took place before
+        TSize hlen = length(dir);
+        if (hlen == 0ul) return v2;
+
+        TSize h1 = _hashFunction(dir, _getHeadValue(v1));
+#ifdef SEQAN_OPENADDRESSING_COMPACT
+        --hlen;
+        h1 %= hlen;
+#else
+        hlen -= 2;
+        h1 &= hlen;
+#endif
+        TSize delta = 0;
+        (void)delta;
+
+        bool flag = false;
+        unsigned k = 1;
+        uint64_t len, start;
+        while(dir[h1] | dir[h1+1])          // if dir[h1]==dir[h+1]==0 then stop;
+        {
+            switch(v1 ^ (dir[h1])){
+                case 0: 
+                    //len=_getBlockLength(dir[h1]);
+                    start=_getHeadValue(dir[h1]);
+                    do
+                    {
+                        if (v2 == _getBodyValue(dir[start + k]))
+                            return start + k;
+                    }while(_BlockEnd(dir[h1+k++]))
+                    return _EMPTY_NODE;
+                case 1:
+                    v1 = v3;
+                    h1 = _hashFunction(dir, _getHeadValue(v1));
+                    break;
+                default:
+                    h1 = (h1 + delta + 1) & hlen;
+                    delta++;
+            }
+        }
+        return _EMPTY_NODE;
+    }    
+*/
+/*
+//    getBucket(TDir const &dir,THashValue v1, THashValue v2, THashValue v3) 
+//    {
+//        typedef unsigned long TSize;
+//        // get size of the index
+//
+//        // check whether bucket map is disabled and
+//        // where the hash should be found if no collision took place before
+//        TSize hlen = length(dir);
+//        if (hlen == 0ul) return v2;
+//
+//        TSize h1 = _hashFunction(dir, v1 >> _bitValue_END);
+//#ifdef SEQAN_OPENADDRESSING_COMPACT
+//        --hlen;
+//        h1 %= hlen;
+//#else
+//        hlen -= 2;
+//        h1 &= hlen;
+//#endif
+//        TSize delta = 0;
+//        (void)delta;
+//
+//        bool flag = false;
+//        unsigned k = 1;
+//        uint64_t len = 1;
+//        while(dir[h1] ^ _bitEmpty)
+//        {
+//            switch(v1 ^ (dir[h1]) & _bitValue_END){
+//                case 0: 
+//                    len=dir[h1+1] >> _bitLength;
+//                    while(!flag)
+//                    {
+//                        if(v2 == (dir[h1 + k] & _bitValue2)||(k > len))
+//                            return h1 + k;
+//                        k++;
+//                    }
+//                    return h1 + 1;
+//                case 1:
+//                    v1 = v3;
+//                    h1 = _hashFunction(dir, v1 >> _bitValue_END);
+//                    flag = true;
+//                    break;
+//                default:
+//                    h1 = (h1 + (dir[h1] >> _bitLength_END) +delta) & hlen;
+//                    delta++;
+//            }
+//        }
+//        return h1;
+//    }
+*/
+    //x-end2:
+    
+    template <typename TDir, typename THashValue>    
+    inline THashValue 
+    getBucket(TDir const &dir,THashValue const & v1, THashValue const & v2, THashValue const & v3) 
+    //v1: XValue, v2:YValue, v3:hValue
+    {
+        typedef unsigned long TSize;
+        // get size of the index
+
+        // check whether bucket map is disabled and
+        // where the hash should be found if no collision took place before
+        //TSize hlen = length(dir);
+        TSize hlen = 536870913;
+        //TSize hlen = 2147483649;
+        THashValue key, it;
+        if (hlen == 0ul) return _Empty_Dir_;
+
+        TSize h1 = _hashFunction(dir, v1);
+#ifdef SEQAN_OPENADDRESSING_COMPACT
+        --hlen;
+        h1 %= hlen;
+#else
+        hlen -= 2;
+        h1 &= hlen;
+#endif
+        TSize delta = 0;
+        (void)delta;
+        
+        _setHeadNode(key,v1);
+        while (dir[h1] | dir[h1+1])
+        {
+            switch (dir[h1] ^ key) 
+            {
+                case 0:
+                    it = _getHeadValue(dir[h1+1]);
+                    do{
+                        if (v2 ==  _getBodyValue(dir[it]))
+                        {    
+        //std::cout << 0 << std::endl;
+                            return it;
+                        } 
+                    }while(_ifBodyType(dir[++it])); //until the begin of next block
+                    return _Empty_Dir_ ;
+                case 1:
+                    _setHVlHeadNode(key, v3);
+                    h1 = _hashFunction(dir, v3) & hlen;
+                    delta = 0;
+                    break;
+                default:
+                    h1 = (h1 + delta + 1) & hlen;
+                    delta++;
+            }
+        }
+        //std::cout << 3<< std::endl;
+        return _Empty_Dir_; 
     }
 
     template < typename THashValue, typename THashValue2 >
@@ -268,6 +820,7 @@ namespace SEQAN_NAMESPACE_MAIN
 #else
         hlen -= 2;
         h1 &= hlen;
+        //h1 %= hlen;
 #endif
 
         // probe for our code or an empty entry
@@ -282,6 +835,7 @@ namespace SEQAN_NAMESPACE_MAIN
             h1 = (h1 + 1) % hlen;               // linear probing guarantees that all entries are visited
 #else
             h1 = (h1 + delta + 1) & hlen;       // for power2-sized tables the (i*i+i)/2 probing guarantees the same
+            //h1 = (h1 + delta + 1) % hlen;
             ++delta;
 #endif
         }
@@ -329,7 +883,6 @@ namespace SEQAN_NAMESPACE_MAIN
             qgrams = (__int64)ceil(max_qgrams);
             clear(const_cast<TIndex &>(index).bucketMap.qgramCode);    // 1-1 mapping, no bucket map needed
         }
-
         return qgrams + 1;
     }
 

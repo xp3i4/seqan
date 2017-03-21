@@ -701,6 +701,7 @@ namespace SEQAN_NAMESPACE_MAIN
  *
  * @see Shape#hash
  */
+
     template <typename TValue, typename TSpec, typename TIter>
     inline typename Value< Shape<TValue, TSpec> >::Type
     hashNext(Shape<TValue, TSpec> &me, TIter const &it)
