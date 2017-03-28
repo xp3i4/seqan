@@ -136,8 +136,15 @@ template <typename TValue, unsigned TSPAN, unsigned TWEIGHT, typename TSpec, typ
 inline typename Value<Shape<TValue, MinimizerShape<TSPAN, TWEIGHT, TSpec> > >::Type
 hash(Shape<TValue, MinimizerShape<TSPAN, TWEIGHT, TSpec> > &me, TIter const &it)
 {
-    Range<TIter> range(it, it + length(me));
-    Shape<TValue, UngappedShape<TSPAN> > u_tmpShape;
+      typedef typename Size< Shape<TValue, SimpleShape> >::Type    TSize;
+      me.leftChar = 0;
+        me.hValue = 0;
+        for (TSize i = 0; i < me.span; ++i)
+        {
+            me.hValue = (me.hValue << 2) + ordValue((TValue)*(it + i));
+        }
+   
+    
 
     return me.hValue;
 }
@@ -158,18 +165,22 @@ inline void hashInit(Shape<TValue, MinimizerShape<TSPAN, TWEIGHT, TSpec> > &me, 
         SEQAN_ASSERT_GT((unsigned)me.span, 0u);
 
         me.leftChar = 0;
-        me.hValue = ordValue(*it);
+        //me.hValue = ordValue(*it);
+        me.hValue = 0;
         hash_key = ((uint64_t)1 << (TSPAN*2 -2 )) - 1;
         hash_key1 = ((uint64_t)1 << TSPAN * 2) - ((uint64_t)1 << TWEIGHT * 2);
         hash_key2 = ((uint64_t) 1 << (TWEIGHT*2)) - 1;
         hash_key3 = ((uint64_t)1 << (TSPAN*2 )) - 1;
 
-        for(TSize i = 2; i < me.span; ++i) {
-            //me.hValue = me.hValue * ValueSize<TValue>::VALUE + ordValue((TValue)*(it +i-2));
-            me.hValue = (me.hValue << 2) + ordValue((TValue)*(it +i-2));
-        me.x = 0;
-
+        //for(TSize i = 2; i < me.span; ++i) {
+        //    //me.hValue = me.hValue * ValueSize<TValue>::VALUE + ordValue((TValue)*(it +i-2));
+        //    me.hValue = (me.hValue << 2) + ordValue((TValue)*(it +i-2));
+        for (TSize i = 0; i < me.span - 1; ++i)
+        {
+            me.hValue = (me.hValue << 2) + ordValue((TValue)*(it + i));
         }
+        me.x = 0;
+        //}
 }
 
 /*

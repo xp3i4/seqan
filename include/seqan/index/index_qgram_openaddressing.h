@@ -308,7 +308,7 @@ namespace SEQAN_NAMESPACE_MAIN
     static const uint64_t _bitHeadCode = 2;
     static const uint64_t _bitVtlHeadCode = 3;
     
-    static const uint64_t _Empty_Dir_ = 0;
+    static const uint64_t _Empty_Dir_ = -1;
     
 //==============================================================
     template <typename HValue>
@@ -548,12 +548,12 @@ namespace SEQAN_NAMESPACE_MAIN
 
     template<typename TDir, typename THashValue>
     inline THashValue
-    requestBucket(TDir & dir, THashValue code, THashValue code1)//, Tag<TParallelTag> parallelTag)
+    requestBucket(TDir & dir, THashValue hlen, THashValue code, THashValue code1)//, Tag<TParallelTag> parallelTag)
     //code:headNode, code1:pointerTobody
     {
         //std::cout << code << " " << len << std::endl;
         typedef unsigned long TSize;
-        TSize hlen = 536870913 ;
+        //TSize hlen = 536870913 ;
         //TSize hlen = 2147483649;
         if (hlen == 0ul) return code;
         
@@ -746,7 +746,7 @@ namespace SEQAN_NAMESPACE_MAIN
     
     template <typename TDir, typename THashValue>    
     inline THashValue 
-    getBucket(TDir const &dir,THashValue const & v1, THashValue const & v2, THashValue const & v3) 
+    getBucket(TDir const &dir, THashValue hlen, THashValue const & v1, THashValue const & v2, THashValue const & v3) 
     //v1: XValue, v2:YValue, v3:hValue
     {
         typedef unsigned long TSize;
@@ -755,7 +755,7 @@ namespace SEQAN_NAMESPACE_MAIN
         // check whether bucket map is disabled and
         // where the hash should be found if no collision took place before
         //TSize hlen = length(dir);
-        TSize hlen = 536870913;
+        //TSize hlen = 536870913;
         //TSize hlen = 2147483649;
         THashValue key, it;
         if (hlen == 0ul) return _Empty_Dir_;
