@@ -46,6 +46,7 @@ typedef Tag<ReverseComplement_> const   ReverseComplement;
 
 template <unsigned TSPAN, unsigned TWEIGHT, typename TSpec = void>
 struct MinimizerShape;
+typedef MinimizerShape<0, 0> SimpleMShape;
 
 // ----------------------------------------------------------------------------
 // Class Shape<MinimizerShape>
@@ -115,6 +116,15 @@ struct WINDOW_BIT_SIZE<Shape<TValue, MinimizerShape<TSPAN, TWEIGHT, TSpec> > >
     enum { VALUE = 2 * (TSPAN - TWEIGHT)};
 };
 
+template <typename TValue, unsigned TSPAN, unsigned TWEIGHT, typename TSpec>
+inline SEQAN_HOST_DEVICE
+typename Size< Shape<TValue, MinimizerShape<TSPAN, TWEIGHT, TSpec> > >::Type
+length(Shape<TValue, MinimizerShape<TSPAN, TWEIGHT, TSpec> > const &me)
+{
+    return me.span;
+}
+
+
 // ----------------------------------------------------------------------------
 // Function weight()
 // ----------------------------------------------------------------------------
@@ -125,6 +135,31 @@ typename Size< Shape<TValue, MinimizerShape<TSPAN, TWEIGHT, TSpec> > >::Type
 weight(Shape<TValue, MinimizerShape<TSPAN, TWEIGHT, TSpec> > const &me)
 {
     return me.weight;
+}
+
+//-----------------------------------------------------------------------------
+// Function resize()
+//-----------------------------------------------------------------------------
+template <typename TValue>
+inline void resize(Shape<TValue, SimpleMShape> & me, unsigned new_span, unsigned new_weight)
+{   
+SEQAN_CHECKPOINT
+    typedef typename Value< Shape<TValue, SimpleShape> >::Type    THValue;
+    me.leftFactor = _intPow((THValue)ValueSize<TValue>::VALUE, new_span - 1); 
+    me.leftFactor2 = (_intPow((THValue)ValueSize<TValue>::VALUE, new_span) - 1) / (ValueSize<TValue>::VALUE - 1); 
+    me.span = new_span;
+    me.weight = new_weight;
+}   
+
+template <typename TValue, typename TSize, unsigned TSPAN, unsigned TWEIGHT>
+inline void resize(Shape<TValue, MinimizerShape<TSPAN, TWEIGHT> > & me, TSize new_span, TSize new_weight)
+{   
+SEQAN_CHECKPOINT
+    typedef typename Value< Shape<TValue, SimpleShape> >::Type    THValue;
+    me.leftFactor = _intPow((THValue)ValueSize<TValue>::VALUE, new_span - 1); 
+    me.leftFactor2 = (_intPow((THValue)ValueSize<TValue>::VALUE, new_span) - 1) / (ValueSize<TValue>::VALUE - 1); 
+    me.span = new_span;
+    me.weight = new_weight;
 }
 
 // ----------------------------------------------------------------------------
@@ -167,10 +202,10 @@ inline void hashInit(Shape<TValue, MinimizerShape<TSPAN, TWEIGHT, TSpec> > &me, 
         me.leftChar = 0;
         //me.hValue = ordValue(*it);
         me.hValue = 0;
-        hash_key = ((uint64_t)1 << (TSPAN*2 -2 )) - 1;
-        hash_key1 = ((uint64_t)1 << TSPAN * 2) - ((uint64_t)1 << TWEIGHT * 2);
-        hash_key2 = ((uint64_t) 1 << (TWEIGHT*2)) - 1;
-        hash_key3 = ((uint64_t)1 << (TSPAN*2 )) - 1;
+        hash_key = ((uint64_t)1 << (me.span*2 -2 )) - 1;
+        hash_key1 = ((uint64_t)1 << me.span * 2) - ((uint64_t)1 << me.weight * 2);
+        hash_key2 = ((uint64_t) 1 << (me.weight*2)) - 1;
+        hash_key3 = ((uint64_t)1 << (me.span*2 )) - 1;
 
         //for(TSize i = 2; i < me.span; ++i) {
         //    //me.hValue = me.hValue * ValueSize<TValue>::VALUE + ordValue((TValue)*(it +i-2));
@@ -210,7 +245,7 @@ inline void hashInit(Shape<TValue, MinimizerShape<TSPAN, TWEIGHT, TSpec> > &me, 
     }
 
 */
-
+/*
 template <typename TValue, unsigned TSPAN, unsigned TWEIGHT, typename TSpec, typename TIter>
 inline typename Value< Shape<TValue, MinimizerShape<TSPAN, TWEIGHT, TSpec> > >::Type
 hashNext(Shape<TValue, MinimizerShape<TSPAN, TWEIGHT, TSpec> > &me, TIter const &it)
@@ -246,21 +281,54 @@ hashNext(Shape<TValue, MinimizerShape<TSPAN, TWEIGHT, TSpec> > &me, TIter const 
 
         return me.XValue; 
 }
+*/
+template <typename TValue, unsigned TSPAN, unsigned TWEIGHT, typename TSpec, typename TIter>
+inline typename Value< Shape<TValue, MinimizerShape<TSPAN, TWEIGHT, TSpec> > >::Type
+hashNext(Shape<TValue, MinimizerShape<TSPAN, TWEIGHT, TSpec> > &me, TIter const &it)
+{
+
+         // remove first, shift left, and add next character
+        //typedef typename Value< Shape<TValue, TSpec> >::Type    THValue;
+        typedef typename Size< Shape<TValue, TSpec> >::Type        TSize;
+        SEQAN_ASSERT_GT((unsigned)me.span, 0u);
+        uint64_t v1, t = 0;// tmp;
+        //unsigned pre = 23;
+ 
+        me.hValue=((me.hValue & hash_key)<<2)+ordValue((TValue)*(it + ((TSize)me.span - 1)));
+        me.XValue = hash_key3;
+        //tmp = me.hValue ^ ((me.hValue << 32)+(me.hValue >> 32));
+        //tmp = me.hValue ;
+                
+        //if (me.x == 0 || me.XValue < (me.hValue & hash_key2))
+        //{
+        for (unsigned k = 64-(me.span << 1) ; k <= 64 - (me.weight << 1); k+=2)
+        {
+            v1 = me.hValue << k >> (64-(me.weight<<1));
+            if(me.XValue > v1)
+            {
+                me.XValue=v1;
+                t=k;
+            }
+        } 
+        me.YValue = (me.hValue >> (64-t) << (64-t-(me.weight<<1)))+(me.hValue & (((uint64_t)1<<(64-t-(me.weight<<1))) - 1))+(t<<((me.span - me.weight) << 1));
+
+        return me.XValue; 
+}
 
 template <typename TValue, unsigned TSPAN, unsigned TWEIGHT, typename TSpec>
 inline uint64_t h2y(Shape<TValue, MinimizerShape<TSPAN, TWEIGHT, TSpec> > &me,  uint64_t h)
 {
     uint64_t x = hash_key3, v1, t;
-    for (unsigned k = 64-(TSPAN << 1) ; k <= 64 - (TWEIGHT << 1); k+=2)
+    for (unsigned k = 64-(me.span << 1) ; k <= 64 - (me.weight << 1); k+=2)
     {
-        v1 = h << k >> (64-(TWEIGHT<<1));
+        v1 = h << k >> (64-(me.weight<<1));
         if(x > v1)
         { 
             x=v1;
             t=k;
         }
     } 
-    return (h>> (64-t) << (64-t-(TWEIGHT<<1)))+(h& (((uint64_t)1<<(64-t-(TWEIGHT<<1))) - 1))+(t<<((TSPAN - TWEIGHT) << 1));
+    return (h>> (64-t) << (64-t-(me.weight<<1)))+(h& (((uint64_t)1<<(64-t-(me.weight<<1))) - 1))+(t<<((me.span - me.weight) << 1));
 
 }
 

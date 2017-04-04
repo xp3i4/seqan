@@ -206,6 +206,7 @@ namespace SEQAN_NAMESPACE_MAIN
         double            alpha;        // for m entries the hash map has at least size alpha*m
     //x-begin//
         uint64_t           start;          // 
+        uint64_t         _Empty_Dir_ = start - 2;  
     //x-end//
         Index():
             stepSize(1),
@@ -375,7 +376,7 @@ namespace SEQAN_NAMESPACE_MAIN
     template <typename HValue>
     inline HValue _getBodyCounth(HValue & code)
     {
-        return code & _BodyType_key;
+        return code & _getBody;
     }
     
 //x-end: min shape open index 
@@ -548,7 +549,7 @@ namespace SEQAN_NAMESPACE_MAIN
 
     template<typename TDir, typename THashValue>
     inline THashValue
-    requestBucket(TDir & dir, THashValue hlen, THashValue code, THashValue code1)//, Tag<TParallelTag> parallelTag)
+    requestDir(TDir & dir, THashValue hlen, THashValue code, THashValue code1)//, Tag<TParallelTag> parallelTag)
     //code:headNode, code1:pointerTobody
     {
         //std::cout << code << " " << len << std::endl;
@@ -584,7 +585,7 @@ namespace SEQAN_NAMESPACE_MAIN
         return h1;
     }
 
-
+/*
     template < typename THashValue, typename THashValue2, typename TParallelTag >
     inline THashValue
     requestBucket(BucketMap<THashValue> &bucketMap, THashValue2 code, Tag<TParallelTag> parallelTag)
@@ -639,7 +640,51 @@ namespace SEQAN_NAMESPACE_MAIN
         //return h1;
         return count;
     }
-    
+ */
+    template < typename THashValue, typename THashValue2, typename TParallelTag >
+    inline THashValue
+    requestBucket(BucketMap<THashValue> &bucketMap, THashValue2 code, Tag<TParallelTag> parallelTag)
+    {
+        typedef BucketMap<THashValue> TBucketMap;
+        typedef unsigned long TSize;
+        // get size of the index
+
+        // check whether bucket map is disabled and
+        // where the hash should be found if no collision took place before
+        TSize hlen = length(bucketMap.qgramCode);
+        if (hlen == 0ul) return code;
+
+        TSize h1 = _hashFunction(bucketMap, code);
+#ifdef SEQAN_OPENADDRESSING_COMPACT
+        --hlen;
+        h1 %= hlen;
+#else
+        hlen -= 2;
+        h1 &= hlen;
+#endif
+        // was the entry empty or occupied by our code?
+        THashValue currentCode = atomicCas(bucketMap.qgramCode[h1], TBucketMap::EMPTY, code, parallelTag);
+        if (currentCode == TBucketMap::EMPTY || currentCode == code)
+            return h1;
+
+        // if not we have a collision -> probe for our code or an empty entry
+        //
+        // do linear probing if we need to save memory (when SEQAN_OPENADDRESSING_COMPACT is defined)
+        // otherwise do quadratic probing to avoid clustering (Cormen 1998)
+        TSize delta = 0;
+        (void)delta;
+        do {
+#ifdef SEQAN_OPENADDRESSING_COMPACT
+            h1 = (h1 + 1) % hlen;               // linear probing guarantees that all entries are visited
+#else
+            h1 = (h1 + delta + 1) & hlen;       // for power2-sized tables the (i*i+i)/2 probing guarantees the same
+            ++delta;
+#endif
+            currentCode = atomicCas(bucketMap.qgramCode[h1], TBucketMap::EMPTY, code, parallelTag);
+        } while (currentCode != TBucketMap::EMPTY && currentCode != code);
+        return h1;
+    }
+   
     //x-begin2:
 /*
     template <typename TDir, typename THashValue>
@@ -744,12 +789,12 @@ namespace SEQAN_NAMESPACE_MAIN
 */
     //x-end2:
     
-    template <typename TDir, typename THashValue>    
-    inline THashValue 
-    getBucket(TDir const &dir, THashValue hlen, THashValue const & v1, THashValue const & v2, THashValue const & v3) 
-    //v1: XValue, v2:YValue, v3:hValue
+    template <typename TObject, unsigned TSPAN, unsigned TWEIGHT, typename TValue, typename TSpec>
+    inline typename Value< Shape<TValue, MinimizerShape<TSPAN, TWEIGHT, TSpec> > >::Type 
+    getDir(Index<TObject, IndexQGram<MinimizerShape<TSPAN, TWEIGHT>, OpenAddressing> > const & index, Shape<TValue, MinimizerShape<TSPAN, TWEIGHT, TSpec> > const & shape)
     {
         typedef unsigned long TSize;
+        typedef typename Value< Shape<TValue, MinimizerShape<TSPAN, TWEIGHT, TSpec> > >::Type THashValue;
         // get size of the index
 
         // check whether bucket map is disabled and
@@ -757,38 +802,40 @@ namespace SEQAN_NAMESPACE_MAIN
         //TSize hlen = length(dir);
         //TSize hlen = 536870913;
         //TSize hlen = 2147483649;
+    
         THashValue key, it;
-        if (hlen == 0ul) return _Empty_Dir_;
+        TSize hlen = index.start - 2;
+        TSize h1 = _hashFunction(index.dir, shape.XValue) & hlen;
+        //if (hlen == 0ul) return index._Empty_Dir_;
 
-        TSize h1 = _hashFunction(dir, v1);
-#ifdef SEQAN_OPENADDRESSING_COMPACT
-        --hlen;
-        h1 %= hlen;
-#else
-        hlen -= 2;
-        h1 &= hlen;
-#endif
+//#ifdef SEQAN_OPENADDRESSING_COMPACT
+//        --hlen;
+//        h1 %= hlen;
+//#else
+        //hlen -= 2;
+        //h1 &= hlen;
+//#endif
         TSize delta = 0;
         (void)delta;
         
-        _setHeadNode(key,v1);
-        while (dir[h1] | dir[h1+1])
+        _setHeadNode(key,shape.XValue);
+        while (index.dir[h1] | index.dir[h1+1])
         {
-            switch (dir[h1] ^ key) 
+            switch (index.dir[h1] ^ key) 
             {
                 case 0:
-                    it = _getHeadValue(dir[h1+1]);
+                    it = _getHeadValue(index.dir[h1+1]);
                     do{
-                        if (v2 ==  _getBodyValue(dir[it]))
+                        if (shape.YValue ==  _getBodyValue(index.dir[it]))
                         {    
         //std::cout << 0 << std::endl;
                             return it;
                         } 
-                    }while(_ifBodyType(dir[++it])); //until the begin of next block
-                    return _Empty_Dir_ ;
+                    }while(_ifBodyType(index.dir[++it])); //until the begin of next block
+                    return index._Empty_Dir_ ;
                 case 1:
-                    _setHVlHeadNode(key, v3);
-                    h1 = _hashFunction(dir, v3) & hlen;
+                    _setHVlHeadNode(key, shape.hValue);
+                    h1 = _hashFunction(index.dir, shape.hValue) & hlen;
                     delta = 0;
                     break;
                 default:
@@ -797,7 +844,7 @@ namespace SEQAN_NAMESPACE_MAIN
             }
         }
         //std::cout << 3<< std::endl;
-        return _Empty_Dir_; 
+        return index._Empty_Dir_; 
     }
 
     template < typename THashValue, typename THashValue2 >
@@ -820,7 +867,6 @@ namespace SEQAN_NAMESPACE_MAIN
 #else
         hlen -= 2;
         h1 &= hlen;
-        //h1 %= hlen;
 #endif
 
         // probe for our code or an empty entry
@@ -835,12 +881,12 @@ namespace SEQAN_NAMESPACE_MAIN
             h1 = (h1 + 1) % hlen;               // linear probing guarantees that all entries are visited
 #else
             h1 = (h1 + delta + 1) & hlen;       // for power2-sized tables the (i*i+i)/2 probing guarantees the same
-            //h1 = (h1 + delta + 1) % hlen;
             ++delta;
 #endif
         }
         return h1;
     }
+ 
 
     template <typename TBucketMap>
     inline bool _emptyBucketMap(TBucketMap const &bucketMap)
@@ -883,6 +929,31 @@ namespace SEQAN_NAMESPACE_MAIN
             qgrams = (__int64)ceil(max_qgrams);
             clear(const_cast<TIndex &>(index).bucketMap.qgramCode);    // 1-1 mapping, no bucket map needed
         }
+        return qgrams + 1;
+    }
+
+    template <typename TObject, unsigned TSPAN, unsigned TWEIGHT>
+    inline __int64 _fullDirLength(Index<TObject, IndexQGram<MinimizerShape<TSPAN, TWEIGHT>, OpenAddressing> > const &index)
+    {
+        typedef Index<TObject, IndexQGram<MinimizerShape<TSPAN, TWEIGHT>, OpenAddressing> >    TIndex;
+        typedef typename Fibre<TIndex, QGramDir>::Type                        TDir;
+        typedef typename Fibre<TIndex, FibreShape>::Type                    TShape;
+        typedef typename Host<TShape>::Type                                    TTextValue;
+        typedef typename Value<TDir>::Type                                    TDirValue;
+        typedef typename Value<TShape>::Type                                THashValue;
+
+        double num_qgrams = _qgramQGramCount(index) * index.alpha;
+        double max_qgrams = 2*pow((double)ValueSize<TTextValue>::VALUE, (double)length(indexShape(index)));
+        __int64 qgrams;
+
+        qgrams = (__int64)ceil(num_qgrams);
+#ifndef SEQAN_OPENADDRESSING_COMPACT
+        __int64 power2 = 1;
+        while (power2 < qgrams)
+            power2 <<= 1;
+            qgrams = power2;
+    #endif
+            resize(const_cast<TIndex &>(index).bucketMap.qgramCode, qgrams + 1, Exact());
         return qgrams + 1;
     }
 
