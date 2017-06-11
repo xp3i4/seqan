@@ -194,7 +194,8 @@ namespace SEQAN_NAMESPACE_MAIN
         typedef typename Size<Index>::Type                    TSize;
 
         TTextMember     text;        // underlying text
-        TSA                sa;            // suffix array sorted by the first q chars
+//        TSA                sa;            // suffix array sorted by the first q chars
+        String<uint64_t> sa;
         TDir            dir;        // bucket directory
         TCounts            counts;        // counts each q-gram per sequence
         TCountsDir        countsDir;    // directory for count buckets
@@ -264,6 +265,21 @@ namespace SEQAN_NAMESPACE_MAIN
     };
 
 //=============================================================
+// definition of some types for mimizer index
+    struct hPair
+    {
+        uint64_t i1;
+        uint64_t i2;
+        inline hPair & operator = (hPair & b)
+        {
+            i1 = b.i1;
+            i2 = b.i2;
+            return *this;
+        }
+    };
+//==============================================================
+
+//=============================================================
 //definition of types of elements in dir (uint64_t)
     //bodyNode=
     //length1[4] length2[38] YValue[20] code[2]: code={1}
@@ -308,8 +324,15 @@ namespace SEQAN_NAMESPACE_MAIN
     static const uint64_t _bitBodyCode = 1;
     static const uint64_t _bitHeadCode = 2;
     static const uint64_t _bitVtlHeadCode = 3;
-    
+  
+    //SA node:= seq num i1[40]| base num i2[16]
+    static const uint64_t _BaseNum_bits = 32;    
+    static const uint64_t _SeqNum_bits = 30;    
+    static const uint64_t _BaseNum_code = ((uint64_t)1 << _BaseNum_bits) - 1;
+ 
     static const uint64_t _Empty_Dir_ = -1;
+
+    static const unsigned blocklimit = 32;
     
 //==============================================================
     template <typename HValue>
@@ -377,6 +400,24 @@ namespace SEQAN_NAMESPACE_MAIN
     inline HValue _getBodyCounth(HValue & code)
     {
         return code & _getBody;
+    }
+
+    template <typename HValue>
+    inline HValue _createSANode(HValue const & i1, HValue const & i2)
+    {
+        return (i1 << _BaseNum_bits) + i2;
+    }
+
+    template <typename HValue>
+    inline void _setSANode(HValue & node, HValue const & i1, HValue const & i2)
+    {
+        node = (i1 << _BaseNum_bits) + i2;
+    }
+    
+    template <typename HValue>
+    inline HValue _getSA_i2(HValue const & node)
+    {
+        return node & _BaseNum_code;
     }
     
 //x-end: min shape open index 
@@ -547,6 +588,21 @@ namespace SEQAN_NAMESPACE_MAIN
     }
 */
 
+    template < typename TBucketMap, typename TValue >
+    inline TValue
+    _hashFunction1(TBucketMap const &, TValue val)
+    {
+    uint64_t key = val;
+          key = (~key) + (key << 21); // key = (key << 21) - key - 1;
+  key = key ^ (key >> 24);
+  key = (key + (key << 3)) + (key << 8); // key * 265
+  key = key ^ (key >> 14);
+  key = (key + (key << 2)) + (key << 4); // key * 21
+  key = key ^ (key >> 28);
+  key = key + (key << 31);
+  return key;        
+    }
+
     template<typename TDir, typename THashValue>
     inline THashValue
     requestDir(TDir & dir, THashValue hlen, THashValue code, THashValue code1)//, Tag<TParallelTag> parallelTag)
@@ -558,7 +614,7 @@ namespace SEQAN_NAMESPACE_MAIN
         //TSize hlen = 2147483649;
         if (hlen == 0ul) return code;
         
-        TSize h1 = _hashFunction(dir, _getHeadValue(code));
+        TSize h1 = _hashFunction1(dir, _getHeadValue(code));
 #ifdef SEQAN_OPENADDRESSING_COMPACT
         --hlen;
         h1 %= hlen;
@@ -799,13 +855,10 @@ namespace SEQAN_NAMESPACE_MAIN
 
         // check whether bucket map is disabled and
         // where the hash should be found if no collision took place before
-        //TSize hlen = length(dir);
-        //TSize hlen = 536870913;
-        //TSize hlen = 2147483649;
     
         THashValue key, it;
         TSize hlen = index.start - 2;
-        TSize h1 = _hashFunction(index.dir, shape.XValue) & hlen;
+        TSize h1 = _hashFunction1(index.dir, shape.XValue) & hlen;
         //if (hlen == 0ul) return index._Empty_Dir_;
 
 //#ifdef SEQAN_OPENADDRESSING_COMPACT
@@ -817,7 +870,6 @@ namespace SEQAN_NAMESPACE_MAIN
 //#endif
         TSize delta = 0;
         (void)delta;
-        
         _setHeadNode(key,shape.XValue);
         while (index.dir[h1] | index.dir[h1+1])
         {
@@ -826,16 +878,16 @@ namespace SEQAN_NAMESPACE_MAIN
                 case 0:
                     it = _getHeadValue(index.dir[h1+1]);
                     do{
+                    
                         if (shape.YValue ==  _getBodyValue(index.dir[it]))
                         {    
-        //std::cout << 0 << std::endl;
                             return it;
                         } 
                     }while(_ifBodyType(index.dir[++it])); //until the begin of next block
                     return index._Empty_Dir_ ;
                 case 1:
                     _setHVlHeadNode(key, shape.hValue);
-                    h1 = _hashFunction(index.dir, shape.hValue) & hlen;
+                    h1 = _hashFunction1(index.dir, shape.hValue) & hlen;
                     delta = 0;
                     break;
                 default:
@@ -843,7 +895,6 @@ namespace SEQAN_NAMESPACE_MAIN
                     delta++;
             }
         }
-        //std::cout << 3<< std::endl;
         return index._Empty_Dir_; 
     }
 
@@ -936,11 +987,8 @@ namespace SEQAN_NAMESPACE_MAIN
     inline __int64 _fullDirLength(Index<TObject, IndexQGram<MinimizerShape<TSPAN, TWEIGHT>, OpenAddressing> > const &index)
     {
         typedef Index<TObject, IndexQGram<MinimizerShape<TSPAN, TWEIGHT>, OpenAddressing> >    TIndex;
-        typedef typename Fibre<TIndex, QGramDir>::Type                        TDir;
         typedef typename Fibre<TIndex, FibreShape>::Type                    TShape;
         typedef typename Host<TShape>::Type                                    TTextValue;
-        typedef typename Value<TDir>::Type                                    TDirValue;
-        typedef typename Value<TShape>::Type                                THashValue;
 
         double num_qgrams = _qgramQGramCount(index) * index.alpha;
         double max_qgrams = 2*pow((double)ValueSize<TTextValue>::VALUE, (double)length(indexShape(index)));
@@ -957,6 +1005,441 @@ namespace SEQAN_NAMESPACE_MAIN
         return qgrams + 1;
     }
 
+template <unsigned TSpan, unsigned TWeight>
+void _qgramClearDir(Index<StringSet<DnaString>, IndexQGram<MinimizerShape<TSpan, TWeight>, OpenAddressing> > & index)
+{
+    typedef Shape<Dna, MinimizerShape<TSpan, TWeight> > TM_Shape;
+    typedef typename Value<TM_Shape>::Type HValue;
+    resize (indexDir(index), _fullDirLength(index) + lengthSum(indexText(index)) + 2);
+    index.start = _fullDirLength(index);
+    index._Empty_Dir_ = 0;
+    for (HValue k = 0; k < length(index.dir); k++) 
+    {
+        index.dir[k] = _bitEmpty;
+    }
+    std::cout << "        _qgramClearDir():" << std::endl;
+    std::cout << "            _fullDirLength(index) = " << _fullDirLength(index) << std::endl;
+    std::cout << "            lengh(index.dir) = " << length(index.dir) << std::endl;
+    std::cout << "            End _qgramClearDir()" << std::endl;
+}
+
+template <unsigned TSpan, unsigned TWeight>
+void _qgramCountQGrams2(Index<StringSet<DnaString>, IndexQGram<MinimizerShape<TSpan, TWeight>, OpenAddressing > > & index)
+{
+    typedef Shape<Dna, MinimizerShape<TSpan, TWeight> > TM_Shape;
+    typedef Iterator<String<Dna> >::Type TIter;
+    typedef typename Value<TM_Shape>::Type HValue;
+    typedef std::tuple<HValue, HValue, HValue, HValue> HTuple;
+    typedef String<HTuple> Stringtuple;
+
+    TM_Shape shape;
+    Stringtuple hs, hs1;
+    HValue  m = 0, sum = 0;
+
+    double time = sysTime();
+    resize(hs, lengthSum(indexText(index)) - length(indexText(index)) * (shape.span - 1) + 1);
+
+    std::cout << "        _qgramCountQGrams() sysTime(): " << sysTime() - time << std::endl;
+    std::cout << "            lengthSum(StringSet) = " << lengthSum(indexText(index)) << std::endl;
+    for(HValue k = 0; k < length(indexText(index)); k++)
+    {
+        TIter it = begin(indexText(index)[k]);
+        hashInit(shape, it);
+        for (HValue j = 0; j < length(indexText(index)[k]) - shape.span + 1; j++)
+        {
+            hashNext(shape, it + j);
+            hs[m++] = std::make_tuple(shape.XValue, shape.hValue, shape.YValue, _createSANode(k, j));
+        }
+    }
+    std::cout << "            make_tuple sysTime(): " << sysTime() - time << std::endl;
+    //hs[length(hs) - 1] = std::make_tuple((HValue)0, (HValue)0, (HValue)0, (HValue)1);
+    std::sort(begin(hs), end(hs) - 1,
+        [](const HTuple &a, const HTuple &b)
+        {return (std::get<0>(a) > std::get<0>(b)||(std::get<0>(a) == std::get<0>(b) && std::get<1>(a) > std::get<1>(b)));});
+    hs[length(hs) - 1] = std::make_tuple((HValue)1, (HValue)1, (HValue)0, (HValue)1);
+    std::cout << "            sort sysTime(): " << sysTime() - time << " " << std::get<0>(hs[length(hs) - 2]) << " " << std::get<1>(hs[length(hs)- 2]) << std::endl;
+    HValue countx = 1, counth = 1, tmp = 0, countdh = 0, countb = 0, hk = 0;
+    resize(index.sa, length(hs) - 1);
+    for (HValue k = 1; k < length(hs); k++)
+    {
+        index.sa[k - 1] = std::get<3>(hs[k-1]);
+        if (std::get<1>(hs[k]) != std::get<1>(hs[k - 1]))
+        { _setBodyNode(index.dir[index.start + hk], std::get<2>(hs[k-1]), _BodyType_code, tmp);
+        if (std::get<0>(hs[k - 1]) == 0 && std::get<2>(hs[k - 1]) == 441204)
+            std::cout <<"_getBodyValue = " << _getBodyValue(index.dir[index.start + hk]) << std::endl;
+            hk++;
+            countb++;
+            countdh++;
+            tmp = counth;
+        }
+        //else
+        counth++;
+
+        if (std::get<0>(hs[k]) != std::get<0>(hs[k - 1]))
+        {
+            if (countb < blocklimit)
+            {
+                requestDir(index.dir, index.start, _makeHeadNode(std::get<0>(hs[k-1])), _makeEmptyNode(index.start + hk - countb));
+                for (HValue j = 0; j < countb; j++)
+                    _setBodyType_Begin(index.dir[index.start + hk - countb]);
+            }
+            else
+            {
+                hk -= countb;
+                requestDir(index.dir, index.start, _makeVtlHeadNode(std::get<0>(hs[k-1])), _makeEmptyNode(index.start + hk));
+                for (HValue j = k - countx; j < k; j++)
+                    if (std::get<1>(hs[j]) != std::get<1>(hs[j + 1]))
+                    {
+                        requestDir(index.dir, index.start, _makeHVlHeadNode(std::get<1>(hs[j])), _makeEmptyNode(index.start+hk));
+                        _setBodyType_Begin(index.dir[index.start + hk]);
+                        hk++;
+                    }
+            }
+            countb = 0;
+            countx = 1;
+        }
+        else
+        {
+            countx++;
+        }
+    }
+    std::cout << std::endl;
+    std::cout << counth << std::endl;
+    resize(index.dir, index.start + countdh + 10);
+    _setBodyNode(index.dir[index.start + countdh], _bitEmpty, _BodyType_code, counth - 1); 
+    _setBodyType_Begin(index.dir[index.start + countdh]);
+    index._Empty_Dir_ = index.start + countdh + 1;
+    //_setBodyNode(index.dir[index.start + countdh], _bitEmpty, _BodyTypeEnd_code, counth - 1); 
+    //_setBodyType_Begin(index.dir[index.start + countdh]);
+    //index._Empty_Dir_ = index.start + countdh;
+    //_setBodyNode(index.dir[index.start + countdh + 1], _bitEmpty, _BodyTypeEnd_code, counth - 1); 
+    //_setBodyType_Begin(index.dir[index.start + countdh + 1]);
+    std::cout << "            End _qgramCountQGrams() sysTime(): " << sysTime() - time << std::endl;
+}
+
+
+
+template <unsigned TSpan, unsigned TWeight>
+void _qgramCountQGrams3(Index<StringSet<DnaString>, IndexQGram<MinimizerShape<TSpan, TWeight>, OpenAddressing > > & index)
+{
+    typedef Shape<Dna, MinimizerShape<TSpan, TWeight> > TM_Shape;
+    typedef Iterator<String<Dna> >::Type TIter;
+    typedef typename Value<TM_Shape>::Type HValue;
+    typedef std::tuple<HValue, HValue, HValue> HTuple;
+    typedef String<HTuple> Stringtuple;
+
+    TM_Shape shape;
+    Stringtuple hs, hs1;
+    HValue  m = 0, sum = 0;
+
+    double time = sysTime();
+    resize(hs, lengthSum(indexText(index)) - length(indexText(index)) * (shape.span - 1) + 1);
+
+    std::cout << "        _qgramCountQGrams() sysTime(): " << sysTime() - time << std::endl;
+    std::cout << "            lengthSum(StringSet) = " << lengthSum(indexText(index)) << std::endl;
+    for(HValue k = 0; k < length(indexText(index)); k++)
+    {
+        TIter it = begin(indexText(index)[k]);
+        hashInit(shape, it);
+        for (HValue j = 0; j < length(indexText(index)[k]) - shape.span + 1; j++)
+        {
+            hashNext(shape, it + j);
+            hs[m++] = std::make_tuple(shape.XValue, shape.YValue, _createSANode(k, j));
+        }
+    }
+    std::cout << "            make_tuple sysTime(): " << sysTime() - time << std::endl;
+    //hs[length(hs) - 1] = std::make_tuple((HValue)0, (HValue)0, (HValue)0, (HValue)1);
+    std::sort(begin(hs), end(hs) - 1,
+        [](const HTuple &a, const HTuple &b)
+        {return (std::get<0>(a) < std::get<0>(b)||(std::get<0>(a) == std::get<0>(b) && std::get<1>(a) > std::get<1>(b)));});
+    hs[length(hs) - 1] = std::make_tuple((HValue)1, (HValue)0, (HValue)1);
+    std::cout << "            sort sysTime(): " << sysTime() - time << std::endl;
+    HValue countx = 1, counth = 1, tmp = 0, countdh = 0, countb = 1, hk = 0;
+    resize(index.sa, length(hs) - 1);
+    for (HValue k = 1; k < length(hs); k++)
+    {
+        if (std::get<0>(hs[k]) ^ std::get<0>(hs[k - 1])|std::get<1>(hs[k]) ^ std::get<1>(hs[k - 1]))
+        { _setBodyNode(index.dir[index.start + hk], std::get<1>(hs[k-1]), _BodyType_code, tmp);
+            hk++;
+            countb++;
+            countdh++;
+            tmp = counth;
+        }
+        if (std::get<0>(hs[k]) ^ std::get<0>(hs[k - 1]))
+        {
+            
+            if (countb < blocklimit)
+            {
+                requestDir(index.dir, index.start, _makeHeadNode(std::get<0>(hs[k-1])), _makeEmptyNode(index.start + hk - countb));
+                for (HValue j = 0; j < countb; j++)
+                    _setBodyType_Begin(index.dir[index.start + hk - countb]);
+            }
+            else
+            {
+                hk -= countb;
+                requestDir(index.dir, index.start, _makeVtlHeadNode(std::get<0>(hs[k-1])), _makeEmptyNode(index.start + hk));
+                for (HValue j = k - countx; j < k; j++)
+                    if ((std::get<0>(hs[j]) ^ std::get<0>(hs[j + 1])) | (std::get<1>(hs[j]) ^ std::get<1>(hs[j + 1])))
+                    {
+                        requestDir(index.dir, index.start, _makeHVlHeadNode(xy2h(shape, std::get<0>(hs[j]),std::get<1>(hs[j]))), _makeEmptyNode(index.start+hk));
+                        _setBodyType_Begin(index.dir[index.start + hk]);
+                        hk++;
+                    }
+            }
+            countb = 0;
+            countx = 1;
+        }
+        else
+        {
+            countx++;
+        }
+        
+        index.sa[k - 1] = std::get<2>(hs[k-1]);
+        counth++;
+    }
+    std::cout << std::endl;
+    std::cout << counth << std::endl;
+    resize(index.dir, index.start + countdh + 10);
+    _setBodyNode(index.dir[index.start + countdh], _bitEmpty, _BodyType_code, counth - 1); 
+    _setBodyType_Begin(index.dir[index.start + countdh]);
+    index._Empty_Dir_ = index.start + countdh + 1;
+    //_setBodyNode(index.dir[index.start + countdh], _bitEmpty, _BodyTypeEnd_code, counth - 1); 
+    //_setBodyType_Begin(index.dir[index.start + countdh]);
+    //index._Empty_Dir_ = index.start + countdh;
+    //_setBodyNode(index.dir[index.start + countdh + 1], _bitEmpty, _BodyTypeEnd_code, counth - 1); 
+    //_setBodyType_Begin(index.dir[index.start + countdh + 1]);
+    std::cout << "            End _qgramCountQGrams() sysTime(): " << sysTime() - time << std::endl;
+}
+
+
+template <typename TIt>
+inline void _insertSort(TIt const & begin, TIt const & end )
+{
+    Pair<uint64_t, uint64_t> key;
+    for (int j = 1; j < end - begin; j++)
+    {
+        key = *(begin + j); 
+        int k = j - 1;
+        while (k >= 0)
+        {
+            if (((begin + k)->i2 < key.i2))
+                *(begin+k+1) = *(begin+k);
+            else
+            {   
+                break;
+            }   
+            k--;
+        }        
+        *(begin+k+1) = key;
+    }   
+}
+
+template <typename TIt>
+inline void _sort3(TIt const & begin, const TIt & end, unsigned const & p_bit, unsigned const & l)
+{
+    unsigned  l_move = 64, r_move = 64 - p_bit;
+    //uint64_t count[1<<p_bit];
+    uint64_t count[1024];
+    //int count[1024];
+    String<Pair<uint64_t, uint64_t> > output;
+    resize(output, end - begin);
+    for (uint64_t j = 0; j < l; j++)
+    {
+        l_move -= p_bit;
+        for (int k = 0; k< (1<<p_bit); k++)
+            count[k]=0;
+        for (int64_t k = 0; k < end - begin; k++)
+            count[(begin + k)->i1 << l_move >> r_move]++;
+        for (int k = 1; k < (1 << p_bit); k++)
+            count[k] += count[k - 1];
+        for (int64_t k = end - begin - 1; k >=0; k-- )
+            output[--count[(begin + k)->i1 << l_move >> r_move]] = *(begin + k);
+        for (int64_t k = 0; k < end - begin; k++)
+            *(begin + k)  = output[k];
+    }
+}
+
+template <unsigned TSPAN, unsigned TWEIGHT>
+void _createValueArray2(StringSet<DnaString> & reads, String<Pair<uint64_t, uint64_t> > & hs, Shape<Dna, MinimizerShape<TSPAN, TWEIGHT> > & shape, int step, int l)
+{
+    typedef String<Pair<uint64_t, uint64_t> > StringPair;
+
+    //TShape shape;
+    StringPair tmp;
+    String<uint64_t> tmp3;
+    uint64_t p = 0, q=0, c = 0, n = -1, pre = ~0, count = 0, mask = ((uint64_t)1 << 63);
+    //std::cout << "    _createValueArray() " << std::endl;
+    double time = sysTime();
+    resize(tmp, lengthSum(reads) - length(reads) * (shape.span - 1));
+    resize(tmp3, lengthSum(reads) - length(reads) * (shape.span - 1));
+    for(uint64_t j = 0; j < length(reads); j++)
+    {
+        hashInit(shape, begin(reads[j]));
+        for (uint64_t k = 0; k < length(reads[j]) - shape.span + 1; k++)
+        {
+            hashNext(shape, begin(reads[j]) + k);
+            _setBodyNode(tmp3[p], shape.YValue, (uint64_t)1, _createSANode(j, k));
+            if (pre ^ shape.XValue)
+            {
+                tmp[q].i1 = shape.XValue;
+                tmp[q].i2 = p;
+                pre = shape.XValue;
+                tmp3[p] |= mask;
+                q++;
+            }
+            p++;
+        }
+    }
+    resize(tmp, q);
+    *(end(tmp3)) |= (mask);
+
+    std::cout << "        loading time " << sysTime() - time << std::endl;
+    c = tmp[0].i2;
+ p = q = count = 0;
+    n = -1;
+    _sort3(begin(tmp), end(tmp), step, l);         // sort parameters 1
+    std::cout << "        sort xvalue time " << sysTime() - time << std::endl;
+    c = tmp[0].i2;
+    for (uint64_t q = 0;  q < length(hs) - 1; q++)
+    {
+        if (tmp3[c] & mask)
+        {
+            c = tmp[++n].i2;
+        }
+        hs[q].i1 = tmp[n].i1;
+        hs[q].i2 = tmp3[c] & (~mask);
+        c++;
+    }
+    std::cout << "        xvalue expand " << sysTime() - time << std::endl;
+    hs[length(hs)-1].i2 |= mask;
+    pre = hs[0].i1;
+    for (uint64_t k = 0; k < length(hs); k++)
+    {
+        if (pre ^ hs[k].i1)
+        {
+            pre = hs[k].i1;
+            if (count < 20)                   // sort parameters
+                _insertSort(begin(hs) + k - count, begin(hs) + k);
+            else
+                std::sort(begin(hs) + k -count, begin(hs) + k, [](Pair<uint64_t, uint64_t> & a,
+                Pair<uint64_t, uint64_t> & b){return a.i2 > b.i2;});
+            count = 0;
+        }
+        count++;
+   }
+
+
+   std::cout << "        End sort sysTime(): " <<  sysTime() - time << std::endl;
+}
+
+
+template <unsigned TSpan, unsigned TWeight>
+void _qgramCountQGrams(Index<StringSet<DnaString>, IndexQGram<MinimizerShape<TSpan, TWeight>, OpenAddressing > > & index)
+{
+    typedef Shape<Dna, MinimizerShape<TSpan, TWeight> > TM_Shape;
+    typedef Iterator<String<Dna> >::Type TIter;
+    typedef typename Value<TM_Shape>::Type HValue;
+    typedef std::tuple<HValue, HValue, HValue> HTuple;
+    typedef Pair<uint64_t, uint64_t> PairH;
+    typedef String<PairH> StringPairH;
+    typedef String<HTuple> StringTuple;
+    StringSet<DnaString> reads;
+
+    TM_Shape shape;
+    StringPairH hs, hs1;
+    HValue  m = 0, sum = 0;
+
+    double time = sysTime();
+
+    resize(hs, lengthSum(indexText(index)) - length(indexText(index)) * (shape.span - 1) + 1);
+
+    //std::cout << "        _qgramCountQGrams() sysTime(): " << sysTime() - time << std::endl;
+    //std::cout << "            lengthSum(StringSet) = " << lengthSum(indexText(index)) << std::endl;
+
+     _createValueArray2(indexText(index), hs, shape, 9, 5);
+    hs[length(hs) - 1].i1 = 1;
+    _setBodyNode(hs[length(hs) - 1].i2,  (HValue)0, (HValue)0, (HValue)1);//std::make_tuple((HValue)1, (HValue)0, (HValue)1);
+    std::cout << "            sort sysTime(): " << sysTime() - time << std::endl;
+    HValue countx = 1, counth = 1, tmp = 0, countdh = 0, countb = 0, hk = 0;
+    resize(index.sa, length(hs) - 1);
+    for (HValue k = 1; k < length(hs); k++)
+    {
+        //if (std::get<0>(hs[k]) ^ std::get<0>(hs[k - 1])|std::get<1>(hs[k]) ^ std::get<1>(hs[k - 1]))
+        if ((hs[k].i1 ^ hs[k - 1].i1 )|(_getBodyValue(hs[k].i2 ^ hs[k - 1].i2)))
+        { _setBodyNode(index.dir[index.start + hk], _getBodyValue(hs[k-1].i2), _BodyType_code, tmp);
+            hk++;
+            countb++;
+            countdh++;
+            tmp = counth;
+        }
+        if (hs[k].i1 ^ hs[k - 1].i1)
+        {
+            
+            if (countb < blocklimit)
+            {
+                requestDir(index.dir, index.start, _makeHeadNode(hs[k-1].i1), _makeEmptyNode(index.start + hk - countb));
+                for (HValue j = 0; j < countb; j++)
+                    _setBodyType_Begin(index.dir[index.start + hk - countb]);
+            }
+            else
+            {
+                hk -= countb;
+                requestDir(index.dir, index.start, _makeVtlHeadNode(hs[k-1].i1), _makeEmptyNode(index.start + hk));
+                for (HValue j = k - countx; j < k; j++)
+                    if ((hs[j].i1 ^ hs[j + 1].i1) | _getBodyValue(hs[j].i2 ^ hs[j + 1].i2))
+                    {
+                        requestDir(index.dir, index.start, _makeHVlHeadNode(xy2h(shape, hs[j].i1, _getBodyValue(hs[j].i2))), _makeEmptyNode(index.start+hk));
+                        _setBodyType_Begin(index.dir[index.start + hk]);
+                        hk++;
+                    }
+            }
+            countb = 0;
+            countx = 1;
+        }
+        else
+        {
+            countx++;
+        }
+        
+        index.sa[k - 1] = _getBodyCounth(hs[k-1].i2);
+        counth++;
+    }
+    //std::cout << std::endl;
+    //std::cout << counth << std::endl;
+    resize(index.dir, index.start + countdh + 10);
+    _setBodyNode(index.dir[index.start + countdh], _bitEmpty, _BodyType_code, counth - 1); 
+    _setBodyType_Begin(index.dir[index.start + countdh]);
+    index._Empty_Dir_ = index.start + countdh + 1;
+    //_setBodyNode(index.dir[index.start + countdh], _bitEmpty, _BodyTypeEnd_code, counth - 1); 
+    //_setBodyType_Begin(index.dir[index.start + countdh]);
+    //index._Empty_Dir_ = index.start + countdh;
+    //_setBodyNode(index.dir[index.start + countdh + 1], _bitEmpty, _BodyTypeEnd_code, counth - 1); 
+    //_setBodyType_Begin(index.dir[index.start + countdh + 1]);
+    std::cout << "            End _qgramCountQGrams() sysTime(): " << sysTime() - time << std::endl;
+}
+
+template <unsigned TSpan, unsigned TWeight>
+void createQGramIndexDirOnly(Index<StringSet<DnaString>, IndexQGram<MinimizerShape<TSpan, TWeight>, OpenAddressing > >& index)
+{
+    double time = sysTime(); 
+    //std::cout << "    createQGramIndexDirOnly() sysTime(): " << std::endl;
+    _qgramClearDir(index);
+    _qgramCountQGrams(index);
+    //std::cout << "        End createQGramIndexDirOnly() sysTime(): " << sysTime() - time << std::endl;
+    std::cout << sysTime() - time << std::endl;
+}
+/*
+template <unsigned TSpan, unsigned TWeight>
+void createQGramIndexDirOnly2(Index<StringSet<DnaString>, IndexQGram<MinimizerShape<TSpan, TWeight>, OpenAddressing > >& index)
+{
+    double time = sysTime(); 
+    std::cout << "    createQGramIndexDirOnly() sysTime(): " << std::endl;
+    _qgramClearDir(index);
+    _qgramCountQGrams2(index);
+    std::cout << "        index.dir[index._Empty_Dir_] = " << index.dir[index._Empty_Dir_] << std::endl << "        length(index.dir) = " << length(index.dir) << std::endl;
+    std::cout << "        End createQGramIndexDirOnly() sysTime(): " << sysTime() - time << std::endl;
+}
+*/
 // ----------------------------------------------------------------------------
 // Function open()
 // ----------------------------------------------------------------------------
@@ -1016,6 +1499,9 @@ inline bool save(Index<TText, IndexQGram<TShapeSpec, OpenAddressing> > &index, c
 {
     return save(index, fileName, OPEN_WRONLY | OPEN_CREATE);
 }
+
+
+
 
 }
 

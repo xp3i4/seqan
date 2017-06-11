@@ -192,6 +192,13 @@ uint64_t hash_key;
 uint64_t hash_key1;
 uint64_t hash_key2;
 uint64_t hash_key3;
+
+template <typename TValue>
+inline void phi(TValue & h)
+{
+    h+=h<<31;
+}
+
 template <typename TValue, unsigned TSPAN, unsigned TWEIGHT, typename TSpec, typename TIter>
 inline void hashInit(Shape<TValue, MinimizerShape<TSPAN, TWEIGHT, TSpec> > &me, TIter const &it)
 {
@@ -245,43 +252,35 @@ inline void hashInit(Shape<TValue, MinimizerShape<TSPAN, TWEIGHT, TSpec> > &me, 
     }
 
 */
-/*
+
+
+
 template <typename TValue, unsigned TSPAN, unsigned TWEIGHT, typename TSpec, typename TIter>
 inline typename Value< Shape<TValue, MinimizerShape<TSPAN, TWEIGHT, TSpec> > >::Type
 hashNext(Shape<TValue, MinimizerShape<TSPAN, TWEIGHT, TSpec> > &me, TIter const &it)
 {
-
-         // remove first, shift left, and add next character
-        //typedef typename Value< Shape<TValue, TSpec> >::Type    THValue;
         typedef typename Size< Shape<TValue, TSpec> >::Type        TSize;
         SEQAN_ASSERT_GT((unsigned)me.span, 0u);
-        uint64_t v1, t;// tmp;
-        //unsigned pre = 23;
+        uint64_t v1;
+        unsigned t, span = TSPAN << 1, weight = TWEIGHT << 1;
  
         me.hValue=((me.hValue & hash_key)<<2)+ordValue((TValue)*(it + ((TSize)me.span - 1)));
         me.XValue = hash_key3;
-        //tmp = me.hValue ^ ((me.hValue << 32)+(me.hValue >> 32));
-        //tmp = me.hValue ;
                 
-        //if (me.x == 0 || me.XValue < (me.hValue & hash_key2))
-        //{
-        for (unsigned k = 64-(TSPAN << 1) ; k <= 64 - (TWEIGHT << 1); k+=2)
+        for (unsigned k = 64-span; k <= 64 - weight; k+=2)
         {
-            v1 = me.hValue << k >> (64-(TWEIGHT<<1));
+            v1 = me.hValue << k >> (64-weight);
             if(me.XValue > v1)
-            //if(v > (me.hValue << (64-((TSPAN - k)<< 1)) >> (64 - (pre << 1))))
             {
-                //v = (me.hValue << (64-((TSPAN - k)<< 1)) >> (64 - (pre << 1))); 
                 me.XValue=v1;
                 t=k;
             }
         } 
-        //me.XValue = (me.hValue << t >> (64 - (TWEIGHT << 1)));
-        me.YValue = (me.hValue >> (64-t) << (64-t-(TWEIGHT<<1)))+(me.hValue & (((uint64_t)1<<(64-t-(TWEIGHT<<1))) - 1))+(t<<((TSPAN - TWEIGHT) << 1));
+        me.YValue = (me.hValue >> (64-t) << (64-t-weight))+(me.hValue & (((uint64_t)1<<(64-t-weight)) - 1)) + (t<<(span - weight));
 
         return me.XValue; 
 }
-*/
+/*
 template <typename TValue, unsigned TSPAN, unsigned TWEIGHT, typename TSpec, typename TIter>
 inline typename Value< Shape<TValue, MinimizerShape<TSPAN, TWEIGHT, TSpec> > >::Type
 hashNext(Shape<TValue, MinimizerShape<TSPAN, TWEIGHT, TSpec> > &me, TIter const &it)
@@ -314,11 +313,11 @@ hashNext(Shape<TValue, MinimizerShape<TSPAN, TWEIGHT, TSpec> > &me, TIter const 
 
         return me.XValue; 
 }
-
+*/
 template <typename TValue, unsigned TSPAN, unsigned TWEIGHT, typename TSpec>
 inline uint64_t h2y(Shape<TValue, MinimizerShape<TSPAN, TWEIGHT, TSpec> > &me,  uint64_t h)
 {
-    uint64_t x = hash_key3, v1, t;
+    uint64_t x = -1, v1, t=0;
     for (unsigned k = 64-(me.span << 1) ; k <= 64 - (me.weight << 1); k+=2)
     {
         v1 = h << k >> (64-(me.weight<<1));
@@ -331,6 +330,19 @@ inline uint64_t h2y(Shape<TValue, MinimizerShape<TSPAN, TWEIGHT, TSpec> > &me,  
     return (h>> (64-t) << (64-t-(me.weight<<1)))+(h& (((uint64_t)1<<(64-t-(me.weight<<1))) - 1))+(t<<((me.span - me.weight) << 1));
 
 }
+
+template <typename TValue, unsigned TSPAN, unsigned TWEIGHT, typename TSpec>
+inline uint64_t xy2h(Shape<TValue, MinimizerShape<TSPAN, TWEIGHT, TSpec> > &me,  uint64_t x, uint64_t y)
+{
+    unsigned span = TSPAN << 1, weight = TWEIGHT << 1;
+    uint64_t t = y >> (span - weight);
+    uint64_t t1 = 64 - weight -t;
+    uint64_t mask = (1 << t1 ) - 1, mask1 = ((1 << (span - weight)) - 1);
+    
+    
+    return ((y &(~mask) & mask1)<< weight) + (x << (64 - t - weight)) + (y & mask);
+}
+
 
 }
 // namespace seqan
