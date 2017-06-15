@@ -44,7 +44,12 @@ typedef Tag<ReverseComplement_> const   ReverseComplement;
 // Struct MinimizerShape
 // ----------------------------------------------------------------------------
 
-template <unsigned TSPAN, unsigned TWEIGHT, typename TSpec = void>
+template <unsigned shapeLength>
+struct MiniWeight{
+    enum{ WEIGHT = shapeLength - 8};
+};
+
+template <unsigned TSPAN, unsigned TWEIGHT = MiniWeight<TSPAN>::WEIGHT, typename TSpec = void>
 struct MinimizerShape;
 typedef MinimizerShape<0, 0> SimpleMShape;
 

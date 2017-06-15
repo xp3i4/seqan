@@ -176,6 +176,8 @@ namespace SEQAN_NAMESPACE_MAIN
 
 
 //x-begin: min shape open index 
+
+
  template < typename TObject, unsigned TSPAN, unsigned TWEIGHT>
     class Index<TObject, IndexQGram<MinimizerShape<TSPAN, TWEIGHT>, OpenAddressing> >
     {
@@ -592,15 +594,15 @@ namespace SEQAN_NAMESPACE_MAIN
     inline TValue
     _hashFunction1(TBucketMap const &, TValue val)
     {
-    uint64_t key = val;
-          key = (~key) + (key << 21); // key = (key << 21) - key - 1;
-  key = key ^ (key >> 24);
-  key = (key + (key << 3)) + (key << 8); // key * 265
-  key = key ^ (key >> 14);
-  key = (key + (key << 2)) + (key << 4); // key * 21
-  key = key ^ (key >> 28);
-  key = key + (key << 31);
-  return key;        
+        uint64_t key = val;
+        key = (~key) + (key << 21); // key = (key << 21) - key - 1;
+        key = key ^ (key >> 24);
+        key = (key + (key << 3)) + (key << 8); // key * 265
+        key = key ^ (key >> 14);
+        key = (key + (key << 2)) + (key << 4); // key * 21
+        key = key ^ (key >> 28);
+        key = key + (key << 31);
+        return key;        
     }
 
     template<typename TDir, typename THashValue>
@@ -1234,6 +1236,13 @@ inline void _insertSort(TIt const & begin, TIt const & end )
     }   
 }
 
+static String<Pair<unsigned, unsigned> > _SORT_PARA = {std::make_pair(8,4)};//{(8,4),(9,4),(9,4),(8,5),(8,5),(7,6),(8,6),(8,6),(8,6),(9,6)}; //weight:[16,26)
+
+inline Pair<unsigned, unsigned> _getSortPara(uint64_t shapeWeight)
+{
+    return _SORT_PARA[shapeWeight - 16];
+}
+
 template <typename TIt>
 inline void _sort3(TIt const & begin, const TIt & end, unsigned const & p_bit, unsigned const & l)
 {
@@ -1297,7 +1306,9 @@ void _createValueArray2(StringSet<DnaString> & reads, String<Pair<uint64_t, uint
     c = tmp[0].i2;
  p = q = count = 0;
     n = -1;
-    _sort3(begin(tmp), end(tmp), step, l);         // sort parameters 1
+    //_sort3(begin(tmp), end(tmp), step, l);         // sort parameters 1
+    _sort3(begin(tmp), end(tmp), _getSortPara(shape.weight).i1, 
+            _getSortPara(shape.weight).i2);         // sort parameters 1
     std::cout << "        sort xvalue time " << sysTime() - time << std::endl;
     c = tmp[0].i2;
     for (uint64_t q = 0;  q < length(hs) - 1; q++)
@@ -1331,6 +1342,8 @@ void _createValueArray2(StringSet<DnaString> & reads, String<Pair<uint64_t, uint
 
    std::cout << "        End sort sysTime(): " <<  sysTime() - time << std::endl;
 }
+
+
 
 
 template <unsigned TSpan, unsigned TWeight>
