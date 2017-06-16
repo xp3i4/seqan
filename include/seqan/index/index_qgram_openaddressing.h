@@ -176,8 +176,6 @@ namespace SEQAN_NAMESPACE_MAIN
 
 
 //x-begin: min shape open index 
-
-
  template < typename TObject, unsigned TSPAN, unsigned TWEIGHT>
     class Index<TObject, IndexQGram<MinimizerShape<TSPAN, TWEIGHT>, OpenAddressing> >
     {
@@ -594,15 +592,15 @@ namespace SEQAN_NAMESPACE_MAIN
     inline TValue
     _hashFunction1(TBucketMap const &, TValue val)
     {
-        uint64_t key = val;
-        key = (~key) + (key << 21); // key = (key << 21) - key - 1;
-        key = key ^ (key >> 24);
-        key = (key + (key << 3)) + (key << 8); // key * 265
-        key = key ^ (key >> 14);
-        key = (key + (key << 2)) + (key << 4); // key * 21
-        key = key ^ (key >> 28);
-        key = key + (key << 31);
-        return key;        
+    uint64_t key = val;
+          key = (~key) + (key << 21); // key = (key << 21) - key - 1;
+  key = key ^ (key >> 24);
+  key = (key + (key << 3)) + (key << 8); // key * 265
+  key = key ^ (key >> 14);
+  key = (key + (key << 2)) + (key << 4); // key * 21
+  key = key ^ (key >> 28);
+  key = key + (key << 31);
+  return key;        
     }
 
     template<typename TDir, typename THashValue>
@@ -1024,7 +1022,7 @@ void _qgramClearDir(Index<StringSet<DnaString>, IndexQGram<MinimizerShape<TSpan,
     std::cout << "            lengh(index.dir) = " << length(index.dir) << std::endl;
     std::cout << "            End _qgramClearDir()" << std::endl;
 }
-
+/*
 template <unsigned TSpan, unsigned TWeight>
 void _qgramCountQGrams2(Index<StringSet<DnaString>, IndexQGram<MinimizerShape<TSpan, TWeight>, OpenAddressing > > & index)
 {
@@ -1212,7 +1210,7 @@ void _qgramCountQGrams3(Index<StringSet<DnaString>, IndexQGram<MinimizerShape<TS
     //_setBodyType_Begin(index.dir[index.start + countdh + 1]);
     std::cout << "            End _qgramCountQGrams() sysTime(): " << sysTime() - time << std::endl;
 }
-
+*/
 
 template <typename TIt>
 inline void _insertSort(TIt const & begin, TIt const & end )
@@ -1234,13 +1232,6 @@ inline void _insertSort(TIt const & begin, TIt const & end )
         }        
         *(begin+k+1) = key;
     }   
-}
-
-static String<Pair<unsigned, unsigned> > _SORT_PARA = {std::make_pair(8,4)};//{(8,4),(9,4),(9,4),(8,5),(8,5),(7,6),(8,6),(8,6),(8,6),(9,6)}; //weight:[16,26)
-
-inline Pair<unsigned, unsigned> _getSortPara(uint64_t shapeWeight)
-{
-    return _SORT_PARA[shapeWeight - 16];
 }
 
 template <typename TIt>
@@ -1306,9 +1297,7 @@ void _createValueArray2(StringSet<DnaString> & reads, String<Pair<uint64_t, uint
     c = tmp[0].i2;
  p = q = count = 0;
     n = -1;
-    //_sort3(begin(tmp), end(tmp), step, l);         // sort parameters 1
-    _sort3(begin(tmp), end(tmp), _getSortPara(shape.weight).i1, 
-            _getSortPara(shape.weight).i2);         // sort parameters 1
+    _sort3(begin(tmp), end(tmp), step, l);         // sort parameters 1
     std::cout << "        sort xvalue time " << sysTime() - time << std::endl;
     c = tmp[0].i2;
     for (uint64_t q = 0;  q < length(hs) - 1; q++)
@@ -1344,18 +1333,16 @@ void _createValueArray2(StringSet<DnaString> & reads, String<Pair<uint64_t, uint
 }
 
 
-
-
 template <unsigned TSpan, unsigned TWeight>
 void _qgramCountQGrams(Index<StringSet<DnaString>, IndexQGram<MinimizerShape<TSpan, TWeight>, OpenAddressing > > & index)
 {
     typedef Shape<Dna, MinimizerShape<TSpan, TWeight> > TM_Shape;
     typedef Iterator<String<Dna> >::Type TIter;
     typedef typename Value<TM_Shape>::Type HValue;
-    typedef std::tuple<HValue, HValue, HValue> HTuple;
+    //typedef std::tuple<HValue, HValue, HValue> HTuple;
     typedef Pair<uint64_t, uint64_t> PairH;
     typedef String<PairH> StringPairH;
-    typedef String<HTuple> StringTuple;
+    //typedef String<HTuple> StringTuple;
     StringSet<DnaString> reads;
 
     TM_Shape shape;
