@@ -333,8 +333,20 @@ namespace SEQAN_NAMESPACE_MAIN
     static const uint64_t _Empty_Dir_ = -1;
 
     static const unsigned blocklimit = 32;
-    
+
+//parameters for bucket sortings;
+//weight E [16,23)  
+    static unsigned sortPara[16] = {8,4,7,5,6,6,7,6,8,5,7,6,9,5};
+    inline unsigned _getSortPara_i1(unsigned weight)  
+    {
+        return sortPara[weight * 2 - 16];
+    }
+    inline unsigned _getSortPara_i2(unsigned weight)  
+    {
+        return sortPara[weight * 2 - 15];
+    }
 //==============================================================
+     
     template <typename HValue>
     inline HValue _makeHeadNode(HValue code)
     {
@@ -1331,6 +1343,7 @@ void _createValueArray2(StringSet<DnaString> & reads, String<Pair<uint64_t, uint
 
    std::cout << "        End sort sysTime(): " <<  sysTime() - time << std::endl;
 }
+
 
 
 template <unsigned TSpan, unsigned TWeight>
