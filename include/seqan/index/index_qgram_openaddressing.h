@@ -1259,6 +1259,33 @@ inline void _sort3(TIt const & begin, const TIt & end, unsigned const & p_bit, u
     }
 }
 
+template <typename TIt>
+inline void _sort3_i2_(TIt const & begin, const TIt & end, unsigned const & p_bit, unsigned const & l)
+{
+    unsigned  l_move = 64, r_move = 64 - p_bit;
+    //uint64_t count[1<<p_bit];
+    uint64_t count[1024];
+    //int count[1024];
+    String<Pair<uint64_t, uint64_t> > output;
+    resize(output, end - begin);
+    for (uint64_t j = 0; j < l; j++)
+    {
+        l_move -= p_bit;
+        for (int k = 0; k< (1<<p_bit); k++)
+            count[k]=0;
+        for (int64_t k = 0; k < end - begin; k++)
+            count[(begin + k)->i2 << l_move >> r_move]++;
+        for (int k = 1; k < (1 << p_bit); k++)
+            count[k] += count[k - 1];
+        for (int64_t k = end - begin - 1; k >=0; k-- )
+            output[--count[(begin + k)->i2 << l_move >> r_move]] = *(begin + k);
+        for (int64_t k = 0; k < end - begin; k++)
+            *(begin + k)  = output[k];
+    }
+}
+
+
+
 template <unsigned TSPAN, unsigned TWEIGHT>
 void _createValueArray2(StringSet<DnaString> & reads, String<Pair<uint64_t, uint64_t> > & hs, Shape<Dna, MinimizerShape<TSPAN, TWEIGHT> > & shape, int step, int l)
 {
@@ -1321,8 +1348,12 @@ void _createValueArray2(StringSet<DnaString> & reads, String<Pair<uint64_t, uint
             if (count < 20)                   // sort parameters
                 _insertSort(begin(hs) + k - count, begin(hs) + k);
             else
-                std::sort(begin(hs) + k -count, begin(hs) + k, [](Pair<uint64_t, uint64_t> & a,
-                Pair<uint64_t, uint64_t> & b){return a.i2 > b.i2;});
+                //std::sort(begin(hs) + k -count, begin(hs) + k, [](Pair<uint64_t, uint64_t> & a,
+                //Pair<uint64_t, uint64_t> & b){return a.i2 > b.i2;});
+    
+                //std::stable_sort(begin(hs) + k -count, begin(hs) + k, comp);
+                _sort3_i2_(begin(hs) + k - count, begin(hs) + k,8,8);
+
             count = 0;
         }
         count++;
