@@ -306,10 +306,10 @@ namespace seqan
     static const uint64_t _HeadTypeVtl_code = 3;
     static const uint64_t _HeadTypeHVl_code = 4;
     // BodyNode(B):
-    // B := YValue[26]|BodyType[1]: |counth[37]
+    // B := YValue[23]|BodyType[1]: |counth[40]
     // occ = counth[n+1] - count[n] = (B[n+1] - B[n]) & bit, bit = 00..0011...11
-    static const unsigned _BodyValue_bits = 38;
-    static const unsigned _BodyType_bits = 37;
+    static const unsigned _BodyValue_bits = 41;
+    static const unsigned _BodyType_bits = 40;
     //static const unsigned _BodyValue_bits = 2;
     static const uint64_t _BodyType_code = 1;
     static const uint64_t _BodyTypeEnd_code = 0;
@@ -319,16 +319,16 @@ namespace seqan
     static const uint64_t _bitEmptyType = 0;
 
     static const uint64_t _bitCode = 3;                                 // node(value) & _bitCode to acquire the type of the node 
-    static const uint64_t _bitValue2 = ((uint64_t)1 << 22) - 1;
+    //static const uint64_t _bitValue2 = ((uint64_t)1 << 22) - 1;
     static const uint64_t _bitEmptyCode = 0;
     static const uint64_t _bitBodyCode = 1;
     static const uint64_t _bitHeadCode = 2;
     static const uint64_t _bitVtlHeadCode = 3;
   
-    //SA node:= seq num i1[40]| base num i2[16]
-    static const uint64_t _BaseNum_bits = 32;    
-    static const uint64_t _SeqNum_bits = 30;    
-    static const uint64_t _BaseNum_code = ((uint64_t)1 << _BaseNum_bits) - 1;
+    //SA node:= seq num i1[10]| base num i2[30]
+    static uint64_t _BaseNum_bits = 30 ;    
+    static uint64_t _SeqNum_bits = _BodyType_bits - _BaseNum_bits;    
+    static uint64_t _BaseNum_code = ((uint64_t)1 << _BaseNum_bits) - 1;
  
     static const uint64_t _Empty_Dir_ = -1;
 
@@ -1005,11 +1005,18 @@ namespace seqan
         return qgrams + 1;
     }
 
-template <unsigned TSpan, unsigned TWeight>
-void _qgramClearDir(Index<StringSet<DnaString>, IndexQGram<MinimizerShape<TSpan, TWeight>, OpenAddressing> > & index)
+template <typename TObj, unsigned TSpan, unsigned TWeight>
+void _qgramClearDir(Index<StringSet<String<TObj> >, IndexQGram<MinimizerShape<TSpan, TWeight>, OpenAddressing> > & index)
 {
     typedef Shape<Dna, MinimizerShape<TSpan, TWeight> > TM_Shape;
     typedef typename Value<TM_Shape>::Type HValue;
+    if (length(indexText(index)) > (1<<_SeqNum_bits))
+    {
+        _BaseNum_bits = 17;    
+        _SeqNum_bits = _BodyType_bits - _BaseNum_bits;
+        _BaseNum_code = ((uint64_t)1 << _BaseNum_bits) - 1;
+
+    }
     resize (indexDir(index), _fullDirLength(index) + lengthSum(indexText(index)) + 2);
     index.start = _fullDirLength(index);
     index._Empty_Dir_ = 0;
@@ -1212,6 +1219,83 @@ void _qgramCountQGrams3(Index<StringSet<DnaString>, IndexQGram<MinimizerShape<TS
 }
 */
 
+//template <typename TObj, typename Compare>
+template <typename TIter>
+//inline void _mergeSort(String<Iterator<TObj>::Type> & begin, String<Iterator<TObj>::Type> & end, Compare cmp)
+inline void _mergeSort(TIter const & it, String<unsigned> begin, String<unsigned> end)
+{
+    //typedef typename Iterator<TObj>::Type TIter;
+    //typedef typename Value<TObj>::Type _Value;
+    String<Pair<uint64_t, uint64_t> >tmp;
+    uint64_t max;
+    resize(tmp, end[length(end) -1 ] - begin[0]);
+    unsigned maxk = 0;
+    for (unsigned j = 0; j < length(tmp); j++)
+    { 
+        max = 0;
+        for (unsigned k = 0; k < length(begin); k++) 
+        {
+            if (begin[k] != end[k])
+                if((it + begin[k])->i1 > max)
+                {
+                    max = (it + begin[k])->i1;
+                    maxk = k;
+                }
+        }
+        tmp[j] = *(it+begin[maxk]);
+        begin[maxk] += 1;
+    } 
+}
+
+//template <typename TObj, typename Compare>
+template <typename TIter>
+inline void 
+//_radixSort(Iterator<TObj>::Type const & begin, Iterator<TObj>::Type const & end, Compare compare)
+_radixSort(TIter const & begin,  TIter const & end, 
+            unsigned const p_bit, unsigned const & l)
+{
+    unsigned  l_move = 64, r_move = 64 - p_bit;
+    //uint64_t count[1<<p_bit];
+    uint64_t count[1024];
+    //int count[1024];
+    String<Pair<uint64_t, uint64_t> > output;
+    resize(output, end - begin);
+    for (uint64_t j = 0; j < l; j++)
+    {
+        l_move -= p_bit;
+        for (int k = 0; k< (1<<p_bit); k++)
+            count[k]=0;
+        for (int64_t k = 0; k < end - begin; k++)
+            count[(begin + k)->i1 << l_move >> r_move]++;
+        for (int k = 1; k < (1 << p_bit); k++)
+            count[k] += count[k - 1];
+        for (int64_t k = end - begin - 1; k >=0; k-- )
+            output[--count[(begin + k)->i1 << l_move >> r_move]] = *(begin + k);
+        for (int64_t k = 0; k < end - begin; k++)
+            *(begin + k)  = output[k];
+    }
+}
+
+
+template <typename TIter>
+inline void RMSort(TIter const & begin, TIter const & end)
+{
+    unsigned _radixBlock = 32 << 20, numBlock = ceil((end - begin)/_radixBlock);
+    String<unsigned> segb, sege;
+    resize(segb, numBlock);
+    resize(sege, numBlock);
+    for (unsigned k = 0; k < numBlock; k++)
+    {
+        segb[k] = k * _radixBlock;
+        if (k != numBlock)
+            sege[k] = segb[k] + _radixBlock;
+        else
+            sege[k] = end - begin;
+        _radixSort(begin + segb[k], begin + sege[k], 9, 5);
+    }
+    _mergeSort(begin, segb, sege);
+}
+
 template <typename TIt>
 inline void _insertSort(TIt const & begin, TIt const & end )
 {
@@ -1322,7 +1406,7 @@ void _createValueArray2(StringSet<DnaString> & reads, String<Pair<uint64_t, uint
 
     std::cout << "        loading time " << sysTime() - time << std::endl;
     c = tmp[0].i2;
- p = q = count = 0;
+    p = q = count = 0;
     n = -1;
     _sort3(begin(tmp), end(tmp), step, l);         // sort parameters 1
     std::cout << "        sort xvalue time " << sysTime() - time << std::endl;
@@ -1363,18 +1447,102 @@ void _createValueArray2(StringSet<DnaString> & reads, String<Pair<uint64_t, uint
    std::cout << "        End sort sysTime(): " <<  sysTime() - time << std::endl;
 }
 
-
-template <unsigned TSpan, unsigned TWeight>
-void _qgramCountQGrams(Index<StringSet<DnaString>, IndexQGram<MinimizerShape<TSpan, TWeight>, OpenAddressing > > & index)
+template <unsigned TSPAN, unsigned TWEIGHT>
+void _createValueArray2(StringSet<String<Dna5> > & reads, String<Pair<uint64_t, uint64_t> > & hs, Shape<Dna5, MinimizerShape<TSPAN, TWEIGHT> > & shape, int step, int l)
 {
-    typedef Shape<Dna, MinimizerShape<TSpan, TWeight> > TM_Shape;
+    typedef String<Pair<uint64_t, uint64_t> > StringPair;
+
+    //TShape shape;
+    StringPair tmp;
+    String<uint64_t> tmp3;
+    uint64_t p = 0, q=0, c = 0, n = -1, pre = ~0, count = 0, mask = ((uint64_t)1 << 63);
+    std::cout << "    _createValueArray() String<Dna5> " << std::endl;
+    double time = sysTime();
+    resize(tmp, lengthSum(reads) - length(reads) * (shape.span - 1));
+    resize(tmp3, lengthSum(reads) - length(reads) * (shape.span - 1));
+    unsigned countN = 0, flag = 1;
+    for(uint64_t j = 0; j < length(reads); j++)
+    {
+        hashInit(shape, begin(reads[j]));
+        for (uint64_t k =0; k < length(reads[j]) - shape.span + 1; k++)
+        {
+            if(ordValue(*(begin(reads[j]) + k + shape.span - 1)) == 4)
+            {
+                k += hashInit(shape, begin(reads[j]) + k);
+                if(k >  length(reads[j]) - shape.span + 1)
+                    break;
+            }
+            hashNext(shape, begin(reads[j]) + k);
+            //std::cout << k << " " << shape.hValue << std::endl;
+            _setBodyNode(tmp3[p], shape.YValue, (uint64_t)1, _createSANode(j, k));
+            if (pre ^ shape.XValue)
+            {
+                tmp[q].i1 = shape.XValue;
+                tmp[q].i2 = p;
+                pre = shape.XValue;
+                tmp3[p] |= mask;
+                q++;
+            }
+            p++;
+        }
+    }
+    resize(tmp, q);
+    *(end(tmp3)) |= (mask);
+
+    std::cout << "        loading time " << sysTime() - time << std::endl;
+    c = tmp[0].i2;
+    p = q = count = 0;
+    n = -1;
+    _sort3(begin(tmp), end(tmp), step, l);         // sort parameters 1
+    std::cout << "        sort xvalue time " << sysTime() - time << std::endl;
+    c = tmp[0].i2;
+    for (uint64_t q = 0;  q < length(hs) - 1; q++)
+    {
+        if (tmp3[c] & mask)
+        {
+            c = tmp[++n].i2;
+        }
+        hs[q].i1 = tmp[n].i1;
+        hs[q].i2 = tmp3[c] & (~mask);
+        c++;
+    }
+    std::cout << "        xvalue expand " << sysTime() - time << std::endl;
+    hs[length(hs)-1].i2 |= mask;
+    pre = hs[0].i1;
+    for (uint64_t k = 0; k < length(hs); k++)
+    {
+        if (pre ^ hs[k].i1)
+        {
+            pre = hs[k].i1;
+            if (count < 20)                   // sort parameters
+                _insertSort(begin(hs) + k - count, begin(hs) + k);
+            else
+                //std::sort(begin(hs) + k -count, begin(hs) + k, [](Pair<uint64_t, uint64_t> & a,
+                //Pair<uint64_t, uint64_t> & b){return a.i2 > b.i2;});
+    
+                //std::stable_sort(begin(hs) + k -count, begin(hs) + k, comp);
+                _sort3_i2_(begin(hs) + k - count, begin(hs) + k,8,8);
+
+            count = 0;
+        }
+        count++;
+   }
+
+
+   std::cout << "        End sort sysTime(): " <<  sysTime() - time << std::endl;
+}
+
+template <typename TObj, unsigned TSpan, unsigned TWeight>
+void _qgramCountQGrams(Index<StringSet<String<TObj> >, IndexQGram<MinimizerShape<TSpan, TWeight>, OpenAddressing > > & index)
+{
+    typedef Shape<TObj, MinimizerShape<TSpan, TWeight> > TM_Shape;
     typedef Iterator<String<Dna> >::Type TIter;
     typedef typename Value<TM_Shape>::Type HValue;
     //typedef std::tuple<HValue, HValue, HValue> HTuple;
     typedef Pair<uint64_t, uint64_t> PairH;
     typedef String<PairH> StringPairH;
     //typedef String<HTuple> StringTuple;
-    StringSet<DnaString> reads;
+    //StringSet<DnaString> reads;
 
     TM_Shape shape;
     StringPairH hs, hs1;
@@ -1449,8 +1617,8 @@ void _qgramCountQGrams(Index<StringSet<DnaString>, IndexQGram<MinimizerShape<TSp
     std::cout << "            End _qgramCountQGrams() sysTime(): " << sysTime() - time << std::endl;
 }
 
-template <unsigned TSpan, unsigned TWeight>
-void createQGramIndexDirOnly(Index<StringSet<DnaString>, IndexQGram<MinimizerShape<TSpan, TWeight>, OpenAddressing > >& index)
+template <typename TObj, unsigned TSpan, unsigned TWeight>
+void createQGramIndexDirOnly(Index<StringSet<String<TObj> >, IndexQGram<MinimizerShape<TSpan, TWeight>, OpenAddressing > >& index)
 {
     double time = sysTime(); 
     //std::cout << "    createQGramIndexDirOnly() sysTime(): " << std::endl;

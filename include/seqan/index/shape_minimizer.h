@@ -228,6 +228,44 @@ inline void hashInit(Shape<TValue, MinimizerShape<TSPAN, TWEIGHT, TSpec> > &me, 
         //}
 }
 
+template <unsigned TSPAN, unsigned TWEIGHT, typename TSpec, typename TIter>
+inline uint64_t hashInit(Shape<Dna5, MinimizerShape<TSPAN, TWEIGHT, TSpec> > &me, TIter const &it)
+{
+
+        SEQAN_ASSERT_GT((unsigned)me.span, 0u);
+
+        me.leftChar = 0;
+        //me.hValue = ordValue(*it);
+        me.hValue = 0;
+        hash_key = ((uint64_t)1 << (me.span*2 -2 )) - 1;
+        hash_key1 = ((uint64_t)1 << me.span * 2) - ((uint64_t)1 << me.weight * 2);
+        hash_key2 = ((uint64_t) 1 << (me.weight*2)) - 1;
+        hash_key3 = ((uint64_t)1 << (me.span*2 )) - 1;
+        
+        uint64_t k =0, count = 0;
+        while (count < me.span)
+        {
+            if (ordValue(*(it + k + count)) == 4)
+            {
+                k += count + 1;
+                count = 0;
+            }
+            else
+                count++;
+        }
+        //std::cout << k << std::endl;
+        //for(TSize i = 2; i < me.span; ++i) {
+        //    //me.hValue = me.hValue * ValueSize<TValue>::VALUE + ordValue((TValue)*(it +i-2));
+        //    me.hValue = (me.hValue << 2) + ordValue((TValue)*(it +i-2));
+        for (unsigned i = 0; i < me.span - 1; ++i)
+        {
+            me.hValue = (me.hValue << 2) + ordValue(*(it + k + i));
+        }
+        me.x = 0;
+        //}
+        return k;
+}
+
 /*
     template <typename TValue, unsigned TSPAN, unsigned TWEIGHT, typename TSpec, typename TIter>
     inline typename Value< Shape<TValue, MinimizerShape<TSPAN, TWEIGHT, TSpec> > >::Type
