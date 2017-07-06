@@ -1222,29 +1222,30 @@ void _qgramCountQGrams3(Index<StringSet<DnaString>, IndexQGram<MinimizerShape<TS
 //template <typename TObj, typename Compare>
 template <typename TIter>
 //inline void _mergeSort(String<Iterator<TObj>::Type> & begin, String<Iterator<TObj>::Type> & end, Compare cmp)
-inline void _mergeSort(TIter const & it, String<unsigned> begin, String<unsigned> end)
+inline void _mergeSort(TIter const & it, String<unsigned> & begin)
 {
-    //typedef typename Iterator<TObj>::Type TIter;
-    //typedef typename Value<TObj>::Type _Value;
     String<Pair<uint64_t, uint64_t> >tmp;
+    String<unsigned> b = begin;
     uint64_t max;
-    resize(tmp, end[length(end) -1 ] - begin[0]);
-    unsigned maxk = 0;
+    unsigned maxk = ~0;
+    resize(tmp, begin[length(begin) -1 ] - begin[0]);
     for (unsigned j = 0; j < length(tmp); j++)
     { 
-        max = 0;
-        for (unsigned k = 0; k < length(begin); k++) 
+        max = ~0;
+        for (unsigned k = 0; k < length(b) - 1; k++) 
         {
-            if (begin[k] != end[k])
-                if((it + begin[k])->i1 > max)
+            if (b[k] != begin[k + 1])
+                if((it + b[k])->i1 < max)
                 {
-                    max = (it + begin[k])->i1;
+                    max = (it + b[k])->i1;
                     maxk = k;
                 }
         }
-        tmp[j] = *(it+begin[maxk]);
-        begin[maxk] += 1;
+        tmp[j] = *(it+b[maxk]);
+        b[maxk] += 1;
     } 
+    for (unsigned k = 0; k < length(tmp); k++)
+        *(it+k) = tmp[k];
 }
 
 //template <typename TObj, typename Compare>
@@ -1280,20 +1281,19 @@ _radixSort(TIter const & begin,  TIter const & end,
 template <typename TIter>
 inline void RMSort(TIter const & begin, TIter const & end)
 {
-    unsigned _radixBlock = 32 << 20, numBlock = ceil((end - begin)/_radixBlock);
-    String<unsigned> segb, sege;
-    resize(segb, numBlock);
-    resize(sege, numBlock);
+    unsigned _radixBlock = 230 << 20;
+    unsigned numBlock = ceil((float)(end - begin)/_radixBlock);
+    std::cout << numBlock << std::endl;
+    String<unsigned> segb;
+    resize(segb, numBlock + 1);
+    segb[numBlock] = end - begin;
+    for (unsigned k = 0; k < numBlock; k++)
+        segb[k] = k * _radixBlock;
     for (unsigned k = 0; k < numBlock; k++)
     {
-        segb[k] = k * _radixBlock;
-        if (k != numBlock)
-            sege[k] = segb[k] + _radixBlock;
-        else
-            sege[k] = end - begin;
-        _radixSort(begin + segb[k], begin + sege[k], 9, 5);
+        _radixSort(begin + segb[k], begin + segb[k + 1], 9, 5);
     }
-    _mergeSort(begin, segb, sege);
+    //_mergeSort(begin, segb);
 }
 
 template <typename TIt>
@@ -1450,7 +1450,7 @@ void _createValueArray2(StringSet<DnaString> & reads, String<Pair<uint64_t, uint
 template <unsigned TSPAN, unsigned TWEIGHT>
 void _createValueArray2(StringSet<String<Dna5> > & reads, String<Pair<uint64_t, uint64_t> > & hs, Shape<Dna5, MinimizerShape<TSPAN, TWEIGHT> > & shape, int step, int l)
 {
-    typedef String<Pair<uint64_t, uint64_t> > StringPair;
+    typedef String<Pair<uint64_t, unsigned> > StringPair;
 
     //TShape shape;
     StringPair tmp;
@@ -1487,6 +1487,7 @@ void _createValueArray2(StringSet<String<Dna5> > & reads, String<Pair<uint64_t, 
         }
     }
     resize(tmp, q);
+    std::cout << length(tmp) << " " << lengthSum(reads) << std::endl;
     *(end(tmp3)) |= (mask);
 
     std::cout << "        loading time " << sysTime() - time << std::endl;
