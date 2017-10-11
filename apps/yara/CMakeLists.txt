@@ -110,15 +110,7 @@ add_executable(yara_indexer indexer.cpp
                             store_seqs.h
                             bits_matches.h
                             index_fm.h)
-add_executable(yara_indexer_dis indexer_dis.cpp
-                                misc_tags.h
-                                misc_timer.h
-                                misc_options.h
-                                misc_types.h
-                                store_seqs.h
-                                bits_matches.h
-                                index_fm.h
-                                index_qgram.h)
+
 add_executable(kmer_indexer kmer_indexer.cpp
                             store_seqs.h
                             misc_timer.h
@@ -130,7 +122,6 @@ add_executable(kmer_indexer kmer_indexer.cpp
                             kmer_bits.h
                             kmer_index_writer.h
                             kmer_indexer.h)
-
 
 add_executable(yara_mapper    mapper.cpp
                               mapper.h
@@ -191,19 +182,11 @@ add_executable(yara_mapper_dis  mapper_dis.cpp
                                 kmer_index_reader.h
                                 kmer_bits.h)
 
-add_executable(classify_reads   classify_reads.cpp
-                                classify_reads.h
-                                misc_timer.h
-                                kmer_index_reader.h
-                                kmer_bits.h)
-
 # Add dependencies found by find_package (SeqAn).
 target_link_libraries (yara_indexer ${SEQAN_LIBRARIES})
-target_link_libraries (yara_indexer_dis ${SEQAN_LIBRARIES})
 target_link_libraries (kmer_indexer ${SEQAN_LIBRARIES})
 target_link_libraries (yara_mapper ${SEQAN_LIBRARIES})
 target_link_libraries (yara_mapper_dis ${SEQAN_LIBRARIES})
-target_link_libraries (classify_reads ${SEQAN_LIBRARIES})
 
 # ----------------------------------------------------------------------------
 # Installation
@@ -215,7 +198,7 @@ if (NOT SEQAN_PREFIX_SHARE_DOC)
 endif (NOT SEQAN_PREFIX_SHARE_DOC)
 
 # Install yara in ${PREFIX}/bin directory
-install (TARGETS yara_indexer yara_indexer_dis kmer_indexer yara_mapper yara_mapper_dis classify_reads
+install (TARGETS yara_indexer kmer_indexer yara_mapper yara_mapper_dis
          DESTINATION bin)
 
 # Install non-binary files for the package to "." for app builds and
@@ -235,7 +218,7 @@ seqan_add_app_test (yara)
 
 # Include executable yara_mapper in CTD structure.
 set (SEQAN_CTD_EXECUTABLES ${SEQAN_CTD_EXECUTABLES}
-                           yara_indexer yara_indexer_dis kmer_indexer yara_mapper yara_mapper_dis classify_reads CACHE INTERNAL "")
+                           yara_indexer kmer_indexer yara_mapper yara_mapper_dis CACHE INTERNAL "")
 
 # ----------------------------------------------------------------------------
 # CPack Install
