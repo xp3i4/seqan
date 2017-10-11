@@ -247,6 +247,113 @@ inline bool fill_occurance_table_impl_new(std::vector <std::vector <TShapeValue>
 }
 
 
+template <typename TShapeValue>
+inline void index_qGrams(AppOptions const & options, CharString const & file_name, uint32_t const & file_num)
+{
+    std::mt19937 rng(0xDEADBEEF);
+
+    typedef Dna                                         TAlphabet;
+    typedef Alloc<>                                     TSeqSpec;
+    typedef Owner<ConcatDirect<Limits<uint64_t> > >     TSeqsSpec;
+
+    typedef String<TAlphabet, TSeqSpec>                 TSeq;
+    typedef StringSet<TSeq, TSeqsSpec>                  TSeqs;
+    typedef StringSet<CharString, TSeqsSpec>            TNames;
+
+    typedef Shape<TAlphabet, UngappedShape<K_MER_LENGTH> >    TShape;
+    typedef IndexQGram<TShape, OpenAddressing>                TIndexSpec;
+    typedef Index<TSeqs, TIndexSpec>                           TIndex;
+
+
+    TNames       ids;
+    IupacString  seqs;
+
+    // Get the current file name
+    CharString out_file_name = options.output_path;
+    append(out_file_name, "_");
+    append(out_file_name, std::to_string(file_num));
+
+    SeqFileIn seqFileIn;
+    if (!open(seqFileIn, toCString(file_name)))
+    {
+        CharString msg = "Unable to open contigs File: ";
+        append (msg, file_name);
+        throw toCString(msg);
+    }
+
+
+    readRecords(ids, seqs, seqFileIn);
+    std::cout << length(seqs) << "\t" << length(seqs[0]) << std::endl;
+    TIndex index(seqs);
+    TIndex index2;
+    indexRequire(index, QGramDir());
+
+    save2(index, toCString(out_file_name), OPEN_WRONLY | OPEN_CREATE);
+    open2(index2, toCString(out_file_name), OPEN_RDONLY);
+// ATACGTATAC    1001010011
+//    found in bin 0
+//    found in bin 1
+//    found in bin 4
+//    found in bin 6
+//    found in bin 9
+//    TGTAGGCTCG    1000101001
+//    found in bin 0
+//    found in bin 3
+//    found in bin 5
+//    found in bin 9
+
+    DnaString kmer = "TGTAGGCTCG";
+    TShape kmer_shape;
+    hash(kmer_shape, begin(kmer));
+    if (countOccurrences(index2, kmer_shape) > 0)
+         std::cout << "found in bin "<< file_num << std::endl;
+
+}
+
+
+
+template <typename TShapeValue>
+inline void compute_qgram_indices (AppOptions const & options)
+{
+
+    Timer<double>                       timer;
+
+    start(timer);
+
+    Semaphore thread_limiter(options.num_threads);
+    std::vector<std::future<void>> tasks;
+
+    for (uint32_t file_num = 0; file_num < NUM_OF_BINS; ++file_num )
+    {
+
+        tasks.emplace_back(
+                           std::async([=, &thread_limiter]
+                                      {
+                                          Critical_section _(thread_limiter);
+                                          mtx.lock();
+                                          std::cout << "Indexing bin " << file_num  << " of " << NUM_OF_BINS-1 << "\n";
+                                          mtx.unlock();
+
+                                          // Get the current file name
+                                          CharString file_name = options.fm_index_path;
+                                          append(file_name, std::to_string(file_num));
+                                          append(file_name, ".fna");
+
+                                          index_qGrams<TShapeValue>(options, file_name, file_num);
+
+                                          mtx.lock();
+                                          std::cout << "Finished indexing bin " << file_num << " of " << NUM_OF_BINS-1 << "\n";
+                                          mtx.unlock();
+                                      }));
+    }
+
+    for (auto &&task : tasks)
+    {
+        task.get();
+    }
+    stop(timer);
+
+}
 
 
 template <typename TShapeValue>

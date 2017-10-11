@@ -32,7 +32,7 @@
 // Author: Temesgen H. Dadi <temesgen.dadi@fu-berlin.de>
 // ==========================================================================
 
-#define YARA_DIS_MAPPER
+#define YARA_MAPPER
 
 // ============================================================================
 // Forwards
@@ -468,19 +468,21 @@ int main(int argc, char const ** argv)
         options.outputFile = options.superOutputFile;
         TDefaultMapper main_mapper(options);
 
-        configureThreads(main_mapper);
         openReads(main_mapper);
 
         std::vector<uint32_t> contig_offsets(options.NUM_OF_BINS, 0);
+        Timer<double> timer;
 
-        for (uint32_t i=1; i<=options.NUM_OF_BINS; ++i)
+        start(timer);
+
+        for (uint32_t i=0; i < options.NUM_OF_BINS; ++i)
         {
             set_current_index_file(options, i);
             SeqStore<void, YaraContigsConfig<> >  tempContigs;
 
             if (!open(tempContigs, toCString(main_mapper.options.contigsIndexFile), OPEN_RDONLY))
                 throw RuntimeError("Error while opening reference file.");
-            contig_offsets[i-1] = length(main_mapper.contigs.names);
+            contig_offsets[i] = length(main_mapper.contigs.names);
             append(main_mapper.contigs.names, tempContigs.names);
             append(main_mapper.contigs.seqs, tempContigs.seqs);
         }
@@ -500,19 +502,19 @@ int main(int argc, char const ** argv)
             initReadsContext(main_mapper, main_mapper.reads.seqs);
 
             if (empty(main_mapper.reads.seqs)) break;
-            for (uint32_t i=1; i<=options.NUM_OF_BINS; ++i)
+            for (uint32_t i=0; i < options.NUM_OF_BINS; ++i)
             {
                 Options yaraOptions = options;
                 set_current_index_file(yaraOptions, options, i);
                 if (!openContigsLimits(yaraOptions))
                     throw RuntimeError("Error while opening reference file.");
-                configureMapper(yaraOptions, main_mapper, contig_offsets[i-1]);
+                configureMapper(yaraOptions, main_mapper, contig_offsets[i]);
             }
 
             aggregateMatches(main_mapper, main_mapper.reads.seqs);
             rankMatches(main_mapper, main_mapper.reads.seqs);
-//            if (main_mapper.options.verifyMatches)
-//                verifyMatches(main_mapper);
+            if (main_mapper.options.verifyMatches)
+                verifyMatches(main_mapper);
             alignMatches(main_mapper);
             writeMatches(main_mapper);
             clearMatches(main_mapper);
@@ -522,7 +524,9 @@ int main(int argc, char const ** argv)
         }
         closeReads(main_mapper);
         closeOutputFile(main_mapper);
-
+        stop(timer);
+        if (main_mapper.options.verbose > 0)
+            printStats(main_mapper, timer);
      }
     catch (Exception const & e)
     {

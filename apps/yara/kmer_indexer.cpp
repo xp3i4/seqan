@@ -139,9 +139,8 @@ parseCommandLine(AppOptions & options, int argc, char const ** argv)
     getArgumentValue(options.output_path, parser, 1);
 
     //modify output file
-    append(options.output_path, "_k");
+    append(options.output_path, "k");
     append(options.output_path, std::to_string(K_MER_LENGTH));
-    append(options.output_path, ".kdx");
 
     return ArgumentParser::PARSE_OK;
 }
@@ -153,21 +152,22 @@ inline int run_kmer_indexer(AppOptions & options)
 {
     Timer<double>                       timer;
     start(timer);
-    std::unordered_map <TShapeValue, TMapValue> kmer_occurance_table;
-    kmer_occurance_table = get_kmer_occurance_table<TShapeValue, TMapValue>(options);
+    compute_qgram_indices<TShapeValue>(options);
+//    std::unordered_map <TShapeValue, TMapValue> kmer_occurance_table;
+//    kmer_occurance_table = get_kmer_occurance_table<TShapeValue, TMapValue>(options);
     stop(timer);
-
-    std::cout<<"=========================================" << std::endl;
+//
+//    std::cout<<"=========================================" << std::endl;
     std::cout<<"finished computing kmer_occurance_table in " << getValue(timer) <<" secs"  << std::endl;
-    std::cout<<"Total number of kmers = " << kmer_occurance_table.size() << std::endl;
-    std::cout<<"=========================================" << std::endl;
-
-
-    start(timer);
-    write_kmer_index(options, kmer_occurance_table);
-    stop(timer);
-
-    std::cout<<"finished writing kmer_occurance_table in " << getValue(timer) <<" secs"  << std::endl ;
+//    std::cout<<"Total number of kmers = " << kmer_occurance_table.size() << std::endl;
+//    std::cout<<"=========================================" << std::endl;
+//
+//
+//    start(timer);
+//    write_kmer_index(options, kmer_occurance_table);
+//    stop(timer);
+//
+//    std::cout<<"finished writing kmer_occurance_table in " << getValue(timer) <<" secs"  << std::endl ;
 
     return 0;
 }

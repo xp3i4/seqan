@@ -51,7 +51,7 @@ struct SuperOptions : public Options
 {
     CharString          superContigsIndicesFile;
     CharString          superOutputFile;
-    uint32_t            NUM_OF_BINS = 55;
+    uint32_t            NUM_OF_BINS = 64;
 
 //    Pair<CharString>    superReadsFile;
 
@@ -77,10 +77,10 @@ inline void set_current_index_file(Options & yaraOptions, SuperOptions const & o
 {
     // Get the current file name
     yaraOptions.contigsIndexFile = options.superContigsIndicesFile;
-    if (file_no < 10)
-        append(yaraOptions.contigsIndexFile, "0");
+//    if (file_no < 10)
+//        append(yaraOptions.contigsIndexFile, "0");
     append(yaraOptions.contigsIndexFile, std::to_string(file_no));
-    append(yaraOptions.contigsIndexFile, "-genomes");
+//    append(yaraOptions.contigsIndexFile, "-genomes");
 }
 
 template <typename TOptions>
@@ -88,10 +88,10 @@ inline void set_current_index_file(TOptions & options, uint32_t const file_no)
 {
     // Get the current file name
     options.contigsIndexFile = options.superContigsIndicesFile;
-    if (file_no < 10)
-        append(options.contigsIndexFile, "0");
+//    if (file_no < 10)
+//        append(options.contigsIndexFile, "0");
     append(options.contigsIndexFile, std::to_string(file_no));
-    append(options.contigsIndexFile, "-genomes");
+//    append(options.contigsIndexFile, "-genomes");
 }
 
 inline void set_output_file(Options & yaraOptions, SuperOptions const & options, uint32_t const file_no)
@@ -237,16 +237,16 @@ inline void _disMapReadsImpl(Mapper<TSpec, TConfig> & me, TDefaultMapper & main_
     }
 
     aggregateMatches(me, readSeqs);
-    rankMatches(me, readSeqs);
-    if (me.options.verifyMatches)
-        verifyMatches(me);
+//    rankMatches(me, readSeqs);
+//    if (me.options.verifyMatches)
+//        verifyMatches(me);
 //    alignMatches(me);
     swap(me.reads.seqs, main_mapper.reads.seqs);
     swap(me.reads.names, main_mapper.reads.names);
     copyMatches(main_mapper, me, contig_offset);
 
-    clearMatches(me);
-    clearAlignments(me);
+//    clearMatches(me);
+//    clearAlignments(me);
 }
 
 // ----------------------------------------------------------------------------
@@ -256,12 +256,8 @@ inline void _disMapReadsImpl(Mapper<TSpec, TConfig> & me, TDefaultMapper & main_
 template <typename TSpec, typename TConfig>
 inline void runDisMapper(Mapper<TSpec, TConfig> & me, TDefaultMapper & main_mapper, uint32_t const & contig_offset)
 {
-    Timer<double> timer;
-
-    start(timer);
 
     configureThreads(me);
-
     if (me.options.verbose > 1) printRuler(std::cerr);
 
     loadContigs(me);
@@ -270,11 +266,6 @@ inline void runDisMapper(Mapper<TSpec, TConfig> & me, TDefaultMapper & main_mapp
     // Write on the main output file.
     disMapReads(me, main_mapper, contig_offset);
     clearReads(me);
-
-    stop(timer);
-
-    if (me.options.verbose > 0)
-        printStats(me, timer);
 }
 
 template <typename TSpec, typename TConfig>
