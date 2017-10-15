@@ -101,7 +101,7 @@ using namespace seqan;
 // ----------------------------------------------------------------------------
 // Function setupArgumentParser()
 // ----------------------------------------------------------------------------
-void setupArgumentParser(ArgumentParser & parser, SuperOptions const & options)
+void setupArgumentParser(ArgumentParser & parser, DisOptions const & disOptions)
 {
     setAppName(parser, "yara_mapper_dis");
     setShortDescription(parser, "Yara Mapper (distributed)");
@@ -128,7 +128,7 @@ void setupArgumentParser(ArgumentParser & parser, SuperOptions const & options)
     addOption(parser, ArgParseOption("v", "verbose", "Displays global statistics."));
     addOption(parser, ArgParseOption("vv", "very-verbose", "Displays extensive statistics for each batch of reads."));
 
-    // Setup output options.
+    // Setup output disOptions.
     addSection(parser, "Output Options");
 
     addOption(parser, ArgParseOption("o", "output-file", "Specify an output file. Default: write the file to standard output.",
@@ -148,19 +148,19 @@ void setupArgumentParser(ArgumentParser & parser, SuperOptions const & options)
 
     addOption(parser, ArgParseOption("rg", "read-group", "Specify a read group for all records in the SAM/BAM file.",
                                      ArgParseOption::STRING));
-    setDefaultValue(parser, "read-group", options.readGroup);
+    setDefaultValue(parser, "read-group", disOptions.readGroup);
 
     addOption(parser, ArgParseOption("sa", "secondary-alignments", "Specify whether to output secondary alignments in \
                                      the XA tag of the primary alignment, as separate \
                                      secondary records, or to omit them.",
                                      ArgParseOption::STRING));
-    setValidValues(parser, "secondary-alignments", options.secondaryAlignmentsList);
-    setDefaultValue(parser, "secondary-alignments", options.secondaryAlignmentsList[options.secondaryAlignments]);
+    setValidValues(parser, "secondary-alignments", disOptions.secondaryAlignmentsList);
+    setDefaultValue(parser, "secondary-alignments", disOptions.secondaryAlignmentsList[disOptions.secondaryAlignments]);
 
     addOption(parser, ArgParseOption("ra", "rabema-alignments", "Output alignments compatible with the \
                                      Read Alignment BEnchMArk (RABEMA)."));
 
-    // Setup mapping options.
+    // Setup mapping disOptions.
     addSection(parser, "Mapping Options");
 
     addOption(parser, ArgParseOption("e", "error-rate", "Consider alignments within this percentual number of errors. \
@@ -169,7 +169,7 @@ void setupArgumentParser(ArgumentParser & parser, SuperOptions const & options)
                                      ArgParseOption::INTEGER));
     setMinValue(parser, "error-rate", "0");
     setMaxValue(parser, "error-rate", "10");
-    setDefaultValue(parser, "error-rate", 100.0 * options.errorRate);
+    setDefaultValue(parser, "error-rate", 100.0 * disOptions.errorRate);
 
     addOption(parser, ArgParseOption("s", "strata-rate", "Consider suboptimal alignments within this percentual number \
                                      of errors from the optimal alignment. Increase this threshold to increase \
@@ -177,17 +177,17 @@ void setupArgumentParser(ArgumentParser & parser, SuperOptions const & options)
                                      ArgParseOption::INTEGER));
     setMinValue(parser, "strata-rate", "0");
     setMaxValue(parser, "strata-rate", "10");
-    setDefaultValue(parser, "strata-rate", 100.0 * options.strataRate);
+    setDefaultValue(parser, "strata-rate", 100.0 * disOptions.strataRate);
 
     addOption(parser, ArgParseOption("y", "sensitivity", "Sensitivity with respect to edit distance. \
                                      Full sensitivity guarantees to find all considered alignments \
                                      but increases runtime, low sensitivity decreases runtime by \
                                      breaking such guarantee.",
                                      ArgParseOption::STRING));
-    setValidValues(parser, "sensitivity", options.sensitivityList);
-    setDefaultValue(parser, "sensitivity", options.sensitivityList[options.sensitivity]);
+    setValidValues(parser, "sensitivity", disOptions.sensitivityList);
+    setDefaultValue(parser, "sensitivity", disOptions.sensitivityList[disOptions.sensitivity]);
 
-    // Setup paired-end mapping options.
+    // Setup paired-end mapping disOptions.
     addSection(parser, "Paired-End Mapping Options");
 
     addOption(parser, ArgParseOption("ll", "library-length", "Expected library length. Default: autodetected.",
@@ -202,18 +202,18 @@ void setupArgumentParser(ArgumentParser & parser, SuperOptions const & options)
                                      ArgParseOption::INTEGER));
     setMinValue(parser, "indel-rate", "0");
     setMaxValue(parser, "indel-rate", "50");
-    setDefaultValue(parser, "indel-rate", 100.0 * options.indelRate);
+    setDefaultValue(parser, "indel-rate", 100.0 * disOptions.indelRate);
 
     addOption(parser, ArgParseOption("ni", "no-indels", "Turn off the rescue of unaligned ends containing indels."));
 
     //    addOption(parser, ArgParseOption("lo", "library-orientation", "Expected orientation of the segments in the library.",
     //                                     ArgParseOption::STRING));
-    //    setValidValues(parser, "library-orientation", options.libraryOrientationList);
-    //    setDefaultValue(parser, "library-orientation", options.libraryOrientationList[options.libraryOrientation]);
+    //    setValidValues(parser, "library-orientation", disOptions.libraryOrientationList);
+    //    setDefaultValue(parser, "library-orientation", disOptions.libraryOrientationList[disOptions.libraryOrientation]);
 
     //    addOption(parser, ArgParseOption("la", "anchor", "Anchor one read and verify its mate."));
 
-    // Setup performance options.
+    // Setup performance disOptions.
     addSection(parser, "Performance Options");
 
     addOption(parser, ArgParseOption("t", "threads", "Specify the number of threads to use.", ArgParseOption::INTEGER));
@@ -223,7 +223,7 @@ void setupArgumentParser(ArgumentParser & parser, SuperOptions const & options)
 #else
     setMaxValue(parser, "threads", "1");
 #endif
-    setDefaultValue(parser, "threads", options.threadsCount);
+    setDefaultValue(parser, "threads", disOptions.threadsCount);
 
     addOption(parser, ArgParseOption("rb", "reads-batch", "Specify the number of reads to process in one batch.",
                                      ArgParseOption::INTEGER));
@@ -233,8 +233,17 @@ void setupArgumentParser(ArgumentParser & parser, SuperOptions const & options)
 
     setMinValue(parser, "reads-batch", "1000");
     setMaxValue(parser, "reads-batch", "1000000");
-    setDefaultValue(parser, "reads-batch", options.readsCount);
+    setDefaultValue(parser, "reads-batch", disOptions.readsCount);
     hideOption(getOption(parser, "reads-batch"));
+
+    // Setup Distributed mapper disOptions.
+    addSection(parser, "Distributed mapper disOptions");
+    addOption(parser, ArgParseOption("b", "number-of-bins", "The number of bins (indices) for distributed mapper",
+                                     ArgParseOption::INTEGER));
+    setMinValue(parser, "number-of-bins", "1");
+    setMaxValue(parser, "number-of-bins", "1000");
+    setDefaultValue(parser, "number-of-bins", disOptions.NUM_OF_BINS);
+
 }
 
 // ----------------------------------------------------------------------------
@@ -242,7 +251,7 @@ void setupArgumentParser(ArgumentParser & parser, SuperOptions const & options)
 // ----------------------------------------------------------------------------
 
 ArgumentParser::ParseResult
-parseCommandLine(SuperOptions & options, ArgumentParser & parser, int argc, char const ** argv)
+parseCommandLine(DisOptions & disOptions, ArgumentParser & parser, int argc, char const ** argv)
 {
     ArgumentParser::ParseResult res = parse(parser, argc, argv);
 
@@ -250,22 +259,22 @@ parseCommandLine(SuperOptions & options, ArgumentParser & parser, int argc, char
         return res;
 
     // Parse indexed genome input file.
-    getArgumentValue(options.superContigsIndicesFile, parser, 0);
+    getArgumentValue(disOptions.superContigsIndicesFile, parser, 0);
 
     // Parse kmer index input file.
-//    getArgumentValue(options.kmer_index_file, parser, 1);
+//    getArgumentValue(disOptions.kmer_index_file, parser, 1);
 
     // Parse read input files.
     switch (getArgumentValueCount(parser, 1))
     {
         case 1:
-            getArgumentValue(options.readsFile.i1, parser, 1, 0);
-            options.singleEnd = true;
+            getArgumentValue(disOptions.readsFile.i1, parser, 1, 0);
+            disOptions.singleEnd = true;
             break;
         case 2:
-            getArgumentValue(options.readsFile.i1, parser, 1, 0);
-            getArgumentValue(options.readsFile.i2, parser, 1, 1);
-            options.singleEnd = false;
+            getArgumentValue(disOptions.readsFile.i1, parser, 1, 0);
+            getArgumentValue(disOptions.readsFile.i2, parser, 1, 1);
+            disOptions.singleEnd = false;
             break;
         default:
             std::cerr << getAppName(parser) << ": Too many arguments!" << std::endl;
@@ -273,70 +282,73 @@ parseCommandLine(SuperOptions & options, ArgumentParser & parser, int argc, char
     }
 
     // Parse output file.
-    getOptionValue(options.superOutputFile, parser, "output-file");
+    getOptionValue(disOptions.superOutputFile, parser, "output-file");
 
     // Parse output format.
     CharString outputFormat;
     if (getOptionValue(outputFormat, parser, "output-format"))
     {
         addLeadingDot(outputFormat);
-        guessFormatFromFilename(outputFormat, options.outputFormat);
+        guessFormatFromFilename(outputFormat, disOptions.outputFormat);
     }
     else
-        assign(options.outputFormat, Sam());
+        assign(disOptions.outputFormat, Sam());
 
 #if SEQAN_HAS_ZLIB
-    getOptionValue(options.uncompressedBam, parser, "uncompressed-bam");
+    getOptionValue(disOptions.uncompressedBam, parser, "uncompressed-bam");
 #endif
 
-    // Parse output options.
-    getOptionValue(options.readGroup, parser, "read-group");
-    getOptionValue(options.secondaryAlignments, parser, "secondary-alignments", options.secondaryAlignmentsList);
-    getOptionValue(options.rabema, parser, "rabema-alignments");
+    // Parse output disOptions.
+    getOptionValue(disOptions.readGroup, parser, "read-group");
+    getOptionValue(disOptions.secondaryAlignments, parser, "secondary-alignments", disOptions.secondaryAlignmentsList);
+    getOptionValue(disOptions.rabema, parser, "rabema-alignments");
 
-    // Parse mapping options.
+    // Parse mapping disOptions.
     unsigned errorRate;
     if (getOptionValue(errorRate, parser, "error-rate"))
-        options.errorRate = errorRate / 100.0;
+        disOptions.errorRate = errorRate / 100.0;
 
     unsigned strataRate;
     if (getOptionValue(strataRate, parser, "strata-rate"))
-        options.strataRate = strataRate / 100.0;
+        disOptions.strataRate = strataRate / 100.0;
 
-    getOptionValue(options.sensitivity, parser, "sensitivity", options.sensitivityList);
+    getOptionValue(disOptions.sensitivity, parser, "sensitivity", disOptions.sensitivityList);
 
-    // Parse paired-end mapping options.
-    getOptionValue(options.libraryLength, parser, "library-length");
-    getOptionValue(options.libraryDev, parser, "library-deviation");
-    //    getOptionValue(options.libraryOrientation, parser, "library-orientation", options.libraryOrientationList);
+    // Parse paired-end mapping disOptions.
+    getOptionValue(disOptions.libraryLength, parser, "library-length");
+    getOptionValue(disOptions.libraryDev, parser, "library-deviation");
+    //    getOptionValue(disOptions.libraryOrientation, parser, "library-orientation", disOptions.libraryOrientationList);
 
     unsigned indelRate;
     if (getOptionValue(indelRate, parser, "indel-rate"))
-        options.indelRate = indelRate / 100.0;
+        disOptions.indelRate = indelRate / 100.0;
 
-    options.verifyMatches = !isSet(parser, "no-indels");
+    disOptions.verifyMatches = !isSet(parser, "no-indels");
 
-    // Parse performance options.
-    getOptionValue(options.threadsCount, parser, "threads");
-    getOptionValue(options.readsCount, parser, "reads-batch");
+    // Parse performance disOptions.
+    getOptionValue(disOptions.threadsCount, parser, "threads");
+    getOptionValue(disOptions.readsCount, parser, "reads-batch");
+
+    // Parse Distributed mapper mptions
+    getOptionValue(disOptions.NUM_OF_BINS, parser, "number-of-bins");
 
 
-//    getOptionValue(options.max_errors, parser, "max-errors");
+//    getOptionValue(disOptions.max_errors, parser, "max-errors");
 
-    if (isSet(parser, "verbose")) options.verbose = 1;
-    if (isSet(parser, "very-verbose")) options.verbose = 2;
+    if (isSet(parser, "verbose")) disOptions.verbose = 1;
+    if (isSet(parser, "very-verbose")) disOptions.verbose = 2;
 
     // Get version.
-    options.version = getVersion(parser);
+    disOptions.version = getVersion(parser);
 
     // Get command line.
     for (int i = 0; i < argc; i++)
     {
-        append(options.commandLine, argv[i]);
-        appendValue(options.commandLine, ' ');
+        append(disOptions.commandLine, argv[i]);
+        appendValue(disOptions.commandLine, ' ');
     }
-    eraseBack(options.commandLine);
-    
+    eraseBack(disOptions.commandLine);
+
     return ArgumentParser::PARSE_OK;
 }
 
@@ -344,40 +356,40 @@ parseCommandLine(SuperOptions & options, ArgumentParser & parser, int argc, char
 // Function configureMapper()
 // ----------------------------------------------------------------------------
 
-template <typename TContigsSize, typename TContigsLen, typename TThreading, typename TSequencing, typename TSeedsDistance>
-void configureMapper(Options const & options,
-                     TDefaultMapper & main_mapper,
-                     uint32_t const & contig_offset,
-                     TThreading const & threading,
-                     TSequencing const & sequencing,
-                     TSeedsDistance const & distance)
+template <typename TContigsSize, typename TContigsLen, typename TThreading, typename TSequencing, typename TSeedsDistance, typename TContigs>
+void configureDisMapper(DisOptions & disOptions,
+                        TContigs & allContigs,
+                        std::vector<uint32_t> const & contigOffsets,
+                        TThreading const & threading,
+                        TSequencing const & sequencing,
+                        TSeedsDistance const & distance)
 {
-    if (options.contigsSum <= MaxValue<uint32_t>::VALUE)
+    if (disOptions.contigsSum <= MaxValue<uint32_t>::VALUE)
     {
-        spawnDisMapper<TContigsSize, TContigsLen, uint32_t>(options, main_mapper, contig_offset, threading, sequencing, distance);
+        spawnDisMapper<TContigsSize, TContigsLen, uint32_t>(disOptions, allContigs, contigOffsets, threading, sequencing, distance);
     }
     else
     {
-        spawnDisMapper<TContigsSize, TContigsLen, uint64_t>(options, main_mapper, contig_offset, threading, sequencing, distance);
+        spawnDisMapper<TContigsSize, TContigsLen, uint64_t>(disOptions, allContigs, contigOffsets, threading, sequencing, distance);
     }
 }
 
-template <typename TContigsSize, typename TThreading, typename TSequencing, typename TSeedsDistance>
-void configureMapper(Options const & options,
-                     TDefaultMapper & main_mapper,
-                     uint32_t const & contig_offset,
-                     TThreading const & threading,
-                     TSequencing const & sequencing,
-                     TSeedsDistance const & distance)
+template <typename TContigsSize, typename TThreading, typename TSequencing, typename TSeedsDistance, typename TContigs>
+void configureDisMapper(DisOptions & disOptions,
+                        TContigs & allContigs,
+                        std::vector<uint32_t> const & contigOffsets,
+                        TThreading const & threading,
+                        TSequencing const & sequencing,
+                        TSeedsDistance const & distance)
 {
-    if (options.contigsMaxLength <= MaxValue<uint32_t>::VALUE)
+    if (disOptions.contigsMaxLength <= MaxValue<uint32_t>::VALUE)
     {
-        configureMapper<TContigsSize, uint32_t>(options, main_mapper, contig_offset, threading, sequencing, distance);
+        configureDisMapper<TContigsSize, uint32_t>(disOptions, allContigs, contigOffsets, threading, sequencing, distance);
     }
     else
     {
 #ifdef YARA_LARGE_CONTIGS
-        configureMapper<TContigsSize, uint64_t>(options, main_mapper, contig_offset, threading, sequencing, distance);
+        configureDisMapper<TContigsSize, uint64_t>(disOptions, allContigs, contigOffsets, threading, sequencing, distance);
 #else
         throw RuntimeError("Maximum contig length exceeded. Recompile with -DYARA_LARGE_CONTIGS=ON.");
 #endif
@@ -385,66 +397,74 @@ void configureMapper(Options const & options,
 }
 
 template <typename TThreading, typename TSequencing, typename TSeedsDistance>
-void configureMapper(Options const & options,
-                     TDefaultMapper & main_mapper,
-                     uint32_t const & contig_offset,
-                     TThreading const & threading,
-                     TSequencing const & sequencing,
-                     TSeedsDistance const & distance)
+void configureDisMapper(DisOptions & disOptions,
+                        TThreading const & threading,
+                        TSequencing const & sequencing,
+                        TSeedsDistance const & distance)
 {
-    if (options.contigsSize <= MaxValue<uint8_t>::VALUE)
+    // typedef ReadMapperConfig<TThreading, TSequencing, TSeedsDistance, TContigsSize, TContigsLen, TContigsSum>  TConfig;
+    // typedef Mapper<void, ReadMapperConfig<Parallel, SingleEnd, HammingDistance, uint32_t, uint32_t, uint32_t> > TDefaultMapper;
+
+    // We need to know the contig sequences here to configure the limits
+    // get all the contigs from all indices and also save the offsets
+    std::vector<uint32_t> contigOffsets(disOptions.NUM_OF_BINS, 0);
+    SeqStore<void, YaraContigsConfig<Alloc<> > > allContigs;
+    for (uint32_t i=0; i < disOptions.NUM_OF_BINS; ++i)
     {
-        configureMapper<uint8_t>(options, main_mapper, contig_offset, threading, sequencing, distance);
+        set_current_index_file(disOptions, i);
+        SeqStore<void, YaraContigsConfig< Alloc<> > >  tempContigs;
+
+        if (!open(tempContigs, toCString(disOptions.contigsIndexFile), OPEN_RDONLY))
+            throw RuntimeError("Error while opening reference file.");
+        contigOffsets[i] = length(allContigs.names);
+        append(allContigs.names, tempContigs.names);
+        append(allContigs.seqs, tempContigs.seqs);
     }
-    else if (options.contigsSize <= MaxValue<uint16_t>::VALUE)
+    setContigsLimits(disOptions, allContigs.seqs);
+
+    if (disOptions.contigsSize <= MaxValue<uint8_t>::VALUE)
     {
-        configureMapper<uint16_t>(options, main_mapper, contig_offset, threading, sequencing, distance);
+        configureDisMapper<uint8_t>(disOptions, allContigs, contigOffsets, threading, sequencing, distance);
+    }
+    else if (disOptions.contigsSize <= MaxValue<uint16_t>::VALUE)
+    {
+        configureDisMapper<uint16_t>(disOptions, allContigs, contigOffsets, threading, sequencing, distance);
     }
     else
     {
-#ifdef YARA_LARGE_CONTIGS
-        configureMapper<uint32_t>(options, main_mapper, contig_offset, threading, sequencing, distance);
-#else
-        throw RuntimeError("Maximum number of contigs exceeded. Recompile with -DYARA_LARGE_CONTIGS=ON.");
-#endif
+        configureDisMapper<uint32_t>(disOptions, allContigs, contigOffsets, threading, sequencing, distance);
     }
 }
 
 template <typename TThreading, typename TSequencing>
-void configureMapper(Options const & options,
-                     TDefaultMapper & main_mapper,
-                     uint32_t const & contig_offset,
-                     TThreading const & threading,
-                     TSequencing const & sequencing)
+void configureDisMapper(DisOptions & disOptions,
+                        TThreading const & threading,
+                        TSequencing const & sequencing)
 {
-    if (options.sensitivity == FULL)
-        return configureMapper(options, main_mapper, contig_offset, threading, sequencing, EditDistance());
+    if (disOptions.sensitivity == FULL)
+        return configureDisMapper(disOptions, threading, sequencing, EditDistance());
     else
-        return configureMapper(options, main_mapper, contig_offset, threading, sequencing, HammingDistance());
+        return configureDisMapper(disOptions, threading, sequencing, HammingDistance());
 }
 
 template <typename TThreading>
-void configureMapper(Options const & options,
-                     TDefaultMapper & main_mapper,
-                     uint32_t const & contig_offset,
-                     TThreading const & threading)
+void configureDisMapper(DisOptions & disOptions,
+                        TThreading const & threading)
 {
-    if (options.singleEnd)
-        configureMapper(options, main_mapper, contig_offset, threading, SingleEnd());
+    if (disOptions.singleEnd)
+        configureDisMapper(disOptions, threading, SingleEnd());
     else
-        configureMapper(options, main_mapper, contig_offset, threading, PairedEnd());
+        configureDisMapper(disOptions, threading, PairedEnd());
 }
 
-void configureMapper(Options const & options,
-                     TDefaultMapper & main_mapper,
-                     uint32_t const & contig_offset)
+void configureDisMapper(DisOptions & disOptions)
 {
 #ifdef _OPENMP
-    if (options.threadsCount > 1)
-        configureMapper(options, main_mapper, contig_offset, Parallel());
+    if (disOptions.threadsCount > 1)
+        configureDisMapper(disOptions, Parallel());
     else
 #endif
-        configureMapper(options, main_mapper, contig_offset, Serial());
+        configureDisMapper(disOptions, Serial());
 }
 
 // ----------------------------------------------------------------------------
@@ -454,80 +474,18 @@ void configureMapper(Options const & options,
 int main(int argc, char const ** argv)
 {
     ArgumentParser parser;
-    SuperOptions options;
-    setupArgumentParser(parser, options);
+    DisOptions disOptions;
+    setupArgumentParser(parser, disOptions);
 
-    ArgumentParser::ParseResult res = parseCommandLine(options, parser, argc, argv);
+    ArgumentParser::ParseResult res = parseCommandLine(disOptions, parser, argc, argv);
 
     if (res != ArgumentParser::PARSE_OK)
         return res == ArgumentParser::PARSE_ERROR;
 
     try
     {
-
-        options.outputFile = options.superOutputFile;
-        TDefaultMapper main_mapper(options);
-
-        openReads(main_mapper);
-
-        std::vector<uint32_t> contig_offsets(options.NUM_OF_BINS, 0);
-        Timer<double> timer;
-
-        start(timer);
-
-        for (uint32_t i=0; i < options.NUM_OF_BINS; ++i)
-        {
-            set_current_index_file(options, i);
-            SeqStore<void, YaraContigsConfig<> >  tempContigs;
-
-            if (!open(tempContigs, toCString(main_mapper.options.contigsIndexFile), OPEN_RDONLY))
-                throw RuntimeError("Error while opening reference file.");
-            contig_offsets[i] = length(main_mapper.contigs.names);
-            append(main_mapper.contigs.names, tempContigs.names);
-            append(main_mapper.contigs.seqs, tempContigs.seqs);
-        }
-        // Open output file and write header.
-        openOutputFile(main_mapper);
-
-
-        // Process reads in blocks.
-        // load reads here
-
-        // classify reads here
-        // create mappers and run them on subsets
-        while (true)
-        {
-            if (main_mapper.options.verbose > 1) printRuler(std::cerr);
-            loadReads(main_mapper);
-            initReadsContext(main_mapper, main_mapper.reads.seqs);
-
-            if (empty(main_mapper.reads.seqs)) break;
-            for (uint32_t i=0; i < options.NUM_OF_BINS; ++i)
-            {
-                Options yaraOptions = options;
-                set_current_index_file(yaraOptions, options, i);
-                if (!openContigsLimits(yaraOptions))
-                    throw RuntimeError("Error while opening reference file.");
-                configureMapper(yaraOptions, main_mapper, contig_offsets[i]);
-            }
-
-            aggregateMatches(main_mapper, main_mapper.reads.seqs);
-            rankMatches(main_mapper, main_mapper.reads.seqs);
-            if (main_mapper.options.verifyMatches)
-                verifyMatches(main_mapper);
-            alignMatches(main_mapper);
-            writeMatches(main_mapper);
-            clearMatches(main_mapper);
-            clearAlignments(main_mapper);
-
-            clearReads(main_mapper);
-        }
-        closeReads(main_mapper);
-        closeOutputFile(main_mapper);
-        stop(timer);
-        if (main_mapper.options.verbose > 0)
-            printStats(main_mapper, timer);
-     }
+        configureDisMapper(disOptions);
+    }
     catch (Exception const & e)
     {
         std::cerr << getAppName(parser) << ": " << e.what() << std::endl;
