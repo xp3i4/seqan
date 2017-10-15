@@ -215,9 +215,9 @@ inline void _mapReadsImpl(Mapper<TSpec, TConfig> & me, Mapper<TSpec, TMainConfig
     }
     aggregateMatches(me, readSeqs);
     rankMatches(me, readSeqs);
-    if (me.options.verifyMatches)
-        verifyMatches(me);
-    alignMatches(me);
+//    if (me.options.verifyMatches)
+//        verifyMatches(me);
+//    alignMatches(me);
 //    writeMatches(mainMapper);
     copyMatches(mainMapper, me, contigOffset);
 
@@ -389,13 +389,7 @@ inline void runDisMapper(Mapper<TSpec, TConfig> & me, DisOptions & disOptions, T
         rankMatches(me, me.reads.seqs);
         if (me.options.verifyMatches)
             verifyMatches(me);
-        uint32_t matchCount = length(me.matchesByCoord);
-        uint32_t cigar_count = length(me.cigars);
-        uint32_t cigarSet_count = length(me.cigarSet);
         alignMatches(me);
-        matchCount = length(me.matchesByCoord);
-        cigar_count = length(me.cigars);
-        cigarSet_count = length(me.cigarSet);
         writeMatches(me);
         clearMatches(me);
         clearAlignments(me);
