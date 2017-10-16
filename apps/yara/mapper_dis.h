@@ -344,10 +344,11 @@ void configureMapper(Options const & options,
 // Function runMapper()
 // ----------------------------------------------------------------------------
 
-template <typename TSpec, typename TConfig, typename TContigs>
-inline void runDisMapper(Mapper<TSpec, TConfig> & me, DisOptions & disOptions, TContigs & allContigs, std::vector<uint32_t> const & contigOffsets)
+template <typename TSpec, typename TConfig>
+inline void runDisMapper(Mapper<TSpec, TConfig> & me, DisOptions & disOptions)
 {
 
+  // TContigs & allContigs, std::vector<uint32_t> const & contigOffsets
     Timer<double> timer;
 
     start(timer);
@@ -356,9 +357,20 @@ inline void runDisMapper(Mapper<TSpec, TConfig> & me, DisOptions & disOptions, T
 
     if (me.options.verbose > 1) printRuler(std::cerr);
 
+   // We need to know the contig sequences here to configure the limits
+    // get all the contigs from all indices and also save the offsets
+    std::vector<uint32_t> contigOffsets(disOptions.NUM_OF_BINS, 0);
+    for (uint32_t i=0; i < disOptions.NUM_OF_BINS; ++i)
+    {
+        set_current_index_file(disOptions, i);
+        SeqStore<void, YaraContigsConfig< Alloc<> > >  tempContigs;
 
-    assign(me.contigs.names, allContigs.names);
-    assign(me.contigs.seqs, allContigs.seqs);
+        if (!open(tempContigs, toCString(disOptions.contigsIndexFile), OPEN_RDONLY))
+            throw RuntimeError("Error while opening reference file.");
+        contigOffsets[i] = length(me.contigs.names);
+        append(me.contigs.names, tempContigs.names);
+        append(me.contigs.seqs, tempContigs.seqs);
+    }
 
     // Open output file and write header.
     openOutputFile(me);
@@ -393,7 +405,6 @@ inline void runDisMapper(Mapper<TSpec, TConfig> & me, DisOptions & disOptions, T
         writeMatches(me);
         clearMatches(me);
         clearAlignments(me);
-
         clearReads(me);
     }
     closeReads(me);
@@ -408,10 +419,8 @@ inline void runDisMapper(Mapper<TSpec, TConfig> & me, DisOptions & disOptions, T
 // Function spawnDisMapper()
 // ----------------------------------------------------------------------------
 template <typename TContigsSize, typename TContigsLen, typename TContigsSum,
-typename TThreading, typename TSequencing, typename TSeedsDistance, typename TContigs>
+          typename TThreading, typename TSequencing, typename TSeedsDistance>
 inline void spawnDisMapper(DisOptions & disOptions,
-                           TContigs & allContigs,
-                           std::vector<uint32_t> const & contigOffsets,
                            TThreading const & /* tag */,
                            TSequencing const & /* tag */,
                            TSeedsDistance const & /* tag */)
@@ -420,7 +429,7 @@ inline void spawnDisMapper(DisOptions & disOptions,
     typedef ReadMapperConfig<TThreading, TSequencing, TSeedsDistance, TContigsSize, TContigsLen, TContigsSum>  TMainConfig;
     Mapper<void, TMainConfig> disMapper(disOptions);
 
-    runDisMapper(disMapper, disOptions, allContigs, contigOffsets);
+    runDisMapper(disMapper, disOptions);
 }
 
 #endif  // #ifndef APP_YARA_MAPPER_H_

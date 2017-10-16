@@ -239,6 +239,12 @@ inline void _alignMatchImpl(MatchesAligner<TSpec, Traits> & me, TMatchIt & match
     // Copy cigar to set.
     // TODO(esiragusa): use assign if possible.
 //    me.cigarSet[getReadId(match)] = me.cigar;
+    if(length(me.cigar) > length(me.cigarSet[getMember(match, ReadId())]))
+    {
+        //print debug info
+        std::cout << "readSeq = " << readSeq << std::endl;
+        std::cout << "length(me.cigar) = " << length(me.cigar) << std::endl;
+    }
     SEQAN_CHECK(length(me.cigar) <= length(me.cigarSet[getMember(match, ReadId())]), "CIGAR error.");
 //    SEQAN_ASSERT_LEQ(length(me.cigar), length(me.cigarSet[getMember(match, ReadId())]));
     std::copy(begin(me.cigar, Standard()), end(me.cigar, Standard()), begin(me.cigarSet[getMember(match, ReadId())], Standard()));

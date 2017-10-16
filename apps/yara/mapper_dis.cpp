@@ -356,40 +356,36 @@ parseCommandLine(DisOptions & disOptions, ArgumentParser & parser, int argc, cha
 // Function configureMapper()
 // ----------------------------------------------------------------------------
 
-template <typename TContigsSize, typename TContigsLen, typename TThreading, typename TSequencing, typename TSeedsDistance, typename TContigs>
+template <typename TContigsSize, typename TContigsLen, typename TThreading, typename TSequencing, typename TSeedsDistance>
 void configureDisMapper(DisOptions & disOptions,
-                        TContigs & allContigs,
-                        std::vector<uint32_t> const & contigOffsets,
                         TThreading const & threading,
                         TSequencing const & sequencing,
                         TSeedsDistance const & distance)
 {
     if (disOptions.contigsSum <= MaxValue<uint32_t>::VALUE)
     {
-        spawnDisMapper<TContigsSize, TContigsLen, uint32_t>(disOptions, allContigs, contigOffsets, threading, sequencing, distance);
+        spawnDisMapper<TContigsSize, TContigsLen, uint32_t>(disOptions, threading, sequencing, distance);
     }
     else
     {
-        spawnDisMapper<TContigsSize, TContigsLen, uint64_t>(disOptions, allContigs, contigOffsets, threading, sequencing, distance);
+        spawnDisMapper<TContigsSize, TContigsLen, uint64_t>(disOptions, threading, sequencing, distance);
     }
 }
 
-template <typename TContigsSize, typename TThreading, typename TSequencing, typename TSeedsDistance, typename TContigs>
+template <typename TContigsSize, typename TThreading, typename TSequencing, typename TSeedsDistance>
 void configureDisMapper(DisOptions & disOptions,
-                        TContigs & allContigs,
-                        std::vector<uint32_t> const & contigOffsets,
                         TThreading const & threading,
                         TSequencing const & sequencing,
                         TSeedsDistance const & distance)
 {
     if (disOptions.contigsMaxLength <= MaxValue<uint32_t>::VALUE)
     {
-        configureDisMapper<TContigsSize, uint32_t>(disOptions, allContigs, contigOffsets, threading, sequencing, distance);
+        configureDisMapper<TContigsSize, uint32_t>(disOptions, threading, sequencing, distance);
     }
     else
     {
 #ifdef YARA_LARGE_CONTIGS
-        configureDisMapper<TContigsSize, uint64_t>(disOptions, allContigs, contigOffsets, threading, sequencing, distance);
+        configureDisMapper<TContigsSize, uint64_t>(disOptions, threading, sequencing, distance);
 #else
         throw RuntimeError("Maximum contig length exceeded. Recompile with -DYARA_LARGE_CONTIGS=ON.");
 #endif
@@ -402,37 +398,33 @@ void configureDisMapper(DisOptions & disOptions,
                         TSequencing const & sequencing,
                         TSeedsDistance const & distance)
 {
-    // typedef ReadMapperConfig<TThreading, TSequencing, TSeedsDistance, TContigsSize, TContigsLen, TContigsSum>  TConfig;
-    // typedef Mapper<void, ReadMapperConfig<Parallel, SingleEnd, HammingDistance, uint32_t, uint32_t, uint32_t> > TDefaultMapper;
-
-    // We need to know the contig sequences here to configure the limits
-    // get all the contigs from all indices and also save the offsets
-    std::vector<uint32_t> contigOffsets(disOptions.NUM_OF_BINS, 0);
-    SeqStore<void, YaraContigsConfig<Alloc<> > > allContigs;
+    disOptions.contigsMaxLength = 0;
+    disOptions.contigsSize = 0;
+    disOptions.contigsSum = 0;
+    // We aggregate individual limit here to configure the dis_mapper limits
     for (uint32_t i=0; i < disOptions.NUM_OF_BINS; ++i)
     {
-        set_current_index_file(disOptions, i);
-        SeqStore<void, YaraContigsConfig< Alloc<> > >  tempContigs;
+        Options options = disOptions;
+        set_current_index_file(options, disOptions, i);
+        if (!openContigsLimits(options))
+            throw RuntimeError("Error while opening contig limits file.");
 
-        if (!open(tempContigs, toCString(disOptions.contigsIndexFile), OPEN_RDONLY))
-            throw RuntimeError("Error while opening reference file.");
-        contigOffsets[i] = length(allContigs.names);
-        append(allContigs.names, tempContigs.names);
-        append(allContigs.seqs, tempContigs.seqs);
+       disOptions.contigsMaxLength  += options.contigsMaxLength;
+       disOptions.contigsSize       += options.contigsSize;
+       disOptions.contigsSum        += options.contigsSum;
     }
-    setContigsLimits(disOptions, allContigs.seqs);
 
     if (disOptions.contigsSize <= MaxValue<uint8_t>::VALUE)
     {
-        configureDisMapper<uint8_t>(disOptions, allContigs, contigOffsets, threading, sequencing, distance);
+        configureDisMapper<uint8_t>(disOptions, threading, sequencing, distance);
     }
     else if (disOptions.contigsSize <= MaxValue<uint16_t>::VALUE)
     {
-        configureDisMapper<uint16_t>(disOptions, allContigs, contigOffsets, threading, sequencing, distance);
+        configureDisMapper<uint16_t>(disOptions, threading, sequencing, distance);
     }
     else
     {
-        configureDisMapper<uint32_t>(disOptions, allContigs, contigOffsets, threading, sequencing, distance);
+        configureDisMapper<uint32_t>(disOptions, threading, sequencing, distance);
     }
 }
 
