@@ -133,6 +133,24 @@ inline void set_output_file(TOptions & options, uint32_t const file_no)
 // ----------------------------------------------------------------------------
 
 template <typename TSpec, typename TConfig, typename TMainConfig>
+inline void appendStats(Mapper<TSpec, TMainConfig> & target, Mapper<TSpec, TConfig> & source)
+{
+    target.stats.loadContigs    += source.stats.loadContigs;
+    target.stats.loadReads      += source.stats.loadReads;
+    target.stats.collectSeeds   += source.stats.collectSeeds;
+    target.stats.findSeeds      += source.stats.findSeeds;
+    target.stats.classifyReads  += source.stats.classifyReads;
+    target.stats.rankSeeds      += source.stats.rankSeeds;
+    target.stats.extendHits     += source.stats.extendHits;
+    target.stats.sortMatches    += source.stats.sortMatches;
+    target.stats.compactMatches += source.stats.compactMatches;
+    target.stats.selectPairs    += source.stats.selectPairs;
+    target.stats.verifyMatches  += source.stats.verifyMatches;
+    target.stats.alignMatches   += source.stats.alignMatches;
+    target.stats.writeMatches   += source.stats.writeMatches;
+}
+
+template <typename TSpec, typename TConfig, typename TMainConfig>
 inline void copyMatches(Mapper<TSpec, TMainConfig> & target, Mapper<TSpec, TConfig> & source, uint32_t const & contigOffset)
 {
     typedef typename MapperTraits<TSpec, TMainConfig>::TMatch       TMatch;
@@ -155,6 +173,49 @@ inline void copyMatches(Mapper<TSpec, TMainConfig> & target, Mapper<TSpec, TConf
         setPaired(target.ctx, currentMatch.readId);
     }
 }
+
+// ----------------------------------------------------------------------------
+// Function filterLoadReads()
+// ----------------------------------------------------------------------------
+template <typename TReadSeqs>
+inline bool isCandidate(TReadSeqs & seq, std::vector<bool>  & filter)
+{
+
+//    for (unsigned i = 0; i < length(seq) - 20 + 1; ++i)
+//    {
+//        hashNext(kmer_shape, begin(seq) + i);
+//        if (countOccurrences(indices[bin_no], kmer_shape) > 0)
+//            ++common_count;
+//        if(common_count >= threshold)
+//        {
+//            candidate_bins.set(bin_no);
+//            break;
+//        }
+//    }
+
+    return true;
+}
+// ----------------------------------------------------------------------------
+// Function filterLoadReads()
+// ----------------------------------------------------------------------------
+template <typename TSpec, typename TConfig, typename TMainConfig>
+inline void filterLoadReads(Mapper<TSpec, TConfig> & me, Mapper<TSpec, TMainConfig>  & mainMapper)
+{
+    //replace with actual filters
+    clear(me.reads.seqs);
+    clear(me.reads.names);
+    std::vector<bool> filter;
+    uint32_t numReads = length(mainMapper.reads.names);
+    for (uint32_t i = 0; i< numReads; ++i)
+    {
+        if (isCandidate(mainMapper.reads.seqs[i], filter))
+        {
+            appendValue(me.reads.seqs, mainMapper.reads.seqs[i]);
+            appendValue(me.reads.names, mainMapper.reads.names[i]);
+        }
+    }
+}
+
 // ----------------------------------------------------------------------------
 // Function mapReads()
 // ----------------------------------------------------------------------------
