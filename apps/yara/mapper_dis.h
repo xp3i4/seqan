@@ -281,6 +281,7 @@ inline void _mapReadsImpl(Mapper<TSpec, TConfig> & me, Mapper<TSpec, TMainConfig
 //    alignMatches(me);
 //    writeMatches(mainMapper);
     copyMatches(mainMapper, me, contigOffset);
+    appendStats(mainMapper, me);
 
 //    clearMatches(me);
 //    clearAlignments(me);
