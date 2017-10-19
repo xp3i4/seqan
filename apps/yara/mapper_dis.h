@@ -154,6 +154,7 @@ template <typename TSpec, typename TConfig, typename TMainConfig>
 inline void copyMatches(Mapper<TSpec, TMainConfig> & target, Mapper<TSpec, TConfig> & source, uint32_t const & contigOffset)
 {
     typedef typename MapperTraits<TSpec, TMainConfig>::TMatch       TMatch;
+    typedef typename MapperTraits<TSpec, TMainConfig>::TThreading   TThreading;
 
     TMatch currentMatch;
 
@@ -166,7 +167,7 @@ inline void copyMatches(Mapper<TSpec, TMainConfig> & target, Mapper<TSpec, TConf
         currentMatch.contigBegin   =source.matchesByCoord[i].contigBegin;
         currentMatch.contigEnd     =source.matchesByCoord[i].contigEnd;
         currentMatch.errors        =source.matchesByCoord[i].errors;
-        appendValue(target.matchesByCoord, currentMatch);
+        appendValue(target.matchesByCoord, currentMatch, Generous(), TThreading());
         setSeedErrors(target.ctx, currentMatch.readId, currentMatch.errors);
         setMinErrors(target.ctx, currentMatch.readId, currentMatch.errors);
         setMapped(target.ctx, currentMatch.readId);
@@ -275,7 +276,7 @@ inline void _mapReadsImpl(Mapper<TSpec, TConfig> & me, Mapper<TSpec, TMainConfig
         clearSeeds(me);
     }
     aggregateMatches(me, readSeqs);
-    rankMatches(me, readSeqs);
+//    rankMatches(me, readSeqs);
 //    if (me.options.verifyMatches)
 //        verifyMatches(me);
 //    alignMatches(me);
@@ -422,6 +423,7 @@ inline void runDisMapper(Mapper<TSpec, TConfig> & me, DisOptions & disOptions)
    // We need to know the contig sequences here to configure the limits
     // get all the contigs from all indices and also save the offsets
     std::vector<uint32_t> contigOffsets(disOptions.NUM_OF_BINS, 0);
+    start(me.timer);
     for (uint32_t i=0; i < disOptions.NUM_OF_BINS; ++i)
     {
         set_current_index_file(disOptions, i);
@@ -433,7 +435,8 @@ inline void runDisMapper(Mapper<TSpec, TConfig> & me, DisOptions & disOptions)
         append(me.contigs.names, tempContigs.names);
         append(me.contigs.seqs, tempContigs.seqs);
     }
-
+    stop(me.timer);
+    me.stats.loadContigs += getValue(me.timer);
     // Open output file and write header.
     openOutputFile(me);
     openReads(me);
