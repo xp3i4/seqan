@@ -153,25 +153,25 @@ inline void appendStats(Mapper<TSpec, TMainConfig> & target, Mapper<TSpec, TConf
 template <typename TSpec, typename TConfig, typename TMainConfig>
 inline void copyMatches(Mapper<TSpec, TMainConfig> & target, Mapper<TSpec, TConfig> & source, uint32_t const & contigOffset)
 {
-    typedef typename MapperTraits<TSpec, TMainConfig>::TMatch       TMatch;
-    typedef typename MapperTraits<TSpec, TMainConfig>::TThreading   TThreading;
+    typedef typename MapperTraits<TSpec, TMainConfig>::TMatch             TMatch;
+    typedef typename MapperTraits<TSpec, TMainConfig>::TThreading         TThreading;
+    typedef typename MapperTraits<TSpec, TMainConfig>::TMatchesAppender   TMatchesAppender;
 
-    TMatch currentMatch;
+    TMatchesAppender appender(target.matchesByCoord);
 
     uint32_t matchCount = length(source.matchesByCoord);
     for (uint32_t i = 0; i<matchCount; ++i)
     {
+        TMatch currentMatch;
         currentMatch.readId        =source.matchesByCoord[i].readId;
         currentMatch.contigId      =source.matchesByCoord[i].contigId + contigOffset;
         currentMatch.isRev         =source.matchesByCoord[i].isRev;
         currentMatch.contigBegin   =source.matchesByCoord[i].contigBegin;
         currentMatch.contigEnd     =source.matchesByCoord[i].contigEnd;
         currentMatch.errors        =source.matchesByCoord[i].errors;
-        appendValue(target.matchesByCoord, currentMatch, Generous(), TThreading());
-        setSeedErrors(target.ctx, currentMatch.readId, currentMatch.errors);
+        appendValue(appender, currentMatch, Generous(), TThreading());
+
         setMinErrors(target.ctx, currentMatch.readId, currentMatch.errors);
-        setMapped(target.ctx, currentMatch.readId);
-        setPaired(target.ctx, currentMatch.readId);
     }
 }
 
