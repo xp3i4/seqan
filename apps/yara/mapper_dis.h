@@ -427,7 +427,7 @@ inline void runDisMapper(Mapper<TSpec, TConfig> & me, DisOptions & disOptions)
     for (uint32_t i=0; i < disOptions.NUM_OF_BINS; ++i)
     {
         set_current_index_file(disOptions, i);
-        SeqStore<void, YaraContigsConfig< Alloc<> > >  tempContigs;
+        SeqStore<void, YaraContigsConfig< MMap<> > >  tempContigs;
 
         if (!open(tempContigs, toCString(disOptions.contigsIndexFile), OPEN_RDONLY))
             throw RuntimeError("Error while opening reference file.");

@@ -233,21 +233,6 @@ inline void _alignMatchImpl(MatchesAligner<TSpec, Traits> & me, TMatchIt & match
     // Compute cigar.
     clear(me.cigar);
     getCigarString(me.cigar, contigGaps, readGaps, length(contigInfix));
-    if(length(me.cigar) > length(me.cigarSet[getMember(match, ReadId())]))
-    {
-#ifdef _OPENMP
-        #pragma omp critical
-#endif
-        {
-            //print debug info
-            std::cout << "readSeq = " << readSeq << std::endl;
-            std::cout << "length(me.cigarSet[getMember(match, ReadId())]) = " << length(me.cigarSet[getMember(match, ReadId())]) << std::endl;
-            std::cout << "length(me.cigar) = " << length(me.cigar) << std::endl;
-            std::cout << "number of errors = " << getMember(match, Errors()) << std::endl;
-            std::cout << "Contig Begin = " << getMember(match, ContigBegin()) << std::endl;
-            std::cout << "Contig End = " << getMember(match, ContigEnd()) << std::endl;
-        }
-    }
     SEQAN_CHECK(_getQueryLength(me.cigar) == length(readSeq), "CIGAR error.");
 //    SEQAN_ASSERT_EQ(_getQueryLength(me.cigar), length(readSeq));
 
