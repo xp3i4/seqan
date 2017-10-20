@@ -250,6 +250,8 @@ inline void _alignMatchImpl(MatchesAligner<TSpec, Traits> & me, TMatchIt & match
             std::cout << "length(me.cigarSet[getMember(match, ReadId())]) = " << length(me.cigarSet[getMember(match, ReadId())]) << std::endl;
             std::cout << "length(me.cigar) = " << length(me.cigar) << std::endl;
             std::cout << "number of errors = " << getMember(match, Errors()) << std::endl;
+            std::cout << "Contig Begin = " << getMember(match, ContigBegin()) << std::endl;
+            std::cout << "Contig End = " << getMember(match, ContigEnd()) << std::endl;
         }
     }
     SEQAN_CHECK(length(me.cigar) <= length(me.cigarSet[getMember(match, ReadId())]), "CIGAR error.");
