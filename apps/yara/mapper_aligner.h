@@ -233,7 +233,7 @@ inline void _alignMatchImpl(MatchesAligner<TSpec, Traits> & me, TMatchIt & match
     // Compute cigar.
     clear(me.cigar);
     getCigarString(me.cigar, contigGaps, readGaps, length(contigInfix));
-    if(length(me.cigar) < length(me.cigarSet[getMember(match, ReadId())]))
+    if(length(me.cigar) > length(me.cigarSet[getMember(match, ReadId())]))
     {
 #ifdef _OPENMP
         #pragma omp critical
