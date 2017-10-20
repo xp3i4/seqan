@@ -233,13 +233,7 @@ inline void _alignMatchImpl(MatchesAligner<TSpec, Traits> & me, TMatchIt & match
     // Compute cigar.
     clear(me.cigar);
     getCigarString(me.cigar, contigGaps, readGaps, length(contigInfix));
-    SEQAN_CHECK(_getQueryLength(me.cigar) == length(readSeq), "CIGAR error.");
-//    SEQAN_ASSERT_EQ(_getQueryLength(me.cigar), length(readSeq));
-
-    // Copy cigar to set.
-    // TODO(esiragusa): use assign if possible.
-//    me.cigarSet[getReadId(match)] = me.cigar;
-    if(length(me.cigar) > length(me.cigarSet[getMember(match, ReadId())]))
+    if(length(me.cigar) < length(me.cigarSet[getMember(match, ReadId())]))
     {
 #ifdef _OPENMP
         #pragma omp critical
@@ -254,6 +248,12 @@ inline void _alignMatchImpl(MatchesAligner<TSpec, Traits> & me, TMatchIt & match
             std::cout << "Contig End = " << getMember(match, ContigEnd()) << std::endl;
         }
     }
+    SEQAN_CHECK(_getQueryLength(me.cigar) == length(readSeq), "CIGAR error.");
+//    SEQAN_ASSERT_EQ(_getQueryLength(me.cigar), length(readSeq));
+
+    // Copy cigar to set.
+    // TODO(esiragusa): use assign if possible.
+//    me.cigarSet[getReadId(match)] = me.cigar;
     SEQAN_CHECK(length(me.cigar) <= length(me.cigarSet[getMember(match, ReadId())]), "CIGAR error.");
 //    SEQAN_ASSERT_LEQ(length(me.cigar), length(me.cigarSet[getMember(match, ReadId())]));
     std::copy(begin(me.cigar, Standard()), end(me.cigar, Standard()), begin(me.cigarSet[getMember(match, ReadId())], Standard()));
