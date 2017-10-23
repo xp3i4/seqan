@@ -133,45 +133,45 @@ inline void set_output_file(TOptions & options, uint32_t const file_no)
 // ----------------------------------------------------------------------------
 
 template <typename TSpec, typename TConfig, typename TMainConfig>
-inline void appendStats(Mapper<TSpec, TMainConfig> & target, Mapper<TSpec, TConfig> & source)
+inline void appendStats(Mapper<TSpec, TMainConfig> & mainMapper, Mapper<TSpec, TConfig> & childMapper)
 {
-    target.stats.loadContigs    += source.stats.loadContigs;
-    target.stats.loadReads      += source.stats.loadReads;
-    target.stats.collectSeeds   += source.stats.collectSeeds;
-    target.stats.findSeeds      += source.stats.findSeeds;
-    target.stats.classifyReads  += source.stats.classifyReads;
-    target.stats.rankSeeds      += source.stats.rankSeeds;
-    target.stats.extendHits     += source.stats.extendHits;
-    target.stats.sortMatches    += source.stats.sortMatches;
-    target.stats.compactMatches += source.stats.compactMatches;
-    target.stats.selectPairs    += source.stats.selectPairs;
-    target.stats.verifyMatches  += source.stats.verifyMatches;
-    target.stats.alignMatches   += source.stats.alignMatches;
-    target.stats.writeMatches   += source.stats.writeMatches;
+    mainMapper.stats.loadContigs    += childMapper.stats.loadContigs;
+    mainMapper.stats.loadReads      += childMapper.stats.loadReads;
+    mainMapper.stats.collectSeeds   += childMapper.stats.collectSeeds;
+    mainMapper.stats.findSeeds      += childMapper.stats.findSeeds;
+    mainMapper.stats.classifyReads  += childMapper.stats.classifyReads;
+    mainMapper.stats.rankSeeds      += childMapper.stats.rankSeeds;
+    mainMapper.stats.extendHits     += childMapper.stats.extendHits;
+    mainMapper.stats.sortMatches    += childMapper.stats.sortMatches;
+    mainMapper.stats.compactMatches += childMapper.stats.compactMatches;
+    mainMapper.stats.selectPairs    += childMapper.stats.selectPairs;
+    mainMapper.stats.verifyMatches  += childMapper.stats.verifyMatches;
+    mainMapper.stats.alignMatches   += childMapper.stats.alignMatches;
+    mainMapper.stats.writeMatches   += childMapper.stats.writeMatches;
 }
 
 template <typename TSpec, typename TConfig, typename TMainConfig>
-inline void copyMatches(Mapper<TSpec, TMainConfig> & target, Mapper<TSpec, TConfig> & source, uint32_t const & contigOffset)
+inline void copyMatches(Mapper<TSpec, TMainConfig> & mainMapper, Mapper<TSpec, TConfig> & childMapper, uint32_t const & contigOffset)
 {
     typedef typename MapperTraits<TSpec, TMainConfig>::TMatch             TMatch;
     typedef typename MapperTraits<TSpec, TMainConfig>::TThreading         TThreading;
     typedef typename MapperTraits<TSpec, TMainConfig>::TMatchesAppender   TMatchesAppender;
 
-    TMatchesAppender appender(target.matchesByCoord);
+    TMatchesAppender appender(mainMapper.matchesByCoord);
 
-    uint32_t matchCount = length(source.matchesByCoord);
-    for (uint32_t i = 0; i<matchCount; ++i)
+    uint32_t matchCount = length(childMapper.matchesByCoord);
+    for (uint32_t i = 0; i < matchCount; ++i)
     {
         TMatch currentMatch;
-        currentMatch.readId        =source.matchesByCoord[i].readId;
-        currentMatch.contigId      =source.matchesByCoord[i].contigId + contigOffset;
-        currentMatch.isRev         =source.matchesByCoord[i].isRev;
-        currentMatch.contigBegin   =source.matchesByCoord[i].contigBegin;
-        currentMatch.contigEnd     =source.matchesByCoord[i].contigEnd;
-        currentMatch.errors        =source.matchesByCoord[i].errors;
+        currentMatch.readId        = childMapper.matchesByCoord[i].readId;
+        currentMatch.contigId      = childMapper.matchesByCoord[i].contigId + contigOffset;
+        currentMatch.isRev         = childMapper.matchesByCoord[i].isRev;
+        currentMatch.contigBegin   = childMapper.matchesByCoord[i].contigBegin;
+        currentMatch.contigEnd     = childMapper.matchesByCoord[i].contigEnd;
+        currentMatch.errors        = childMapper.matchesByCoord[i].errors;
         appendValue(appender, currentMatch, Generous(), TThreading());
 
-        setMinErrors(target.ctx, currentMatch.readId, currentMatch.errors);
+        setMinErrors(mainMapper.ctx, currentMatch.readId, currentMatch.errors);
     }
 }
 
@@ -223,12 +223,9 @@ inline void filterLoadReads(Mapper<TSpec, TConfig> & me, Mapper<TSpec, TMainConf
 template <typename TSpec, typename TConfig, typename TMainConfig>
 inline void mapReads(Mapper<TSpec, TConfig> & me, Mapper<TSpec, TMainConfig>  & mainMapper, uint32_t const & contigOffset)
 {
-    swap(me.reads.seqs, mainMapper.reads.seqs);
-    swap(me.reads.names, mainMapper.reads.names);
-    me.stats.loadedReads += getReadsCount(me.reads.seqs);
+    swap(me.reads, mainMapper.reads);
     _mapReadsImpl(me, mainMapper, me.reads.seqs, contigOffset);
-    swap(me.reads.seqs, mainMapper.reads.seqs);
-    swap(me.reads.names, mainMapper.reads.names);
+    swap(me.reads, mainMapper.reads);
 }
 
 template <typename TSpec, typename TConfig, typename TMainConfig, typename TReadSeqs>
@@ -404,11 +401,11 @@ void configureMapper(Options const & options,
 }
 
 // ----------------------------------------------------------------------------
-// Function runMapper()
+// Function runDisMapper()
 // ----------------------------------------------------------------------------
 
 template <typename TSpec, typename TConfig>
-inline void runDisMapper(Mapper<TSpec, TConfig> & me, DisOptions & disOptions)
+inline void runDisMapper(Mapper<TSpec, TConfig> & mainMapper, DisOptions & disOptions)
 {
 
   // TContigs & allContigs, std::vector<uint32_t> const & contigOffsets
@@ -416,30 +413,42 @@ inline void runDisMapper(Mapper<TSpec, TConfig> & me, DisOptions & disOptions)
 
     start(timer);
 
-    configureThreads(me);
+    configureThreads(mainMapper);
 
-    if (me.options.verbose > 1) printRuler(std::cerr);
+    if (mainMapper.options.verbose > 1) printRuler(std::cerr);
 
    // We need to know the contig sequences here to configure the limits
     // get all the contigs from all indices and also save the offsets
     std::vector<uint32_t> contigOffsets(disOptions.NUM_OF_BINS, 0);
-    start(me.timer);
+    start(mainMapper.timer);
+    String<SeqStore<void, YaraContigsConfig< MMap<> > > >  allContigs;
+    resize(allContigs, disOptions.NUM_OF_BINS);
     for (uint32_t i=0; i < disOptions.NUM_OF_BINS; ++i)
     {
         set_current_index_file(disOptions, i);
-        SeqStore<void, YaraContigsConfig< MMap<> > >  tempContigs;
-
-        if (!open(tempContigs, toCString(disOptions.contigsIndexFile), OPEN_RDONLY))
-            throw RuntimeError("Error while opening reference file.");
-        contigOffsets[i] = length(me.contigs.names);
-        append(me.contigs.names, tempContigs.names);
-        append(me.contigs.seqs, tempContigs.seqs);
+        try
+        {
+            if (!open(allContigs[i], toCString(disOptions.contigsIndexFile), OPEN_RDONLY))
+                throw RuntimeError("Error while opening reference file.");
+        }
+        catch (BadAlloc const & /* e */)
+        {
+            throw RuntimeError("Insufficient memory to load the reference.");
+        }
     }
-    stop(me.timer);
-    me.stats.loadContigs += getValue(me.timer);
+
+    for (uint32_t i=0; i < disOptions.NUM_OF_BINS; ++i)
+    {
+        contigOffsets[i] = length(mainMapper.contigs.names);
+        append(mainMapper.contigs.names, prefix(allContigs[i].names, length(allContigs[i].names)));
+        append(mainMapper.contigs.seqs, prefix(allContigs[i].seqs, length(allContigs[i].names)));
+    }
+    stop(mainMapper.timer);
+
+    mainMapper.stats.loadContigs += getValue(mainMapper.timer);
     // Open output file and write header.
-    openOutputFile(me);
-    openReads(me);
+    openOutputFile(mainMapper);
+    openReads(mainMapper);
 
     // Process reads in blocks.
     // load reads here
@@ -449,34 +458,35 @@ inline void runDisMapper(Mapper<TSpec, TConfig> & me, DisOptions & disOptions)
     // Process reads in blocks.
     while (true)
     {
-        if (me.options.verbose > 1) printRuler(std::cerr);
-        loadReads(me);
-        if (empty(me.reads.seqs)) break;
-        initReadsContext(me, me.reads.seqs);
+        if (mainMapper.options.verbose > 1) printRuler(std::cerr);
+        loadReads(mainMapper);
+        if (empty(mainMapper.reads.seqs)) break;
+        initReadsContext(mainMapper, mainMapper.reads.seqs);
+        setHost(mainMapper.cigarSet, mainMapper.cigars);
         for (uint32_t i=0; i < disOptions.NUM_OF_BINS; ++i)
         {
-            Options options = me.options;
+            Options options = mainMapper.options;
             set_current_index_file(options, disOptions, i);
             if (!openContigsLimits(options))
                 throw RuntimeError("Error while opening reference file.");
-            configureMapper<TSpec, TConfig>(options, me, contigOffsets[i]);
+            configureMapper<TSpec, TConfig>(options, mainMapper, contigOffsets[i]);
         }
 
-        aggregateMatches(me, me.reads.seqs);
-        rankMatches(me, me.reads.seqs);
-        if (me.options.verifyMatches)
-            verifyMatches(me);
-        alignMatches(me);
-        writeMatches(me);
-        clearMatches(me);
-        clearAlignments(me);
-        clearReads(me);
+        aggregateMatches(mainMapper, mainMapper.reads.seqs);
+        rankMatches(mainMapper, mainMapper.reads.seqs);
+        if (mainMapper.options.verifyMatches)
+            verifyMatches(mainMapper);
+        alignMatches(mainMapper);
+        writeMatches(mainMapper);
+        clearMatches(mainMapper);
+        clearAlignments(mainMapper);
+        clearReads(mainMapper);
     }
-    closeReads(me);
-    closeOutputFile(me);
+    closeReads(mainMapper);
+    closeOutputFile(mainMapper);
     stop(timer);
-    if (me.options.verbose > 0)
-        printStats(me, timer);
+    if (mainMapper.options.verbose > 0)
+        printStats(mainMapper, timer);
 
  }
 
