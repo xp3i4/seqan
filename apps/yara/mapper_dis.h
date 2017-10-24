@@ -288,10 +288,8 @@ inline void _mapReadsImpl(Mapper<TSpec, TConfig> & me, Mapper<TSpec, TMainConfig
 template <typename TSpec, typename TConfig, typename TMainConfig>
 inline void runMapper(Mapper<TSpec, TConfig> & me, Mapper<TSpec, TMainConfig> & mainMapper, uint32_t const & contigOffset)
 {
-    configureThreads(me);
     loadContigs(me);
     loadContigsIndex(me);
-    // Write on the main output file.
     mapReads(me, mainMapper, contigOffset);
 }
 
