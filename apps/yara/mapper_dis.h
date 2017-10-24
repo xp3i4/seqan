@@ -440,8 +440,11 @@ inline void runDisMapper(Mapper<TSpec, TConfig> & mainMapper, DisOptions & disOp
     for (uint32_t i=0; i < disOptions.NUM_OF_BINS; ++i)
     {
         contigOffsets[i] = length(mainMapper.contigs.names);
-        append(mainMapper.contigs.names, prefix(allContigs[i].names, length(allContigs[i].names)));
-        append(mainMapper.contigs.seqs, prefix(allContigs[i].seqs, length(allContigs[i].names)));
+        for (uint32_t j = 0; j < length(allContigs[i].names); ++j)
+        {
+            appendValue(mainMapper.contigs.names, prefix(allContigs[i].names[j], length(allContigs[i].names[j])));
+            appendValue(mainMapper.contigs.seqs, prefix(allContigs[i].seqs[j], length(allContigs[i].seqs[j])));
+        }
     }
     stop(mainMapper.timer);
 
