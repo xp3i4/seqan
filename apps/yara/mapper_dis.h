@@ -406,7 +406,11 @@ template <typename TSpec, typename TConfig>
 inline void runDisMapper(Mapper<TSpec, TConfig> & mainMapper, DisOptions & disOptions)
 {
 
-  // TContigs & allContigs, std::vector<uint32_t> const & contigOffsets
+    typedef typename MapperTraits<TSpec, TConfig>::TContigs             TContigs;
+
+    String<TContigs>  allContigs;
+    resize(allContigs, disOptions.NUM_OF_BINS);
+
     Timer<double> timer;
 
     start(timer);
@@ -419,8 +423,6 @@ inline void runDisMapper(Mapper<TSpec, TConfig> & mainMapper, DisOptions & disOp
     // get all the contigs from all indices and also save the offsets
     std::vector<uint32_t> contigOffsets(disOptions.NUM_OF_BINS, 0);
     start(mainMapper.timer);
-    String<SeqStore<void, YaraContigsConfig< MMap<> > > >  allContigs;
-    resize(allContigs, disOptions.NUM_OF_BINS);
     for (uint32_t i=0; i < disOptions.NUM_OF_BINS; ++i)
     {
         set_current_index_file(disOptions, i);
@@ -439,11 +441,8 @@ inline void runDisMapper(Mapper<TSpec, TConfig> & mainMapper, DisOptions & disOp
     for (uint32_t i=0; i < disOptions.NUM_OF_BINS; ++i)
     {
         contigOffsets[i] = length(mainMapper.contigs.names);
-        for (uint32_t j = 0; j < length(allContigs[i].names); ++j)
-        {
-            appendValue(mainMapper.contigs.names, prefix(allContigs[i].names[j], length(allContigs[i].names[j])));
-            appendValue(mainMapper.contigs.seqs, prefix(allContigs[i].seqs[j], length(allContigs[i].seqs[j])));
-        }
+        append(mainMapper.contigs.names, prefix(allContigs[i].names, length(allContigs[i].names)));
+        append(mainMapper.contigs.seqs, prefix(allContigs[i].seqs, length(allContigs[i].seqs)));
     }
     stop(mainMapper.timer);
 
