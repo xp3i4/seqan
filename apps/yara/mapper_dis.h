@@ -435,6 +435,7 @@ inline void runDisMapper(Mapper<TSpec, TConfig> & mainMapper, DisOptions & disOp
         }
     }
 
+    reserve(mainMapper.contigs, disOptions.contigsSize);
     for (uint32_t i=0; i < disOptions.NUM_OF_BINS; ++i)
     {
         contigOffsets[i] = length(mainMapper.contigs.names);

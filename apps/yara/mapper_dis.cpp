@@ -409,7 +409,7 @@ void configureDisMapper(DisOptions & disOptions,
         if (!openContigsLimits(options))
             throw RuntimeError("Error while opening contig limits file.");
 
-       disOptions.contigsMaxLength  += options.contigsMaxLength;
+       disOptions.contigsMaxLength   = std::max(options.contigsMaxLength, disOptions.contigsMaxLength);
        disOptions.contigsSize       += options.contigsSize;
        disOptions.contigsSum        += options.contigsSum;
     }
