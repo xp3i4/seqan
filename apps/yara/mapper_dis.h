@@ -47,21 +47,11 @@ using namespace seqan;
 
 struct DisOptions : public Options
 {
-    CharString          superContigsIndicesFile;
-    CharString          superOutputFile;
-    uint32_t            NUM_OF_BINS = 5;
-//    uint32_t            NUM_OF_BINS = 64;
 
-//    Pair<CharString>    superReadsFile;
-
-//    uint32_t            max_errors = 3;
-//    CharString          kmer_index_file;
-//    uint32_t error_diff;
-//
-//    void reload()
-//    {
-//        error_diff =  K_MER_LENGTH - 1 + (max_errors * K_MER_LENGTH);
-//    }
+    CharString              superContigsIndicesFile;
+    CharString              superOutputFile;
+    uint32_t                NUM_OF_BINS = 5;
+    std::vector<uint32_t>   contigOffsets;
 };
 
 // ==========================================================================
@@ -172,6 +162,9 @@ inline void copyMatches(Mapper<TSpec, TMainConfig> & mainMapper, Mapper<TSpec, T
         appendValue(appender, currentMatch, Generous(), TThreading());
 
         setMinErrors(mainMapper.ctx, currentMatch.readId, currentMatch.errors);
+        setMapped(mainMapper.ctx, currentMatch.readId);
+        setPaired(mainMapper.ctx, currentMatch.readId);
+
     }
 }
 
@@ -285,10 +278,35 @@ inline void _mapReadsImpl(Mapper<TSpec, TConfig> & me, Mapper<TSpec, TMainConfig
 //    clearAlignments(me);
 }
 
+// ----------------------------------------------------------------------------
+// Function loadContigs()
+// ----------------------------------------------------------------------------
+
+template <typename TSpec, typename TConfig, typename TMainConfig>
+inline void loadContigs(Mapper<TSpec, TConfig> & me, Mapper<TSpec, TMainConfig> & mainMapper, uint32_t const & contigOffset)
+{
+    start(me.timer);
+
+//    for (int i = contigOffset; i < contigOffset + me.options.contigsSize; ++i)
+//    {
+//        appendValue(me.contigs.seqs, mainMapper.contigs.seqs[i]);
+//        appendValue(me.contigs.names, mainMapper.contigs.names[i]);
+//    }
+
+    append(me.contigs.seqs, infix(mainMapper.contigs.seqs, contigOffset, contigOffset + me.options.contigsSize));
+    append(me.contigs.names, infix(mainMapper.contigs.names, contigOffset, contigOffset + me.options.contigsSize));
+    stop(me.timer);
+    me.stats.loadContigs += getValue(me.timer);
+
+    if (me.options.verbose > 1)
+        std::cerr << "Loading reference:\t\t\t" << me.timer << std::endl;
+}
+
+
 template <typename TSpec, typename TConfig, typename TMainConfig>
 inline void runMapper(Mapper<TSpec, TConfig> & me, Mapper<TSpec, TMainConfig> & mainMapper, uint32_t const & contigOffset)
 {
-    loadContigs(me);
+    loadContigs(me, mainMapper, contigOffset);
     loadContigsIndex(me);
     mapReads(me, mainMapper, contigOffset);
 }
@@ -399,6 +417,87 @@ void configureMapper(Options const & options,
 }
 
 // ----------------------------------------------------------------------------
+// Function alignMatches()
+// ----------------------------------------------------------------------------
+
+template <typename TSpec, typename TConfig, typename TContigSeqs>
+inline void alignMatches(Mapper<TSpec, TConfig> & me, TContigSeqs & contigSeqs)
+{
+    typedef MapperTraits<TSpec, TConfig>            TTraits;
+    typedef MatchesAligner<LinearGaps, TTraits>     TLinearAligner;
+    typedef MatchesAligner<AffineGaps , TTraits>    TAffineAligner;
+
+    start(me.timer);
+    setHost(me.cigarSet, me.cigars);
+    typename TTraits::TCigarLimits cigarLimits;
+
+    if (me.options.rabema)
+        TLinearAligner aligner(me.cigarSet, cigarLimits, me.primaryMatches, contigSeqs, me.reads.seqs, me.options);
+    else
+        TAffineAligner aligner(me.cigarSet, cigarLimits, me.primaryMatches, contigSeqs, me.reads.seqs, me.options);
+
+    stop(me.timer);
+    me.stats.alignMatches += getValue(me.timer);
+
+    if (me.options.verbose > 1)
+        std::cerr << "Alignment time:\t\t\t" << me.timer << std::endl;
+}
+
+// ----------------------------------------------------------------------------
+// Function loadAllContigs()
+// ----------------------------------------------------------------------------
+
+template <typename TSpec, typename TConfig>
+inline bool loadAllContigs(Mapper<TSpec, TConfig> & mainMapper, DisOptions & disOptions)
+{
+    start(mainMapper.timer);
+
+    typedef typename MapperTraits<TSpec, TConfig>::TContigSeqs          TContigSeqs;
+    typedef typename MapperTraits<TSpec, TConfig>::TContigNames         TContigNames;
+
+    String<TContigNames> contigNamesSet;
+    String<TContigSeqs> contigSeqsSet;
+
+    resize(contigNamesSet, disOptions.NUM_OF_BINS);
+    resize(contigSeqsSet, disOptions.NUM_OF_BINS);
+    try
+    {
+        for (uint32_t i=0; i < disOptions.NUM_OF_BINS; ++i)
+        {
+            CharString fileName = disOptions.superContigsIndicesFile;
+            append(fileName, std::to_string(i));
+
+            CharString name;
+
+            name = fileName;    append(name, ".txt");
+            if (!open(contigSeqsSet[i], toCString(name), OPEN_RDONLY)) return false;
+
+            name = fileName;    append(name, ".rid");
+            if (!open(contigNamesSet[i], toCString(name), OPEN_RDONLY)) return false;
+        }
+    }
+    catch (BadAlloc const & /* e */)
+    {
+        throw RuntimeError("Insufficient memory to load the reference.");
+    }
+
+    for (uint32_t i=0; i < disOptions.NUM_OF_BINS; ++i)
+    {
+        append(mainMapper.contigs.seqs, infix(contigSeqsSet[i], 0, length(contigSeqsSet[i])));
+        append(mainMapper.contigs.names, infix(contigNamesSet[i], 0, length(contigNamesSet[i])));
+    }
+    clear(contigNamesSet);
+    clear(contigSeqsSet);
+    shrinkToFit(contigNamesSet);
+    shrinkToFit(contigSeqsSet);
+
+    stop(mainMapper.timer);
+    mainMapper.stats.loadContigs += getValue(mainMapper.timer);
+
+    return true;
+}
+
+// ----------------------------------------------------------------------------
 // Function runDisMapper()
 // ----------------------------------------------------------------------------
 
@@ -406,47 +505,13 @@ template <typename TSpec, typename TConfig>
 inline void runDisMapper(Mapper<TSpec, TConfig> & mainMapper, DisOptions & disOptions)
 {
 
-    typedef typename MapperTraits<TSpec, TConfig>::TContigs             TContigs;
-
-    String<TContigs>  allContigs;
-    resize(allContigs, disOptions.NUM_OF_BINS);
-
     Timer<double> timer;
 
     start(timer);
-
     configureThreads(mainMapper);
 
-    if (mainMapper.options.verbose > 1) printRuler(std::cerr);
+    loadAllContigs(mainMapper, disOptions);
 
-   // We need to know the contig sequences here to configure the limits
-    // get all the contigs from all indices and also save the offsets
-    std::vector<uint32_t> contigOffsets(disOptions.NUM_OF_BINS, 0);
-    start(mainMapper.timer);
-    for (uint32_t i=0; i < disOptions.NUM_OF_BINS; ++i)
-    {
-        set_current_index_file(disOptions, i);
-        try
-        {
-            if (!open(allContigs[i], toCString(disOptions.contigsIndexFile), OPEN_RDONLY))
-                throw RuntimeError("Error while opening reference file.");
-        }
-        catch (BadAlloc const & /* e */)
-        {
-            throw RuntimeError("Insufficient memory to load the reference.");
-        }
-    }
-
-    reserve(mainMapper.contigs, disOptions.contigsSize);
-    for (uint32_t i=0; i < disOptions.NUM_OF_BINS; ++i)
-    {
-        contigOffsets[i] = length(mainMapper.contigs.names);
-        append(mainMapper.contigs.names, prefix(allContigs[i].names, length(allContigs[i].names)));
-        append(mainMapper.contigs.seqs, prefix(allContigs[i].seqs, length(allContigs[i].seqs)));
-    }
-    stop(mainMapper.timer);
-
-    mainMapper.stats.loadContigs += getValue(mainMapper.timer);
     // Open output file and write header.
     openOutputFile(mainMapper);
     openReads(mainMapper);
@@ -470,7 +535,7 @@ inline void runDisMapper(Mapper<TSpec, TConfig> & mainMapper, DisOptions & disOp
             set_current_index_file(options, disOptions, i);
             if (!openContigsLimits(options))
                 throw RuntimeError("Error while opening reference file.");
-            configureMapper<TSpec, TConfig>(options, mainMapper, contigOffsets[i]);
+            configureMapper<TSpec, TConfig>(options, mainMapper, disOptions.contigOffsets[i]);
         }
 
         aggregateMatches(mainMapper, mainMapper.reads.seqs);

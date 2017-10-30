@@ -401,9 +401,11 @@ void configureDisMapper(DisOptions & disOptions,
     disOptions.contigsMaxLength = 0;
     disOptions.contigsSize = 0;
     disOptions.contigsSum = 0;
+    disOptions.contigOffsets.resize(disOptions.NUM_OF_BINS, 0);
     // We aggregate individual limit here to configure the dis_mapper limits
     for (uint32_t i=0; i < disOptions.NUM_OF_BINS; ++i)
     {
+        disOptions.contigOffsets[i] = disOptions.contigsSize;
         Options options = disOptions;
         set_current_index_file(options, disOptions, i);
         if (!openContigsLimits(options))
