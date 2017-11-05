@@ -119,9 +119,8 @@ inline void set_output_file(TOptions & options, uint32_t const file_no)
 }
 
 // ----------------------------------------------------------------------------
-// Function copyMatches()
+// Function appendStats()
 // ----------------------------------------------------------------------------
-
 template <typename TSpec, typename TConfig, typename TMainConfig>
 inline void appendStats(Mapper<TSpec, TMainConfig> & mainMapper, Mapper<TSpec, TConfig> & childMapper)
 {
@@ -140,6 +139,9 @@ inline void appendStats(Mapper<TSpec, TMainConfig> & mainMapper, Mapper<TSpec, T
     mainMapper.stats.writeMatches   += childMapper.stats.writeMatches;
 }
 
+// ----------------------------------------------------------------------------
+// Function copyMatches()
+// ----------------------------------------------------------------------------
 template <typename TSpec, typename TConfig, typename TMainConfig>
 inline void copyMatches(Mapper<TSpec, TMainConfig> & mainMapper, Mapper<TSpec, TConfig> & childMapper, uint32_t const & contigOffset)
 {
@@ -161,13 +163,18 @@ inline void copyMatches(Mapper<TSpec, TMainConfig> & mainMapper, Mapper<TSpec, T
         currentMatch.errors        = childMapper.matchesByCoord[i].errors;
         appendValue(appender, currentMatch, Generous(), TThreading());
 
-        setMinErrors(mainMapper.ctx, currentMatch.readId, currentMatch.errors);
-        setMapped(mainMapper.ctx, currentMatch.readId);
-        setPaired(mainMapper.ctx, currentMatch.readId);
+        if(getMinErrors(mainMapper.ctx, currentMatch.readId) > currentMatch.errors)
+        {
+            setMinErrors(mainMapper.ctx, currentMatch.readId, currentMatch.errors);
+        }
 
+        if (!isPaired(mainMapper.ctx, currentMatch.readId) && isPaired(childMapper.ctx, currentMatch.readId))
+        {
+            setPaired(mainMapper.ctx, currentMatch.readId);
+        }
+        setMapped(mainMapper.ctx, currentMatch.readId);
     }
 }
-
 // ----------------------------------------------------------------------------
 // Function filterLoadReads()
 // ----------------------------------------------------------------------------
@@ -486,10 +493,6 @@ inline bool loadAllContigs(Mapper<TSpec, TConfig> & mainMapper, DisOptions & dis
         append(mainMapper.contigs.seqs, infix(contigSeqsSet[i], 0, length(contigSeqsSet[i])));
         append(mainMapper.contigs.names, infix(contigNamesSet[i], 0, length(contigNamesSet[i])));
     }
-    clear(contigNamesSet);
-    clear(contigSeqsSet);
-    shrinkToFit(contigNamesSet);
-    shrinkToFit(contigSeqsSet);
 
     stop(mainMapper.timer);
     mainMapper.stats.loadContigs += getValue(mainMapper.timer);
