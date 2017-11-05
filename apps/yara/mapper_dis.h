@@ -273,47 +273,14 @@ inline void _mapReadsImpl(Mapper<TSpec, TConfig> & me, Mapper<TSpec, TMainConfig
         clearSeeds(me);
     }
     aggregateMatches(me, readSeqs);
-//    rankMatches(me, readSeqs);
-//    if (me.options.verifyMatches)
-//        verifyMatches(me);
-//    alignMatches(me);
-//    writeMatches(mainMapper);
     copyMatches(mainMapper, me, contigOffset);
     appendStats(mainMapper, me);
-
-//    clearMatches(me);
-//    clearAlignments(me);
 }
-
-// ----------------------------------------------------------------------------
-// Function loadContigs()
-// ----------------------------------------------------------------------------
-
-template <typename TSpec, typename TConfig, typename TMainConfig>
-inline void loadContigs(Mapper<TSpec, TConfig> & me, Mapper<TSpec, TMainConfig> & mainMapper, uint32_t const & contigOffset)
-{
-    start(me.timer);
-
-//    for (int i = contigOffset; i < contigOffset + me.options.contigsSize; ++i)
-//    {
-//        appendValue(me.contigs.seqs, mainMapper.contigs.seqs[i]);
-//        appendValue(me.contigs.names, mainMapper.contigs.names[i]);
-//    }
-
-    append(me.contigs.seqs, infix(mainMapper.contigs.seqs, contigOffset, contigOffset + me.options.contigsSize));
-    append(me.contigs.names, infix(mainMapper.contigs.names, contigOffset, contigOffset + me.options.contigsSize));
-    stop(me.timer);
-    me.stats.loadContigs += getValue(me.timer);
-
-    if (me.options.verbose > 1)
-        std::cerr << "Loading reference:\t\t\t" << me.timer << std::endl;
-}
-
 
 template <typename TSpec, typename TConfig, typename TMainConfig>
 inline void runMapper(Mapper<TSpec, TConfig> & me, Mapper<TSpec, TMainConfig> & mainMapper, uint32_t const & contigOffset)
 {
-    loadContigs(me, mainMapper, contigOffset);
+    loadContigs(me);
     loadContigsIndex(me);
     mapReads(me, mainMapper, contigOffset);
 }
@@ -455,49 +422,33 @@ inline void alignMatches(Mapper<TSpec, TConfig> & me, TContigSeqs & contigSeqs)
 // ----------------------------------------------------------------------------
 
 template <typename TSpec, typename TConfig>
-inline bool loadAllContigs(Mapper<TSpec, TConfig> & mainMapper, DisOptions & disOptions)
+inline void loadAllContigs(Mapper<TSpec, TConfig> & mainMapper, DisOptions & disOptions)
 {
+    typedef typename MapperTraits<TSpec, TConfig>::TContigs          TContigs;
+
     start(mainMapper.timer);
-
-    typedef typename MapperTraits<TSpec, TConfig>::TContigSeqs          TContigSeqs;
-    typedef typename MapperTraits<TSpec, TConfig>::TContigNames         TContigNames;
-
-    String<TContigNames> contigNamesSet;
-    String<TContigSeqs> contigSeqsSet;
-
-    resize(contigNamesSet, disOptions.NUM_OF_BINS);
-    resize(contigSeqsSet, disOptions.NUM_OF_BINS);
     try
     {
         for (uint32_t i=0; i < disOptions.NUM_OF_BINS; ++i)
         {
+            TContigs tmpContigs;
             CharString fileName = disOptions.superContigsIndicesFile;
             append(fileName, std::to_string(i));
-
-            CharString name;
-
-            name = fileName;    append(name, ".txt");
-            if (!open(contigSeqsSet[i], toCString(name), OPEN_RDONLY)) return false;
-
-            name = fileName;    append(name, ".rid");
-            if (!open(contigNamesSet[i], toCString(name), OPEN_RDONLY)) return false;
+            if (!open(tmpContigs, toCString(fileName), OPEN_RDONLY))
+                throw RuntimeError("Error while opening reference file.");
+            append(mainMapper.contigs.seqs, tmpContigs.seqs);
+            append(mainMapper.contigs.names, tmpContigs.names);
         }
     }
     catch (BadAlloc const & /* e */)
     {
         throw RuntimeError("Insufficient memory to load the reference.");
     }
-
-    for (uint32_t i=0; i < disOptions.NUM_OF_BINS; ++i)
-    {
-        append(mainMapper.contigs.seqs, infix(contigSeqsSet[i], 0, length(contigSeqsSet[i])));
-        append(mainMapper.contigs.names, infix(contigNamesSet[i], 0, length(contigNamesSet[i])));
-    }
-
     stop(mainMapper.timer);
     mainMapper.stats.loadContigs += getValue(mainMapper.timer);
 
-    return true;
+    if (mainMapper.options.verbose > 1)
+        std::cerr << "Loading reference:\t\t\t" << mainMapper.timer << std::endl;
 }
 
 // ----------------------------------------------------------------------------
