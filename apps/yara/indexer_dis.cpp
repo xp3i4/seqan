@@ -43,40 +43,16 @@
 // ----------------------------------------------------------------------------
 // STL headers
 // ----------------------------------------------------------------------------
-#include <mutex>
-#include <condition_variable>
-#include <future>
-#include <thread>
-#include <iostream>
 #include <string>
-#include <random>
 #include <vector>
-#include <unordered_map>
-#include <fstream>
-#include <math.h>
-
-#include <limits>
-// ----------------------------------------------------------------------------
-// cereal headers
-// ----------------------------------------------------------------------------
-
-#include <cereal/types/unordered_map.hpp>
-#include <cereal/types/memory.hpp>
-#include <cereal/types/bitset.hpp>
-#include <cereal/types/vector.hpp>
-#include <cereal/types/array.hpp>
-#include <cereal/archives/binary.hpp>
 
 // ----------------------------------------------------------------------------
 // SeqAn headers
 // ----------------------------------------------------------------------------
 
-#include <seqan/arg_parse.h>
 #include <seqan/basic.h>
 #include <seqan/sequence.h>
 #include <seqan/index.h>
-#include <seqan/parallel.h>
-#include <seqan/file.h>
 
 // ----------------------------------------------------------------------------
 // App headers
@@ -455,15 +431,14 @@ void saveIndex(YaraIndexer<TSpec, TConfig> & me)
 
 void runYaraIndexer(Options & options)
 {
-//    YaraIndexer<> indexer(options);
-
     saveBloomFilter(options);
-//    // saveBloomFilter(options, indexer.contigs.seqs.concat);
-//    loadContigs(indexer);
-//
-//    setContigsLimits(options, indexer.contigs.seqs);
-//    saveContigs(indexer);
-//    saveIndex(indexer);
+    // saveBloomFilter(options, indexer.contigs.seqs.concat);
+
+    YaraIndexer<> indexer(options);
+    loadContigs(indexer);
+    setContigsLimits(options, indexer.contigs.seqs);
+    saveContigs(indexer);
+    saveIndex(indexer);
 }
 
 // ----------------------------------------------------------------------------

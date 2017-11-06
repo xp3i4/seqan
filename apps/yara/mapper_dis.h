@@ -193,8 +193,8 @@ inline void filterLoadReads(Mapper<TSpec, TConfig> & me, Mapper<TSpec, TMainConf
         disOptions.origReadIdMap.push_back(origRevReadId);
     }
 
-//    std::cout << numFilteredReads << " Reads Filtered! \n";
-//    std::cout << length(me.reads.seqs) << " Including rev comp! \n";
+    std::cout << numFilteredReads << " Reads Filtered! \n";
+    std::cout << length(me.reads.seqs) << " Including rev comp! \n";
 }
 
 // ----------------------------------------------------------------------------
@@ -245,9 +245,9 @@ inline void _mapReadsImpl(Mapper<TSpec, TConfig> & me, Mapper<TSpec, TMainConfig
         clearSeeds(me);
     }
     aggregateMatches(me, readSeqs);
-    rankMatches(me, me.reads.seqs);
-    if (me.options.verifyMatches)
-        verifyMatches(me);
+//    rankMatches(me, me.reads.seqs);
+//    if (me.options.verifyMatches)
+//        verifyMatches(me);
     copyMatches(mainMapper, me, disOptions);
     appendStats(mainMapper, me);
 }
