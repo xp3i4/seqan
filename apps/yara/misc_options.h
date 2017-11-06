@@ -62,6 +62,21 @@ typedef EqualsChar<'\\'>       IsBackSlash;
 // ============================================================================
 // Functions
 // ============================================================================
+// ----------------------------------------------------------------------------
+// Function appendFileName()
+// ----------------------------------------------------------------------------
+
+inline void appendFileName(CharString & target, CharString const & source, uint32_t const i)
+{
+    target = source;
+    append(target, std::to_string(i));
+}
+
+inline void appendFileName(CharString & target, uint32_t const i)
+{
+    CharString source = target;
+    appendFileName(target, source, i);
+}
 
 // ----------------------------------------------------------------------------
 // Function setEnv()

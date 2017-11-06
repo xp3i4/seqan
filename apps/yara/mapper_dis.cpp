@@ -43,11 +43,15 @@ struct Options;
 // ============================================================================
 // Prerequisites
 // ============================================================================
+#include "BloomFilter.hpp"
+#include "ntHashIterator.hpp"
 
 // ----------------------------------------------------------------------------
 // STL headers
 // ----------------------------------------------------------------------------
 
+#include <vector>
+#include <string>
 #include <random>
 
 // ----------------------------------------------------------------------------
@@ -242,7 +246,7 @@ void setupArgumentParser(ArgumentParser & parser, DisOptions const & disOptions)
                                      ArgParseOption::INTEGER));
     setMinValue(parser, "number-of-bins", "1");
     setMaxValue(parser, "number-of-bins", "1000");
-    setDefaultValue(parser, "number-of-bins", disOptions.NUM_OF_BINS);
+    setDefaultValue(parser, "number-of-bins", disOptions.numberOfBins);
 
 }
 
@@ -330,7 +334,7 @@ parseCommandLine(DisOptions & disOptions, ArgumentParser & parser, int argc, cha
     getOptionValue(disOptions.readsCount, parser, "reads-batch");
 
     // Parse Distributed mapper mptions
-    getOptionValue(disOptions.NUM_OF_BINS, parser, "number-of-bins");
+    getOptionValue(disOptions.numberOfBins, parser, "number-of-bins");
 
 
 //    getOptionValue(disOptions.max_errors, parser, "max-errors");
@@ -401,13 +405,13 @@ void configureDisMapper(DisOptions & disOptions,
     disOptions.contigsMaxLength = 0;
     disOptions.contigsSize = 0;
     disOptions.contigsSum = 0;
-    disOptions.contigOffsets.resize(disOptions.NUM_OF_BINS, 0);
+    disOptions.contigOffsets.resize(disOptions.numberOfBins, 0);
     // We aggregate individual limit here to configure the dis_mapper limits
-    for (uint32_t i=0; i < disOptions.NUM_OF_BINS; ++i)
+    for (uint32_t i=0; i < disOptions.numberOfBins; ++i)
     {
         disOptions.contigOffsets[i] = disOptions.contigsSize;
         Options options = disOptions;
-        set_current_index_file(options, disOptions, i);
+        appendFileName(options.contigsIndexFile, disOptions.superContigsIndicesFile, i);
         if (!openContigsLimits(options))
             throw RuntimeError("Error while opening contig limits file.");
 
