@@ -138,46 +138,27 @@ inline void copyMatches(Mapper<TSpec, TMainConfig> & mainMapper, Mapper<TSpec, T
 // ----------------------------------------------------------------------------
 // Function filterLoadReads()
 // ----------------------------------------------------------------------------
-inline bool isCandidate(CharString readSeq, uint32_t k, uint32_t threshold, BloomFilter & bf)
-{
-
-    uint32_t found_kmers = 0;
-    std::string seq = toCString(readSeq);
-    ntHashIterator itr(seq, 4, k);
-    while (itr != itr.end() )
-    {
-        if (bf.contains(*itr))
-            found_kmers++;
-        ++itr;
-        if (found_kmers >= threshold)
-            return true;
-    }
-    return false;
-}
-// ----------------------------------------------------------------------------
-// Function filterLoadReads()
-// ----------------------------------------------------------------------------
 template <typename TSpec, typename TConfig, typename TMainConfig>
 inline void filterLoadReads(Mapper<TSpec, TConfig> & me, Mapper<TSpec, TMainConfig>  & mainMapper, DisOptions & disOptions)
 {
     //replace with actual filters
+    start(mainMapper.timer);
 
     CharString bfFile;
     appendFileName(bfFile, disOptions.superContigsIndicesFile, disOptions.currentBinNo);
     append(bfFile, ".bf");
 
-    // Load the coresponding bloom filter
-    BloomFilter bf(toCString(bfFile));
+    SeqAnBloomFilter<20, 4, 800000000> bf;
+    bf.open(toCString(bfFile));
 
-    //replace with actual filters
     clear(me.reads.seqs);
     disOptions.origReadIdMap.clear();
 
     uint32_t numReads = length(mainMapper.reads.names);
     for (uint32_t i = 0; i< numReads; ++i)
     {
-        CharString readSeq = mainMapper.reads.seqs[i];
-        if (isCandidate(readSeq, disOptions.kmerSize, disOptions.getThreshold(length(readSeq)), bf))
+        uint32_t threshold = disOptions.getThreshold(length(mainMapper.reads.seqs[i]));
+        if (bf.containsNKmers(mainMapper.reads.seqs[i], threshold))
         {
             appendValue(me.reads.seqs, mainMapper.reads.seqs[i]);
             disOptions.origReadIdMap.push_back(i);
@@ -193,6 +174,9 @@ inline void filterLoadReads(Mapper<TSpec, TConfig> & me, Mapper<TSpec, TMainConf
         disOptions.origReadIdMap.push_back(origRevReadId);
     }
 
+    stop(mainMapper.timer);
+
+    mainMapper.stats.loadReads += getValue(mainMapper.timer);
     std::cout << numFilteredReads << " Reads Filtered! \n";
     std::cout << length(me.reads.seqs) << " Including rev comp! \n";
 }
@@ -419,8 +403,9 @@ inline void loadAllContigs(Mapper<TSpec, TConfig> & mainMapper, DisOptions & dis
         for (uint32_t i=0; i < disOptions.numberOfBins; ++i)
         {
             TContigs tmpContigs;
-            CharString fileName = disOptions.superContigsIndicesFile;
-            append(fileName, std::to_string(i));
+            CharString fileName;
+            appendFileName(fileName, disOptions.superContigsIndicesFile, i);
+
             if (!open(tmpContigs, toCString(fileName), OPEN_RDONLY))
                 throw RuntimeError("Error while opening reference file.");
             append(mainMapper.contigs.seqs, tmpContigs.seqs);
@@ -513,6 +498,7 @@ inline void spawnDisMapper(DisOptions & disOptions,
     Mapper<void, TMainConfig> disMapper(disOptions);
 
     runDisMapper(disMapper, disOptions);
+
 }
 
 #endif  // #ifndef APP_YARA_MAPPER_H_

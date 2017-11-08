@@ -45,6 +45,142 @@
 
 using namespace seqan;
 
+namespace seqan
+{
+    template<uint32_t KMER_SIZE, uint32_t N_HASH, uint32_t SIZE, typename TString=Dna5String>
+    class SeqAnBloomFilter
+    {
+    public:
+
+        typedef Shape<Dna5, UngappedShape<KMER_SIZE> > TShape;
+
+        bool open(const char *fileName)
+        {
+            return seqan::open(_filterFile, fileName, OPEN_RDONLY);
+        }
+
+        SeqAnBloomFilter(){}
+
+        SeqAnBloomFilter(const char *fileName)
+        {
+            openNewFile(fileName);
+        }
+
+        SeqAnBloomFilter(const char *fileName,
+                         TString & text)
+        {
+            openNewFile(fileName);
+            if(length(text) >= KMER_SIZE)
+                addKmers(text);
+        }
+
+        void addKmers(TString const & text)
+        {
+            _addKmers(text);
+        }
+
+        bool containsNKmers(TString const & text, uint32_t const & threshold)
+        {
+            TShape kmerShape;
+            hashInit(kmerShape, begin(text));
+
+            uint32_t found = 0;
+
+            for (unsigned i = 0; i < length(text) - length(kmerShape) + 1 ; ++i)
+            {
+                uint64_t kmerHash = hashNext(kmerShape, begin(text) + i);
+                std::vector<uint64_t> hashValues(N_HASH);
+                getNHashValues(hashValues, kmerHash);
+                if(containsKmer(hashValues))
+                    ++found;
+                if(found >= threshold) return true;
+            }
+
+            Dna5String revText = text;
+            reverseComplement(revText);
+            found = 0;
+            hashInit(kmerShape, begin(revText));
+            for (unsigned i = 0; i < length(revText) - length(kmerShape) + 1 ; ++i)
+            {
+                uint64_t kmerHash = hashNext(kmerShape, begin(revText) + i);
+                std::vector<uint64_t> hashValues(N_HASH);
+                getNHashValues(hashValues, kmerHash);
+                if(containsKmer(hashValues))
+                    ++found;
+                if(found >= threshold) return true;
+            }
+            return false;
+        }
+
+
+        uint32_t kmerCount(TString const & text)
+        {
+            TShape kmerShape;
+            hashInit(kmerShape, begin(text));
+            uint32_t found = 0;
+            for (unsigned i = 0; i < length(text) - length(kmerShape) + 1 ; ++i)
+            {
+                uint64_t kmerHash = hashNext(kmerShape, begin(text) + i);
+                std::vector<uint64_t> hashValues(N_HASH);
+                getNHashValues(hashValues, kmerHash);
+                if(containsKmer(hashValues))
+                    ++found;
+            }
+            return found ;
+        }
+
+
+    private:
+        void getNHashValues(std::vector<uint64_t> & hashValues, uint64_t & kmerHash)
+        {
+            for(uint32_t i = 0; i < N_HASH ; i++)
+            {
+                hashValues[i] = kmerHash * (i ^ KMER_SIZE * _seedValue);
+                hashValues[i] ^= hashValues[i] >> _shiftValue;
+            }
+        }
+
+        void insertKmer(std::vector<uint64_t> & hashValues)
+        {
+            for(uint32_t i = 0; i < N_HASH ; i++)
+                assignValue(_filterFile, (hashValues[i] % SIZE), true);
+        }
+
+        bool containsKmer(std::vector<uint64_t> & hashValues)
+        {
+            for(uint32_t i = 0; i < N_HASH ; i++)
+                if(!_filterFile[(hashValues[i] % SIZE)])
+                    return false;
+            return true;
+        }
+
+        void _addKmers(TString const & text)
+        {
+            TShape kmerShape;
+            hashInit(kmerShape, begin(text));
+
+            for (unsigned i = 0; i < length(text) - length(kmerShape) + 1; ++i)
+            {
+                uint64_t kmerHash = hashNext(kmerShape, begin(text) + i);
+                std::vector<uint64_t> hashValues(N_HASH);
+                getNHashValues(hashValues, kmerHash);
+                insertKmer(hashValues);
+            }
+        }
+
+        void openNewFile(const char *fileName)
+        {
+            seqan::open(_filterFile, fileName, OPEN_RDWR | OPEN_CREATE);
+            reserve(_filterFile, SIZE, Exact());
+            resize(_filterFile, SIZE, false);
+        }
+
+        uint64_t const _shiftValue = 27;
+        uint64_t const _seedValue = 0x90b45d39fb6da1fa;
+        String<bool, Packed<MMap<> > > _filterFile;
+    };
+}
+
 // ============================================================================
 // Functors
 // ============================================================================

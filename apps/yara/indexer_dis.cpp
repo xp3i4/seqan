@@ -33,13 +33,6 @@
 // ==========================================================================
 
 #define YARA_INDEXER
-
-// ============================================================================
-// Prerequisites
-// ============================================================================
-#include "BloomFilter.hpp"
-#include "ntHashIterator.hpp"
-
 // ----------------------------------------------------------------------------
 // STL headers
 // ----------------------------------------------------------------------------
@@ -66,11 +59,6 @@
 #include "index_fm.h"
 
 using namespace seqan;
-
-/* number of Bloom filter hash functions */
-const unsigned numHashes = 4;
-/* size of Bloom filter (in bits) */
-const unsigned bloomFilterSize = 4000000000;
 
 // ----------------------------------------------------------------------------
 // Class Options
@@ -124,24 +112,13 @@ struct YaraIndexer
 // ==========================================================================
 
 template <typename TContigSeq>
-inline void saveBloomFilter (Options & options, TContigSeq const & contig)
+inline void saveBloomFilter (Options & options, TContigSeq & contig)
 {
+    CharString filter_file = options.contigsIndexFile;
+    append(filter_file, ".bf");
 
-        CharString filter_file = options.contigsIndexFile;
-        append(filter_file, ".bf");
-
-
-        /* init Bloom filter */
-        BloomFilter bf(bloomFilterSize, numHashes, options.kmerSize);
-
-        ntHashIterator itr(contig, numHashes, options.kmerSize);
-        while (itr != itr.end())
-        {
-            bf.insert(*itr);
-            ++itr;
-        }
-        /* store the bloom filter */
-        bf.storeFilter( toCString(filter_file));
+    SeqAnBloomFilter<20, 4, 800000000> bf(toCString(filter_file));
+    bf.addKmers(contig);
 }
 
 inline void saveBloomFilter (Options & options)
@@ -151,11 +128,10 @@ inline void saveBloomFilter (Options & options)
     
     CharString fasta_file = options.contigsFile;
     
-    /* init Bloom filter */
-    BloomFilter bf(bloomFilterSize, numHashes, options.kmerSize);
-    
+    SeqAnBloomFilter<20, 4, 800000000> bf(toCString(filter_file));
+
     CharString id;
-    std::string seq;
+    IupacString seq;
     
     SeqFileIn seqFileIn;
     if (!open(seqFileIn, toCString(fasta_file)))
@@ -167,16 +143,9 @@ inline void saveBloomFilter (Options & options)
     while(!atEnd(seqFileIn))
     {
         readRecord(id, seq, seqFileIn);
-        ntHashIterator itr(seq, numHashes, options.kmerSize);
-        while (itr != itr.end())
-        {
-            bf.insert(*itr);
-            ++itr;
-        }
+        bf.addKmers(seq);
     }
     close(seqFileIn);
-    /* store the bloom filter */
-    bf.storeFilter( toCString(filter_file));
 }
 
 // ----------------------------------------------------------------------------
@@ -432,13 +401,12 @@ void saveIndex(YaraIndexer<TSpec, TConfig> & me)
 void runYaraIndexer(Options & options)
 {
     saveBloomFilter(options);
-    // saveBloomFilter(options, indexer.contigs.seqs.concat);
-
-    YaraIndexer<> indexer(options);
-    loadContigs(indexer);
-    setContigsLimits(options, indexer.contigs.seqs);
-    saveContigs(indexer);
-    saveIndex(indexer);
+//    YaraIndexer<> indexer(options);
+//    loadContigs(indexer);
+//    saveBloomFilter(options, indexer.contigs.seqs.concat);
+//    setContigsLimits(options, indexer.contigs.seqs);
+//    saveContigs(indexer);
+//    saveIndex(indexer);
 }
 
 // ----------------------------------------------------------------------------
