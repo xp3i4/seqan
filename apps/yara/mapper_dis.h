@@ -135,51 +135,6 @@ inline void copyMatches(Mapper<TSpec, TMainConfig> & mainMapper, Mapper<TSpec, T
         setMapped(mainMapper.ctx, origRevReadId);
     }
 }
-// ----------------------------------------------------------------------------
-// Function filterLoadReads()
-// ----------------------------------------------------------------------------
-template <typename TSpec, typename TConfig, typename TMainConfig>
-inline void filterLoadReads(Mapper<TSpec, TConfig> & me, Mapper<TSpec, TMainConfig>  & mainMapper, DisOptions & disOptions)
-{
-    //replace with actual filters
-    start(mainMapper.timer);
-
-    CharString bfFile;
-    appendFileName(bfFile, disOptions.superContigsIndicesFile, disOptions.currentBinNo);
-    append(bfFile, ".bf");
-
-    SeqAnBloomFilter<20, 4, 800000000> bf;
-    bf.open(toCString(bfFile));
-
-    clear(me.reads.seqs);
-    disOptions.origReadIdMap.clear();
-
-    uint32_t numReads = length(mainMapper.reads.names);
-    for (uint32_t i = 0; i< numReads; ++i)
-    {
-        uint32_t threshold = disOptions.getThreshold(length(mainMapper.reads.seqs[i]));
-        if (bf.containsNKmers(mainMapper.reads.seqs[i], threshold))
-        {
-            appendValue(me.reads.seqs, mainMapper.reads.seqs[i]);
-            disOptions.origReadIdMap.push_back(i);
-        }
-    }
-    uint32_t numFilteredReads = length(me.reads.seqs);
-
-    //add reverse complements of filtered reads
-    for (uint32_t i = 0; i< numFilteredReads; ++i)
-    {
-        uint32_t origRevReadId = disOptions.origReadIdMap[i] + numReads;
-        appendValue(me.reads.seqs, mainMapper.reads.seqs[origRevReadId]);
-        disOptions.origReadIdMap.push_back(origRevReadId);
-    }
-
-    stop(mainMapper.timer);
-
-    mainMapper.stats.loadReads += getValue(mainMapper.timer);
-    std::cout << numFilteredReads << " Reads Filtered! \n";
-    std::cout << length(me.reads.seqs) << " Including rev comp! \n";
-}
 
 // ----------------------------------------------------------------------------
 // Function _mapReadsImpl()
@@ -237,15 +192,79 @@ inline void _mapReadsImpl(Mapper<TSpec, TConfig> & me, Mapper<TSpec, TMainConfig
 }
 
 // ----------------------------------------------------------------------------
+// Function unMaskReads()
+// ----------------------------------------------------------------------------
+template <typename TSpec, typename TConfig>
+inline void unMaskReads(Mapper<TSpec, TConfig> & me, std::vector<bool> const & maskVector)
+{
+    for (uint32_t i = 0; i < maskVector.size(); ++i)
+        if(!maskVector[i]) assignValue(me.ctx.mapped, i, false);
+}
+
+// ----------------------------------------------------------------------------
+// Function maskReads()
+// ----------------------------------------------------------------------------
+template <typename TSpec, typename TConfig>
+inline void maskReads(Mapper<TSpec, TConfig> & me, std::vector<bool> const & maskVector)
+{
+    for (uint32_t i = 0; i < maskVector.size(); ++i)
+        if(!maskVector[i])
+            setMapped(me.ctx, i);
+}
+
+// ----------------------------------------------------------------------------
+// Function filterLoadReads()
+// ----------------------------------------------------------------------------
+template <typename TSpec, typename TConfig, typename TMainConfig>
+inline void filterLoadReads(Mapper<TSpec, TConfig> & me, Mapper<TSpec, TMainConfig>  & mainMapper, DisOptions & disOptions)
+{
+    //replace with actual filters
+    uint32_t numReads = getReadsCount( mainMapper.reads.seqs);
+    uint32_t avgReadLen = lengthSum( mainMapper.reads.seqs) / (numReads * 2);
+    uint32_t threshold = disOptions.getThreshold(avgReadLen);
+
+    CharString bfFile;
+    appendFileName(bfFile, disOptions.superContigsIndicesFile, disOptions.currentBinNo);
+    append(bfFile, ".bf");
+
+    SeqAnBloomFilter<20, 4, 800000000> bf;
+    bf.open(toCString(bfFile));
+
+    for (uint32_t i = 0; i < numReads; ++i)
+    {
+        if(bf.containsNKmers(mainMapper.reads.seqs[i], mainMapper.reads.seqs[i + numReads], threshold))
+        {
+            appendValue(me.reads.seqs, mainMapper.reads.seqs[i]);
+            disOptions.origReadIdMap.push_back(i);
+       }
+    }
+
+    uint32_t numFilteredReads = disOptions.origReadIdMap.size();
+
+    for (uint32_t i = 0; i< numFilteredReads; ++i)
+    {
+        appendValue(me.reads.seqs, mainMapper.reads.seqs[i+numReads]);
+        disOptions.origReadIdMap.push_back(i+numReads);
+    }
+//    std::cout << "getReadsCount(me.reads.seqs) "<< getReadsCount(me.reads.seqs) << "\n";
+//    std::cout << "getReadSeqsCount(me.reads.seqs) "<< getReadSeqsCount(me.reads.seqs) << "\n";
+//    std::cout << "disOptions.origReadIdMap.size() "<< disOptions.origReadIdMap.size() << "\n";
+}
+
+// ----------------------------------------------------------------------------
 // Function mapReads()
 // ----------------------------------------------------------------------------
 template <typename TSpec, typename TConfig, typename TMainConfig>
 inline void mapReads(Mapper<TSpec, TConfig> & me, Mapper<TSpec, TMainConfig>  & mainMapper, DisOptions & disOptions)
 {
+
+    start(mainMapper.timer);
+    disOptions.origReadIdMap.resize(0);
     filterLoadReads(me, mainMapper, disOptions);
-//    swap(me.reads, mainMapper.reads);
+    stop(mainMapper.timer);
+    mainMapper.stats.loadReads += getValue(mainMapper.timer);
+    if (empty(me.reads.seqs)) return;
     _mapReadsImpl(me, mainMapper, me.reads.seqs, disOptions);
-//    swap(me.reads, mainMapper.reads);
 }
 
 template <typename TSpec, typename TConfig, typename TMainConfig>

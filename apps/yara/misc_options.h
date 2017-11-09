@@ -85,33 +85,31 @@ namespace seqan
             hashInit(kmerShape, begin(text));
 
             uint32_t found = 0;
+            uint32_t possible = length(text) - length(kmerShape) + 1;
 
-            for (unsigned i = 0; i < length(text) - length(kmerShape) + 1 ; ++i)
+            for (uint32_t i = 0; (possible - i) > (threshold - found) ; ++i)
             {
                 uint64_t kmerHash = hashNext(kmerShape, begin(text) + i);
                 std::vector<uint64_t> hashValues(N_HASH);
                 getNHashValues(hashValues, kmerHash);
                 if(containsKmer(hashValues))
+                {
                     ++found;
-                if(found >= threshold) return true;
-            }
-
-            Dna5String revText = text;
-            reverseComplement(revText);
-            found = 0;
-            hashInit(kmerShape, begin(revText));
-            for (unsigned i = 0; i < length(revText) - length(kmerShape) + 1 ; ++i)
-            {
-                uint64_t kmerHash = hashNext(kmerShape, begin(revText) + i);
-                std::vector<uint64_t> hashValues(N_HASH);
-                getNHashValues(hashValues, kmerHash);
-                if(containsKmer(hashValues))
-                    ++found;
-                if(found >= threshold) return true;
+                    if(found >= threshold) return true;
+                }
             }
             return false;
         }
 
+
+        bool containsNKmers(TString const & fwd, TString const & rev, uint32_t const & threshold)
+        {
+            if(containsNKmers(fwd, threshold))
+                return true;
+            else if(containsNKmers(rev, threshold))
+                return true;
+            return false;
+        }
 
         uint32_t kmerCount(TString const & text)
         {
