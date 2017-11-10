@@ -243,8 +243,9 @@ inline void filterLoadReads(Mapper<TSpec, TConfig> & me, Mapper<TSpec, TMainConf
 
     for (uint32_t i = 0; i< numFilteredReads; ++i)
     {
-        appendValue(me.reads.seqs, mainMapper.reads.seqs[i+numReads]);
-        disOptions.origReadIdMap.push_back(i+numReads);
+        uint32_t orgId = disOptions.origReadIdMap[i];
+        appendValue(me.reads.seqs, mainMapper.reads.seqs[orgId + numReads]);
+        disOptions.origReadIdMap.push_back(orgId + numReads);
     }
 //    std::cout << "getReadsCount(me.reads.seqs) "<< getReadsCount(me.reads.seqs) << "\n";
 //    std::cout << "getReadSeqsCount(me.reads.seqs) "<< getReadSeqsCount(me.reads.seqs) << "\n";
