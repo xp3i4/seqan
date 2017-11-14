@@ -59,7 +59,9 @@ namespace seqan
             return seqan::open(_filterFile, fileName, OPEN_RDONLY);
         }
 
-        SeqAnBloomFilter(){}
+        SeqAnBloomFilter(){
+            _initPreCalcValues();
+        }
 
         SeqAnBloomFilter(const char *fileName)
         {
@@ -84,21 +86,19 @@ namespace seqan
             TShape kmerShape;
             hashInit(kmerShape, begin(text));
 
-            uint32_t found = 0;
+            uint32_t left = threshold;
             uint32_t possible = length(text) - length(kmerShape) + 1;
 
-            for (uint32_t i = 0; (possible - i) > (threshold - found) ; ++i)
+            std::vector<uint64_t> hashValues(N_HASH);
+            uint64_t kmerHash = 0;
+            for (uint32_t i = 0; left > 0 && (possible - i) > left ; ++i)
             {
-                uint64_t kmerHash = hashNext(kmerShape, begin(text) + i);
-                std::vector<uint64_t> hashValues(N_HASH);
-                getNHashValues(hashValues, kmerHash);
-                if(containsKmer(hashValues))
-                {
-                    ++found;
-                    if(found >= threshold) return true;
-                }
+                kmerHash = hashNext(kmerShape, begin(text) + i);
+//                getNHashValues(hashValues, kmerHash);
+                if(containsKmer(kmerHash))
+                    --left;
             }
-            return false;
+            return (left == 0);
         }
 
 
@@ -121,7 +121,7 @@ namespace seqan
                 uint64_t kmerHash = hashNext(kmerShape, begin(text) + i);
                 std::vector<uint64_t> hashValues(N_HASH);
                 getNHashValues(hashValues, kmerHash);
-                if(containsKmer(hashValues))
+                if(containsKmer(kmerHash))
                     ++found;
             }
             return found ;
@@ -131,10 +131,12 @@ namespace seqan
     private:
         void getNHashValues(std::vector<uint64_t> & hashValues, uint64_t & kmerHash)
         {
+            uint64_t tmp = 0;
             for(uint32_t i = 0; i < N_HASH ; i++)
             {
-                hashValues[i] = kmerHash * (i ^ KMER_SIZE * _seedValue);
-                hashValues[i] ^= hashValues[i] >> _shiftValue;
+                tmp = kmerHash * (i ^ KMER_SIZE * _seedValue);
+                tmp ^= tmp >> _shiftValue;
+                hashValues[i] = tmp;
             }
         }
 
@@ -142,6 +144,30 @@ namespace seqan
         {
             for(uint32_t i = 0; i < N_HASH ; i++)
                 assignValue(_filterFile, (hashValues[i] % SIZE), true);
+        }
+
+        void insertKmer(uint64_t & kmerHash)
+        {
+            uint64_t tmp = 0;
+            for(uint32_t i = 0; i < N_HASH ; i++)
+            {
+                tmp = kmerHash * (i ^ KMER_SIZE * _seedValue);
+                tmp ^= tmp >> _shiftValue;
+                assignValue(_filterFile, (tmp % SIZE), true);
+            }
+        }
+
+        inline bool containsKmer(uint64_t & kmerHash)
+        {
+            uint64_t tmp = 0;
+            for(uint32_t i = 0; i < N_HASH ; i++)
+            {
+                tmp = kmerHash * (_preCalcValues[i]);
+                tmp ^= tmp >> _shiftValue;
+                if(!_filterFile[(tmp % SIZE)])
+                    return false;
+            }
+            return true;
         }
 
         bool containsKmer(std::vector<uint64_t> & hashValues)
@@ -166,13 +192,20 @@ namespace seqan
             }
         }
 
+        inline void _initPreCalcValues()
+        {
+            for(uint32_t i = 0; i < N_HASH ; i++)
+            {
+                _preCalcValues.push_back(i ^ KMER_SIZE * _seedValue);
+            }
+        }
         void openNewFile(const char *fileName)
         {
             seqan::open(_filterFile, fileName, OPEN_RDWR | OPEN_CREATE);
             reserve(_filterFile, SIZE, Exact());
             resize(_filterFile, SIZE, false);
         }
-
+        std::vector<uint64_t> _preCalcValues = {};
         uint64_t const _shiftValue = 27;
         uint64_t const _seedValue = 0x90b45d39fb6da1fa;
         String<bool, Packed<MMap<> > > _filterFile;

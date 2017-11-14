@@ -43,8 +43,8 @@ struct Options;
 // ============================================================================
 // Prerequisites
 // ============================================================================
-#include "BloomFilter.hpp"
-#include "ntHashIterator.hpp"
+//#include "BloomFilter.hpp"
+//#include "ntHashIterator.hpp"
 
 // ----------------------------------------------------------------------------
 // STL headers

@@ -222,7 +222,7 @@ inline void filterLoadReads(Mapper<TSpec, TConfig> & me, Mapper<TSpec, TMainConf
     uint32_t numReads = getReadsCount( mainMapper.reads.seqs);
     uint32_t avgReadLen = lengthSum( mainMapper.reads.seqs) / (numReads * 2);
     uint32_t threshold = disOptions.getThreshold(avgReadLen);
-
+    start(mainMapper.timer);
     CharString bfFile;
     appendFileName(bfFile, disOptions.superContigsIndicesFile, disOptions.currentBinNo);
     append(bfFile, ".bf");
@@ -250,6 +250,9 @@ inline void filterLoadReads(Mapper<TSpec, TConfig> & me, Mapper<TSpec, TMainConf
 //    std::cout << "getReadsCount(me.reads.seqs) "<< getReadsCount(me.reads.seqs) << "\n";
 //    std::cout << "getReadSeqsCount(me.reads.seqs) "<< getReadSeqsCount(me.reads.seqs) << "\n";
 //    std::cout << "disOptions.origReadIdMap.size() "<< disOptions.origReadIdMap.size() << "\n";
+
+    stop(mainMapper.timer);
+    mainMapper.stats.loadReads += getValue(mainMapper.timer);
 }
 
 // ----------------------------------------------------------------------------
@@ -259,11 +262,8 @@ template <typename TSpec, typename TConfig, typename TMainConfig>
 inline void mapReads(Mapper<TSpec, TConfig> & me, Mapper<TSpec, TMainConfig>  & mainMapper, DisOptions & disOptions)
 {
 
-    start(mainMapper.timer);
     disOptions.origReadIdMap.resize(0);
     filterLoadReads(me, mainMapper, disOptions);
-    stop(mainMapper.timer);
-    mainMapper.stats.loadReads += getValue(mainMapper.timer);
     if (empty(me.reads.seqs)) return;
     _mapReadsImpl(me, mainMapper, me.reads.seqs, disOptions);
 }
