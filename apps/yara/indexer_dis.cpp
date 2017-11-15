@@ -56,6 +56,7 @@
 #include "misc_types.h"
 #include "bits_matches.h"
 #include "misc_options.h"
+#include "misc_options_dis.h"
 #include "index_fm.h"
 
 using namespace seqan;

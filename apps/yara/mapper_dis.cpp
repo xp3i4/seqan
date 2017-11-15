@@ -84,6 +84,7 @@ struct Options;
 #include "find_verifier.h"
 #include "find_extender.h"
 #include "misc_options.h"
+#include "misc_options_dis.h"
 #include "mapper_collector.h"
 #include "mapper_classifier.h"
 #include "mapper_ranker.h"
