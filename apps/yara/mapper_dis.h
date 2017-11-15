@@ -166,7 +166,7 @@ inline void transferCigars(Mapper<TSpec, TMainConfig> & mainMapper, DisOptions &
 {
     typedef typename MapperTraits<TSpec, TMainConfig>::TThreading             TThreading;
     
-    resize(mainMapper.cigarSet.limits, getReadsCount( mainMapper.reads.seqs) + 1);
+    resize(mainMapper.cigarSet.limits, getReadsCount( mainMapper.reads.seqs)+1, 0);
     for(auto iter = disOptions.cigarSet.begin(); iter != disOptions.cigarSet.end(); ++iter)
     {
         mainMapper.cigarSet.limits[iter->first + 1] = length(iter->second);
@@ -495,18 +495,15 @@ inline void rankMatches2(Mapper<TSpec, TConfig> & me, TReadSeqs const & readSeqs
 {
     typedef MapperTraits<TSpec, TConfig>                    TTraits;
     typedef typename TTraits::TMatch                        TMatch;
-    typedef typename TTraits::TMatchesPos                   TMatchesPos;
     typedef typename TTraits::TMatchesSet                   TMatchesSet;
     typedef typename TTraits::TMatchesViewSet               TMatchesViewSet;
     typedef typename Value<TMatchesSet const>::Type         TMatchesSetValue;
-    typedef typename Iterator<TMatchesSetValue const, Standard>::Type TMatchesSetValueIt;
     typedef typename Value<TMatchesViewSet const>::Type     TMatchesViewSetValue;
     typedef typename Iterator<TMatchesViewSet const, Standard>::Type TMatchesViewSetIt;
     typedef typename Size<TReadSeqs>::Type                  TReadId;
     typedef typename Size<TMatchesSetValue>::Type           TMatchesSize;
     typedef std::uniform_int_distribution<TMatchesSize>     TMatchesRnd;
-    typedef String<unsigned>                                TLibraryLengths;
-    
+
     start(me.timer);
     // Create a position modifier of the matches from the identity permutation.
     assign(me.matchesPositions, seqan::Range<TMatchesSize>(0, length(me.matchesByCoord)), Exact());
