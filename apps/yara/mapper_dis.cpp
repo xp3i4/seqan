@@ -53,6 +53,9 @@ struct Options;
 #include <vector>
 #include <string>
 #include <random>
+#include <math.h>
+#include <fstream>
+#include <iostream>
 
 // ----------------------------------------------------------------------------
 // SeqAn headers

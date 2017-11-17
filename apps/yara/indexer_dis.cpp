@@ -112,28 +112,53 @@ struct YaraIndexer
 // Functions
 // ==========================================================================
 
-template <typename TContigSeq>
-inline void saveBloomFilter (Options & options, TContigSeq & contig)
-{
-    CharString filter_file = options.contigsIndexFile;
-    append(filter_file, ".bf");
+//template <typename TContigSeq>
+//inline void saveBloomFilter (Options & options, TContigSeq & contig)
+//{
+//    CharString filter_file = options.contigsIndexFile;
+//    append(filter_file, ".bf");
+//
+//    SeqAnBloomFilter<20, 4, 800000000> bf;
+//    bf.addKmers(contig);
+//    bf.save(toCString(filter_file));
+//}
+//
+//inline void saveBloomFilter (Options & options)
+//{
+//    CharString filter_file = options.contigsIndexFile;
+//    append(filter_file, ".bf");
+//    
+//    CharString fasta_file = options.contigsFile;
+//    
+//    SeqAnBloomFilter<20, 4, 800000000> bf;
+//
+//    CharString id;
+//    IupacString seq;
+//    
+//    SeqFileIn seqFileIn;
+//    if (!open(seqFileIn, toCString(fasta_file)))
+//    {
+//        CharString msg = "Unable to open contigs File: ";
+//        append (msg, fasta_file);
+//        throw toCString(msg);
+//    }
+//    while(!atEnd(seqFileIn))
+//    {
+//        readRecord(id, seq, seqFileIn);
+//        bf.addKmers(seq);
+//    }
+//    bf.save(toCString(filter_file));
+//    close(seqFileIn);
+//}
 
-    SeqAnBloomFilter<20, 4, 800000000> bf(toCString(filter_file));
-    bf.addKmers(contig);
-}
 
-inline void saveBloomFilter (Options & options)
+inline void addBloomFilter (Options & options, SeqAnBloomFilter<8, 20, 4, 640000000> & bf, uint8_t const binNo)
 {
-    CharString filter_file = options.contigsIndexFile;
-    append(filter_file, ".bf");
-    
     CharString fasta_file = options.contigsFile;
-    
-    SeqAnBloomFilter<20, 4, 800000000> bf(toCString(filter_file));
 
     CharString id;
     IupacString seq;
-    
+
     SeqFileIn seqFileIn;
     if (!open(seqFileIn, toCString(fasta_file)))
     {
@@ -144,7 +169,7 @@ inline void saveBloomFilter (Options & options)
     while(!atEnd(seqFileIn))
     {
         readRecord(id, seq, seqFileIn);
-        bf.addKmers(seq);
+        bf.addKmers(seq, binNo);
     }
     close(seqFileIn);
 }
@@ -401,7 +426,7 @@ void saveIndex(YaraIndexer<TSpec, TConfig> & me)
 
 void runYaraIndexer(Options & options)
 {
-    saveBloomFilter(options);
+//    saveBloomFilter(options);
 //    YaraIndexer<> indexer(options);
 //    loadContigs(indexer);
 //    saveBloomFilter(options, indexer.contigs.seqs.concat);
@@ -427,17 +452,21 @@ int main(int argc, char const ** argv)
 
     try
     {
-        for (uint32_t i = 0; i < options.numberOfBins; ++i)
+        CharString filter_file = options.contigsIndexFile;
+        append(filter_file, "bloom.bf");
+        SeqAnBloomFilter<8, 20, 4, 640000000> bf;
+        for (uint32_t i = 0; i < 8; ++i)
         {
             Options options_i = options;
             appendFileName(options_i.contigsFile, options.contigsFile, i);
             append(options_i.contigsFile, ".fna");
 
             appendFileName(options_i.contigsIndexFile, options.contigsIndexFile, i);
+            addBloomFilter(options_i, bf, i);
 
-            runYaraIndexer(options_i);
+//            runYaraIndexer(options_i);
         }
-
+        bf.save(toCString(filter_file));
     }
     catch (Exception const & e)
     {

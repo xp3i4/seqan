@@ -270,8 +270,8 @@ inline void filterLoadReads(Mapper<TSpec, TConfig> & me, Mapper<TSpec, TMainConf
     appendFileName(bfFile, disOptions.superContigsIndicesFile, disOptions.currentBinNo);
     append(bfFile, ".bf");
 
-    SeqAnBloomFilter<20, 4, 800000000> bf;
-    bf.open(toCString(bfFile));
+    SeqAnBloomFilter<8, 20, 4, 640000000> bf(toCString(bfFile));
+//    bf.open;
 
     for (uint32_t i = 0; i < numReads; ++i)
     {
@@ -672,6 +672,17 @@ inline void openOutputFile(Mapper<TSpec, TConfig> & mainMapper, DisOptions & dis
 // Function runDisMapper()
 // ----------------------------------------------------------------------------
 
+template<typename T>
+std::ostream& operator<<(std::ostream& s, const std::vector<T>& v) {
+    s.put('[');
+    char comma[3] = {'\0', ' ', '\0'};
+    for (const auto& e : v) {
+        s << comma << e;
+        comma[0] = ',';
+    }
+    return s << ']';
+}
+
 template <typename TSpec, typename TConfig>
 inline void runDisMapper(Mapper<TSpec, TConfig> & mainMapper, DisOptions & disOptions)
 {
@@ -680,10 +691,32 @@ inline void runDisMapper(Mapper<TSpec, TConfig> & mainMapper, DisOptions & disOp
 
     start(timer);
     configureThreads(mainMapper);
-    
+
     // Open output file and write header.
     openOutputFile(mainMapper, disOptions);
     openReads(mainMapper);
+
+
+
+
+
+    CharString bfFile = disOptions.superContigsIndicesFile;
+    append(bfFile, "bloom.bf");
+
+    SeqAnBloomFilter<8, 20, 4, 640000000> bf(toCString(bfFile));
+
+    loadReads(mainMapper);
+    uint32_t numReads = getReadsCount( mainMapper.reads.seqs);
+    uint32_t avgReadLen = lengthSum( mainMapper.reads.seqs) / (numReads * 2);
+    uint8_t threshold = disOptions.getThreshold(avgReadLen);
+
+    std::vector<bool> whichBinsV(8, false);
+    for (uint32_t i = 0; i < numReads; ++i)
+    {
+        whichBinsV = bf.whichBins(mainMapper.reads.seqs[i], threshold);
+//        std::cout << whichBinsV << std::endl;
+    }
+
 
     // Process reads in blocks.
     // load reads here
@@ -691,32 +724,32 @@ inline void runDisMapper(Mapper<TSpec, TConfig> & mainMapper, DisOptions & disOp
     // classify reads here
     // create mappers and run them on subsets
     // Process reads in blocks.
-    while (true)
-    {
-        if (mainMapper.options.verbose > 1) printRuler(std::cerr);
-        loadReads(mainMapper);
-        if (empty(mainMapper.reads.seqs)) break;
-        initReadsContext(mainMapper, mainMapper.reads.seqs);
-        setHost(mainMapper.cigarSet, mainMapper.cigars);
-        for (uint32_t i=0; i < disOptions.numberOfBins; ++i)
-        {
-            disOptions.currentBinNo = i;
-            Options options = mainMapper.options;
-            appendFileName(options.contigsIndexFile, disOptions.superContigsIndicesFile, i);
-            if (!openContigsLimits(options))
-                throw RuntimeError("Error while opening reference file.");
-            configureMapper<TSpec, TConfig>(options, mainMapper, disOptions);
-        }
-        
-        aggregateMatches(mainMapper, mainMapper.reads.seqs);
-        rankMatches2(mainMapper, mainMapper.reads.seqs);
-        transferCigars(mainMapper, disOptions);
-        writeMatches(mainMapper);
-        disOptions.cigarSet.clear();
-        clearMatches(mainMapper);
-        clearAlignments(mainMapper);
-        clearReads(mainMapper);
-    }
+//    while (true)
+//    {
+//        if (mainMapper.options.verbose > 1) printRuler(std::cerr);
+//        loadReads(mainMapper);
+//        if (empty(mainMapper.reads.seqs)) break;
+//        initReadsContext(mainMapper, mainMapper.reads.seqs);
+//        setHost(mainMapper.cigarSet, mainMapper.cigars);
+//        for (uint32_t i=0; i < disOptions.numberOfBins; ++i)
+//        {
+//            disOptions.currentBinNo = i;
+//            Options options = mainMapper.options;
+//            appendFileName(options.contigsIndexFile, disOptions.superContigsIndicesFile, i);
+//            if (!openContigsLimits(options))
+//                throw RuntimeError("Error while opening reference file.");
+//            configureMapper<TSpec, TConfig>(options, mainMapper, disOptions);
+//        }
+//
+//        aggregateMatches(mainMapper, mainMapper.reads.seqs);
+//        rankMatches2(mainMapper, mainMapper.reads.seqs);
+//        transferCigars(mainMapper, disOptions);
+//        writeMatches(mainMapper);
+//        disOptions.cigarSet.clear();
+//        clearMatches(mainMapper);
+//        clearAlignments(mainMapper);
+//        clearReads(mainMapper);
+//    }
     closeReads(mainMapper);
     closeOutputFile(mainMapper);
     stop(timer);
