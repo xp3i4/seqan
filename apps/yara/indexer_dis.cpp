@@ -152,7 +152,7 @@ struct YaraIndexer
 //}
 
 
-inline void addBloomFilter (Options & options, SeqAnBloomFilter<8, 20, 4, 640000000> & bf, uint8_t const binNo)
+inline void addBloomFilter (Options & options, SeqAnBloomFilter<64, 20, 4, 5120000000> & bf, uint8_t const binNo)
 {
     CharString fasta_file = options.contigsFile;
 
@@ -454,8 +454,8 @@ int main(int argc, char const ** argv)
     {
         CharString filter_file = options.contigsIndexFile;
         append(filter_file, "bloom.bf");
-        SeqAnBloomFilter<8, 20, 4, 640000000> bf;
-        for (uint32_t i = 0; i < 8; ++i)
+        SeqAnBloomFilter<64, 20, 4, 5120000000> bf;
+        for (uint32_t i = 0; i < options.numberOfBins; ++i)
         {
             Options options_i = options;
             appendFileName(options_i.contigsFile, options.contigsFile, i);
