@@ -275,7 +275,7 @@ inline void filterLoadReads(Mapper<TSpec, TConfig> & me, Mapper<TSpec, TMainConf
 
     for (uint32_t i = 0; i < numReads; ++i)
     {
-        if(bf.containsNKmers(mainMapper.reads.seqs[i], mainMapper.reads.seqs[i + numReads], threshold))
+//        if(bf.containsNKmers(mainMapper.reads.seqs[i], mainMapper.reads.seqs[i + numReads], threshold))
         {
             appendValue(me.reads.seqs, mainMapper.reads.seqs[i]);
             disOptions.origReadIdMap.push_back(i);
@@ -703,14 +703,14 @@ inline void runDisMapper(Mapper<TSpec, TConfig> & mainMapper, DisOptions & disOp
     CharString bfFile = disOptions.superContigsIndicesFile;
     append(bfFile, "bloom.bf");
 
-    SeqAnBloomFilter<8, 20, 4, 640000000> bf(toCString(bfFile));
+    SeqAnBloomFilter<64, 20, 4, 1024000000> bf(toCString(bfFile));
 
     loadReads(mainMapper);
     uint32_t numReads = getReadsCount( mainMapper.reads.seqs);
     uint32_t avgReadLen = lengthSum( mainMapper.reads.seqs) / (numReads * 2);
     uint8_t threshold = disOptions.getThreshold(avgReadLen);
 
-    std::vector<bool> whichBinsV(8, false);
+    std::vector<bool> whichBinsV(64, false);
     for (uint32_t i = 0; i < numReads; ++i)
     {
         whichBinsV = bf.whichBins(mainMapper.reads.seqs[i], threshold);

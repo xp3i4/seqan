@@ -102,32 +102,9 @@ namespace seqan
             }
         }
 
-        void addKmers(TString const & text)
-        {
-            _addKmers(text);
-        }
         void addKmers(TString const & text, uint8_t const & binNo)
         {
             _addKmers(text, binNo);
-        }
-
-        bool containsNKmers(TString const & text, uint8_t const & threshold) const
-        {
-            TShape kmerShape;
-            hashInit(kmerShape, begin(text));
-
-            uint8_t left = threshold;
-            uint8_t possible = length(text) - length(kmerShape) + 1;
-            auto it = begin(text);
-            uint64_t kmerHash = 0;
-            for (uint8_t i = 0; left > 0 && (possible - i) > left ; ++i)
-            {
-                kmerHash = hashNext(kmerShape, it);
-                if(containsKmer(kmerHash))
-                    --left;
-                ++it;
-            }
-            return (left == 0);
         }
 
         std::vector<bool> whichBins(TString const & text, uint8_t const & threshold) const
@@ -148,7 +125,7 @@ namespace seqan
                 ++it;
             }
 
-            _whichBinsImpl(profileMatrix, kmerHashes);
+            _filProfileMatrix(profileMatrix, kmerHashes);
             for (uint8_t binNo = 0; binNo < BINS_SIZE; ++binNo)
             {
                 uint8_t count = 0;
@@ -169,8 +146,8 @@ namespace seqan
             return selected;
         }
 
-        inline void _whichBinsImpl(std::vector<std::vector<uint8_t> >  & profileMatrix,
-                                   std::vector<uint64_t> const & kmerHashes) const
+        inline void _filProfileMatrix(std::vector<std::vector<uint8_t> >  & profileMatrix,
+                                      std::vector<uint64_t> const & kmerHashes) const
         {
             for(uint8_t k = 0; k < kmerHashes.size() ; k++)
             {
@@ -188,49 +165,6 @@ namespace seqan
             }
         }
 
-        inline std::vector<uint8_t> _whichBinsImpl(uint64_t & kmerHash) const
-        {
-            uint64_t tmp = 0;
-            std::vector<uint8_t> mt;
-            mt.resize(m_binSizeInChars, 255);
-            for(uint8_t i = 0; i < N_HASH ; i++)
-            {
-                tmp = kmerHash * (_preCalcValues[i]);
-                tmp ^= tmp >> _shiftValue;
-                uint64_t normalizedValue = (tmp % m_sizeInHashes) * BINS_SIZE;
-                for(uint8_t j = 0; j < m_binSizeInChars ; j++)
-                {
-                    mt[j] &= _filterFile[normalizedValue / bitsPerChar + j];
-                }
-            }
-            return mt;
-        }
-
-        bool containsNKmers(TString const & fwd, TString const & rev, uint32_t const & threshold) const
-        {
-            if(containsNKmers(fwd, threshold))
-                return true;
-            else if(containsNKmers(rev, threshold))
-                return true;
-            return false;
-        }
-
-        uint32_t kmerCount(TString const & text)
-        {
-            TShape kmerShape;
-            hashInit(kmerShape, begin(text));
-            uint32_t found = 0;
-            for (unsigned i = 0; i < length(text) - length(kmerShape) + 1 ; ++i)
-            {
-                uint64_t kmerHash = hashNext(kmerShape, begin(text) + i);
-                std::vector<uint64_t> hashValues(N_HASH);
-                getNHashValues(hashValues, kmerHash);
-                if(containsKmer(kmerHash))
-                    ++found;
-            }
-            return found ;
-        }
-
     private:
 
         void initSize()
@@ -246,31 +180,6 @@ namespace seqan
             _filterFile = new unsigned char[m_sizeInBytes];
         }
 
-
-        void getNHashValues(std::vector<uint64_t> & hashValues, uint64_t & kmerHash)
-        {
-            uint64_t tmp = 0;
-            for(uint8_t i = 0; i < N_HASH ; i++)
-            {
-                tmp = kmerHash * (i ^ KMER_SIZE * _seedValue);
-                tmp ^= tmp >> _shiftValue;
-                hashValues[i] = tmp;
-            }
-        }
-
-        void insertKmer(uint64_t & kmerHash)
-        {
-            uint64_t tmp = 0;
-            for(uint8_t i = 0; i < N_HASH ; i++)
-            {
-                tmp = kmerHash * (i ^ KMER_SIZE * _seedValue);
-                tmp ^= tmp >> _shiftValue;
-                uint64_t normalizedValue = tmp % SIZE;
-                __sync_or_and_fetch(&_filterFile[normalizedValue / bitsPerChar],
-                                    bitMask[normalizedValue % bitsPerChar]);
-            }
-        }
-
         void insertKmer(uint64_t & kmerHash, uint8_t const & binNo)
         {
             uint64_t tmp = 0;
@@ -284,57 +193,6 @@ namespace seqan
             }
         }
 
-        inline bool containsKmer(uint64_t & kmerHash) const
-        {
-            uint64_t tmp = 0;
-            for(uint8_t i = 0; i < N_HASH ; i++)
-            {
-                tmp = kmerHash * (_preCalcValues[i]);
-                tmp ^= tmp >> _shiftValue;
-                size_t normalizedValue = tmp % SIZE;
-                unsigned char bit = bitMask[normalizedValue % bitsPerChar];
-                if ((_filterFile[normalizedValue / bitsPerChar] & bit) != bit)
-                    return false;
-            }
-            return true;
-        }
-
-        inline void whichBinContainsKmer(char *setBins, uint64_t & kmerHash) const
-        {
-            uint64_t tmp = 0;
-            for(uint8_t i = 0; i < N_HASH ; i++)
-            {
-
-                tmp = kmerHash * (_preCalcValues[i]);
-                tmp ^= tmp >> _shiftValue;
-                size_t normalizedValue = (tmp % m_sizeInHashes) * BINS_SIZE;
-                setBins = _filterFile[normalizedValue / bitsPerChar] & setBins;
-            }
-        }
-
-        bool containsKmer(std::vector<uint64_t> & hashValues)
-        {
-            for(uint8_t i = 0; i < N_HASH ; i++)
-            {
-                size_t normalizedValue = hashValues[i] % SIZE;
-                unsigned char bit = bitMask[normalizedValue % bitsPerChar];
-                if ((_filterFile[normalizedValue / bitsPerChar] & bit) != bit)
-                    return false;
-            }
-            return true;
-        }
-
-        void _addKmers(TString const & text)
-        {
-            TShape kmerShape;
-            hashInit(kmerShape, begin(text));
-
-            for (uint32_t i = 0; i < length(text) - length(kmerShape) + 1; ++i)
-            {
-                uint64_t kmerHash = hashNext(kmerShape, begin(text) + i);
-                insertKmer(kmerHash);
-            }
-        }
         void _addKmers(TString const & text, uint8_t const & binNo)
         {
             TShape kmerShape;
@@ -355,12 +213,7 @@ namespace seqan
                 _preCalcValues.push_back(i ^ KMER_SIZE * _seedValue);
             }
         }
-        void openNewFile(const char *fileName)
-        {
-            seqan::open(_filterFile, fileName, OPEN_RDWR | OPEN_CREATE);
-            reserve(_filterFile, SIZE, Exact());
-            resize(_filterFile, SIZE, false);
-        }
+
 
         size_t                  m_sizeInBytes;
         size_t                  m_sizeInHashes;
@@ -371,173 +224,6 @@ namespace seqan
         uint64_t const          _seedValue = 0x90b45d39fb6da1fa;
     };
 }
-
-//namespace seqan
-//{
-//    template<uint8_t KMER_SIZE, uint8_t N_HASH, uint32_t SIZE, typename TString=Dna5String>
-//    class SeqAnBloomFilter
-//    {
-//    public:
-//
-//        typedef Shape<Dna5, UngappedShape<KMER_SIZE> > TShape;
-//
-//        bool open(const char *fileName)
-//        {
-//            return seqan::open(_filterFile, fileName, OPEN_RDONLY);
-//        }
-//
-//        SeqAnBloomFilter(){
-//            _initPreCalcValues();
-//        }
-//
-//        SeqAnBloomFilter(const char *fileName)
-//        {
-//            openNewFile(fileName);
-//        }
-//
-//        SeqAnBloomFilter(const char *fileName,
-//                         TString & text)
-//        {
-//            openNewFile(fileName);
-//            if(length(text) >= KMER_SIZE)
-//                addKmers(text);
-//        }
-//
-//        void addKmers(TString const & text)
-//        {
-//            _addKmers(text);
-//        }
-//
-//        bool containsNKmers(TString const & text, uint8_t const & threshold) const
-//        {
-//            TShape kmerShape;
-//            hashInit(kmerShape, begin(text));
-//
-//            uint8_t left = threshold;
-//            uint8_t possible = length(text) - length(kmerShape) + 1;
-//            auto it = begin(text);
-//            uint64_t kmerHash = 0;
-//            for (uint8_t i = 0; left > 0 && (possible - i) > left ; ++i)
-//            {
-//                kmerHash = hashNext(kmerShape, it);
-////                getNHashValues(hashValues, kmerHash);
-//                if(containsKmer(kmerHash))
-//                    --left;
-//                ++it;
-//            }
-//            return (left == 0);
-//        }
-//
-//
-//        bool containsNKmers(TString const & fwd, TString const & rev, uint32_t const & threshold) const
-//        {
-//            if(containsNKmers(fwd, threshold))
-//                return true;
-//            else if(containsNKmers(rev, threshold))
-//                return true;
-//            return false;
-//        }
-//
-//        uint32_t kmerCount(TString const & text)
-//        {
-//            TShape kmerShape;
-//            hashInit(kmerShape, begin(text));
-//            uint32_t found = 0;
-//            for (unsigned i = 0; i < length(text) - length(kmerShape) + 1 ; ++i)
-//            {
-//                uint64_t kmerHash = hashNext(kmerShape, begin(text) + i);
-//                std::vector<uint64_t> hashValues(N_HASH);
-//                getNHashValues(hashValues, kmerHash);
-//                if(containsKmer(kmerHash))
-//                    ++found;
-//            }
-//            return found ;
-//        }
-//
-//
-//    private:
-//        void getNHashValues(std::vector<uint64_t> & hashValues, uint64_t & kmerHash)
-//        {
-//            uint64_t tmp = 0;
-//            for(uint8_t i = 0; i < N_HASH ; i++)
-//            {
-//                tmp = kmerHash * (i ^ KMER_SIZE * _seedValue);
-//                tmp ^= tmp >> _shiftValue;
-//                hashValues[i] = tmp;
-//            }
-//        }
-//
-//        void insertKmer(std::vector<uint64_t> & hashValues)
-//        {
-//            for(uint8_t i = 0; i < N_HASH ; i++)
-//                assignValue(_filterFile, (hashValues[i] % SIZE), true);
-//        }
-//
-//        void insertKmer(uint64_t & kmerHash)
-//        {
-//            uint64_t tmp = 0;
-//            for(uint8_t i = 0; i < N_HASH ; i++)
-//            {
-//                tmp = kmerHash * (i ^ KMER_SIZE * _seedValue);
-//                tmp ^= tmp >> _shiftValue;
-//                assignValue(_filterFile, (tmp % SIZE), true);
-//            }
-//        }
-//
-//        inline bool containsKmer(uint64_t & kmerHash) const
-//        {
-//            uint64_t tmp = 0;
-//            for(uint8_t i = 0; i < N_HASH ; i++)
-//            {
-//                tmp = kmerHash * (_preCalcValues[i]);
-//                tmp ^= tmp >> _shiftValue;
-//                if(!_filterFile[(tmp % SIZE)])
-//                    return false;
-//            }
-//            return true;
-//        }
-//
-//        bool containsKmer(std::vector<uint64_t> & hashValues)
-//        {
-//            for(uint8_t i = 0; i < N_HASH ; i++)
-//                if(!_filterFile[(hashValues[i] % SIZE)])
-//                    return false;
-//            return true;
-//        }
-//
-//        void _addKmers(TString const & text)
-//        {
-//            TShape kmerShape;
-//            hashInit(kmerShape, begin(text));
-//
-//            for (uint32_t i = 0; i < length(text) - length(kmerShape) + 1; ++i)
-//            {
-//                uint64_t kmerHash = hashNext(kmerShape, begin(text) + i);
-//                std::vector<uint64_t> hashValues(N_HASH);
-//                getNHashValues(hashValues, kmerHash);
-//                insertKmer(hashValues);
-//            }
-//        }
-//
-//        inline void _initPreCalcValues()
-//        {
-//            for(uint8_t i = 0; i < N_HASH ; i++)
-//            {
-//                _preCalcValues.push_back(i ^ KMER_SIZE * _seedValue);
-//            }
-//        }
-//        void openNewFile(const char *fileName)
-//        {
-//            seqan::open(_filterFile, fileName, OPEN_RDWR | OPEN_CREATE);
-//            reserve(_filterFile, SIZE, Exact());
-//            resize(_filterFile, SIZE, false);
-//        }
-//        std::vector<uint64_t> _preCalcValues = {};
-//        uint64_t const _shiftValue = 27;
-//        uint64_t const _seedValue = 0x90b45d39fb6da1fa;
-//        String<bool, Packed<MMap<> > > _filterFile;
-//    };
-//}
 
 // ============================================================================
 // Functions
