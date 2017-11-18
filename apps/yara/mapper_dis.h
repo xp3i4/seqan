@@ -55,7 +55,7 @@ public:
     uint32_t                numberOfBins = 5;
     uint32_t                currentBinNo = 0;
     std::vector<uint32_t>   contigOffsets;
-    std::vector<uint32_t>   origReadIdMap;
+    std::vector<std::vector<uint32_t>>   origReadIdMap;
     std::map<uint32_t, String<CigarElement<> > > cigarSet;
 
     uint32_t getContigOffsets()
@@ -114,7 +114,7 @@ inline void copyMatches(Mapper<TSpec, TMainConfig> & mainMapper, Mapper<TSpec, T
     {
         TMatch currentMatch;
         uint32_t readId         = childMapper.matchesByCoord[i].readId;
-        uint32_t origRevReadId  = disOptions.origReadIdMap[readId];
+        uint32_t origRevReadId  = disOptions.origReadIdMap[disOptions.currentBinNo][readId];
 
         currentMatch.readId        = origRevReadId;
         currentMatch.contigId      = childMapper.matchesByCoord[i].contigId + disOptions.getContigOffsets();
@@ -149,7 +149,7 @@ inline void copyCigars(Mapper<TSpec, TMainConfig> & mainMapper, Mapper<TSpec, TC
     {
         TMatch currentMatch = childMapper.primaryMatches[i];
         uint32_t readId         = currentMatch.readId;
-        uint32_t origRevReadId  = disOptions.origReadIdMap[readId];
+        uint32_t origRevReadId  = disOptions.origReadIdMap[disOptions.currentBinNo][readId];
         
         if(getMinErrors(mainMapper.ctx, origRevReadId) == currentMatch.errors)
         {
@@ -278,7 +278,7 @@ inline void filterLoadReads(Mapper<TSpec, TConfig> & me, Mapper<TSpec, TMainConf
 //        if(bf.containsNKmers(mainMapper.reads.seqs[i], mainMapper.reads.seqs[i + numReads], threshold))
         {
             appendValue(me.reads.seqs, mainMapper.reads.seqs[i]);
-            disOptions.origReadIdMap.push_back(i);
+            disOptions.origReadIdMap[disOptions.currentBinNo].push_back(i);
        }
     }
 
@@ -286,9 +286,9 @@ inline void filterLoadReads(Mapper<TSpec, TConfig> & me, Mapper<TSpec, TMainConf
 
     for (uint32_t i = 0; i< numFilteredReads; ++i)
     {
-        uint32_t orgId = disOptions.origReadIdMap[i];
+        uint32_t orgId = disOptions.origReadIdMap[disOptions.currentBinNo][i];
         appendValue(me.reads.seqs, mainMapper.reads.seqs[orgId + numReads]);
-        disOptions.origReadIdMap.push_back(orgId + numReads);
+        disOptions.origReadIdMap[disOptions.currentBinNo].push_back(orgId + numReads);
     }
 //    std::cout << "getReadsCount(me.reads.seqs) "<< getReadsCount(me.reads.seqs) << "\n";
 //    std::cout << "getReadSeqsCount(me.reads.seqs) "<< getReadSeqsCount(me.reads.seqs) << "\n";
@@ -716,11 +716,44 @@ inline void runDisMapper(Mapper<TSpec, TConfig> & mainMapper, DisOptions & disOp
         uint32_t avgReadLen = lengthSum( mainMapper.reads.seqs) / (numReads * 2);
         uint8_t threshold = disOptions.getThreshold(avgReadLen);
 
-        std::vector<bool> whichBinsV(64, false);
-        for (uint32_t i = 0; i < numReads; ++i)
+//        uint8_t batchSize = numReads/me.options.threadsCount;
+        uint32_t numThr = numReads/disOptions.threadsCount;
+//        uint32_t numThr = 8;
+        uint32_t batchSize = numReads/numThr;
+        if(batchSize * numThr < numReads) ++batchSize;
+
+        Semaphore thread_limiter(4);
+        std::vector<std::future<void>> tasks;
+
+        std::vector<std::vector<std::vector<uint32_t> > > selectedReadsVec;
+        selectedReadsVec.resize(numThr);
+
+        for (uint32_t taskNo = 0; taskNo < numThr; ++taskNo)
         {
-            whichBinsV = bf.whichBins(mainMapper.reads.seqs[i], threshold);
-            std::cout << whichBinsV << std::endl;
+            tasks.emplace_back(std::async([=, &thread_limiter, &mainMapper, &selectedReadsVec] {
+                selectedReadsVec[taskNo].resize(disOptions.numberOfBins);
+                std::vector<bool> whichBinsV(disOptions.numberOfBins, false);
+                for (uint32_t readID = taskNo*batchSize; readID < numReads && readID < (taskNo +1) * batchSize; ++readID)
+                {
+                    whichBinsV = bf.whichBins(mainMapper.reads.seqs[readID], threshold);
+                    for (uint32_t binNo = 0; binNo < disOptions.numberOfBins; ++binNo)
+                    {
+                        if(whichBinsV[binNo])
+                            selectedReadsVec[taskNo][binNo].push_back(readID);
+                    }
+                }
+            }));
+        }
+        for (auto &&task : tasks)
+        {
+            task.get();
+        }
+        for (uint32_t taskNo = 0; taskNo < numThr; ++taskNo)
+        {
+            for (uint32_t binNo = 0; binNo < disOptions.numberOfBins; ++binNo)
+            {
+                std::cout << "bin " << binNo << ":" << selectedReadsVec[taskNo][binNo] << std::endl;
+            }
         }
 //        initReadsContext(mainMapper, mainMapper.reads.seqs);
 //        setHost(mainMapper.cigarSet, mainMapper.cigars);
