@@ -43,6 +43,10 @@
 // SeqAn headers
 // ----------------------------------------------------------------------------
 
+#include <mutex>
+#include <condition_variable>
+#include <future>
+#include <thread>
 #include <seqan/basic.h>
 #include <seqan/sequence.h>
 #include <seqan/index.h>
