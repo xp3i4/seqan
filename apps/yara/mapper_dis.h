@@ -674,13 +674,11 @@ inline void openOutputFile(Mapper<TSpec, TConfig> & mainMapper, DisOptions & dis
 
 template<typename T>
 std::ostream& operator<<(std::ostream& s, const std::vector<T>& v) {
-    s.put('[');
     char comma[3] = {'\0', ' ', '\0'};
     for (const auto& e : v) {
         s << comma << e;
         comma[0] = ',';
     }
-    return s << ']';
 }
 
 template <typename TSpec, typename TConfig>
@@ -703,19 +701,9 @@ inline void runDisMapper(Mapper<TSpec, TConfig> & mainMapper, DisOptions & disOp
     CharString bfFile = disOptions.superContigsIndicesFile;
     append(bfFile, "bloom.bf");
 
-    SeqAnBloomFilter<64, 20, 4, 1024000000> bf(toCString(bfFile));
+    SeqAnBloomFilter<64, 20, 4, 40960000000> bf(toCString(bfFile));
 
     loadReads(mainMapper);
-    uint32_t numReads = getReadsCount( mainMapper.reads.seqs);
-    uint32_t avgReadLen = lengthSum( mainMapper.reads.seqs) / (numReads * 2);
-    uint8_t threshold = disOptions.getThreshold(avgReadLen);
-
-    std::vector<bool> whichBinsV(64, false);
-    for (uint32_t i = 0; i < numReads; ++i)
-    {
-        whichBinsV = bf.whichBins(mainMapper.reads.seqs[i], threshold);
-//        std::cout << whichBinsV << std::endl;
-    }
 
 
     // Process reads in blocks.
@@ -724,11 +712,22 @@ inline void runDisMapper(Mapper<TSpec, TConfig> & mainMapper, DisOptions & disOp
     // classify reads here
     // create mappers and run them on subsets
     // Process reads in blocks.
-//    while (true)
-//    {
-//        if (mainMapper.options.verbose > 1) printRuler(std::cerr);
-//        loadReads(mainMapper);
-//        if (empty(mainMapper.reads.seqs)) break;
+    while (true)
+    {
+        if (mainMapper.options.verbose > 1) printRuler(std::cerr);
+        loadReads(mainMapper);
+        if (empty(mainMapper.reads.seqs)) break;
+
+        uint32_t numReads = getReadsCount( mainMapper.reads.seqs);
+        uint32_t avgReadLen = lengthSum( mainMapper.reads.seqs) / (numReads * 2);
+        uint8_t threshold = disOptions.getThreshold(avgReadLen);
+
+        std::vector<bool> whichBinsV(64, false);
+        for (uint32_t i = 0; i < numReads; ++i)
+        {
+            whichBinsV = bf.whichBins(mainMapper.reads.seqs[i], threshold);
+            std::cout << whichBinsV << std::endl;
+        }
 //        initReadsContext(mainMapper, mainMapper.reads.seqs);
 //        setHost(mainMapper.cigarSet, mainMapper.cigars);
 //        for (uint32_t i=0; i < disOptions.numberOfBins; ++i)
@@ -748,8 +747,8 @@ inline void runDisMapper(Mapper<TSpec, TConfig> & mainMapper, DisOptions & disOp
 //        disOptions.cigarSet.clear();
 //        clearMatches(mainMapper);
 //        clearAlignments(mainMapper);
-//        clearReads(mainMapper);
-//    }
+        clearReads(mainMapper);
+    }
     closeReads(mainMapper);
     closeOutputFile(mainMapper);
     stop(timer);

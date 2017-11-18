@@ -36,13 +36,48 @@
 #define APP_YARA_MISC_OPTIONS_DIS_H_
 
 using namespace seqan;
+
+std::mutex mtx;
+
+using namespace seqan;
+class Semaphore
+{
+    std::mutex m;
+    std::condition_variable cv;
+    int count;
+
+public:
+    Semaphore(int n) : count{n} {}
+    void notify()
+    {
+        std::unique_lock<std::mutex> l(m);
+        ++count;
+        cv.notify_one();
+    }
+    void wait()
+    {
+        std::unique_lock<std::mutex> l(m);
+        cv.wait(l, [this]{ return count!=0; });
+        --count;
+    }
+};
+
+class Critical_section
+{
+    Semaphore &s;
+public:
+    Critical_section(Semaphore &ss) : s{ss} { s.wait(); }
+    ~Critical_section() { s.notify(); }
+};
+
+
 namespace seqan
 {
     static const uint8_t bitsPerChar = 0x08;
     static const unsigned char bitMask[0x08] = { 0x01, 0x02, 0x04, 0x08, 0x10, 0x20,
         0x40, 0x80 };
 
-    template<uint8_t BINS_SIZE, uint8_t KMER_SIZE, uint8_t N_HASH, uint32_t SIZE, typename TString=Dna5String>
+    template<uint8_t BINS_SIZE, uint8_t KMER_SIZE, uint8_t N_HASH, uint64_t SIZE, typename TString=Dna5String>
     class SeqAnBloomFilter
     {
     public:

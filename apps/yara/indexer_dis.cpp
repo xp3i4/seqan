@@ -152,7 +152,7 @@ struct YaraIndexer
 //}
 
 
-inline void addBloomFilter (Options & options, SeqAnBloomFilter<64, 20, 4, 1024000000> & bf, uint8_t const binNo)
+inline void addBloomFilter (Options & options, SeqAnBloomFilter<64, 20, 4, 40960000000> & bf, uint8_t const binNo)
 {
     CharString fasta_file = options.contigsFile;
 
@@ -454,17 +454,31 @@ int main(int argc, char const ** argv)
     {
         CharString filter_file = options.contigsIndexFile;
         append(filter_file, "bloom.bf");
-        SeqAnBloomFilter<64, 20, 4, 1024000000> bf;
-        for (uint32_t i = 0; i < options.numberOfBins; ++i)
+        SeqAnBloomFilter<64, 20, 4, 40960000000> bf;
+
+        Semaphore thread_limiter(8);
+        std::vector<std::future<void>> tasks;
+
+        for (uint32_t taskNo = 0; taskNo < options.numberOfBins/8; ++taskNo)
         {
-            Options options_i = options;
-            appendFileName(options_i.contigsFile, options.contigsFile, i);
-            append(options_i.contigsFile, ".fna");
+            tasks.emplace_back(std::async([=, &thread_limiter, &bf] {
 
-            appendFileName(options_i.contigsIndexFile, options.contigsIndexFile, i);
-            addBloomFilter(options_i, bf, i);
+                for (uint32_t i = taskNo*8; i < taskNo*8 + 8; ++i)
+                {
+                    Options options_i = options;
+                    appendFileName(options_i.contigsFile, options.contigsFile, i);
+                    append(options_i.contigsFile, ".fna");
 
-//            runYaraIndexer(options_i);
+                    appendFileName(options_i.contigsIndexFile, options.contigsIndexFile, i);
+                    addBloomFilter(options_i, bf, i);
+                    std::cout << "Finished with bin : " << i << std::endl;
+                    //            runYaraIndexer(options_i);
+                }
+            }));
+        }
+        for (auto &&task : tasks)
+        {
+            task.get();
         }
         bf.save(toCString(filter_file));
     }
