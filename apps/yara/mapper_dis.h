@@ -679,6 +679,7 @@ std::ostream& operator<<(std::ostream& s, const std::vector<T>& v) {
         s << comma << e;
         comma[0] = ',';
     }
+    return s;
 }
 
 template <typename TSpec, typename TConfig>
@@ -694,17 +695,10 @@ inline void runDisMapper(Mapper<TSpec, TConfig> & mainMapper, DisOptions & disOp
     openOutputFile(mainMapper, disOptions);
     openReads(mainMapper);
 
-
-
-
-
     CharString bfFile = disOptions.superContigsIndicesFile;
     append(bfFile, "bloom.bf");
 
     SeqAnBloomFilter<64, 20, 4, 40960000000> bf(toCString(bfFile));
-
-    loadReads(mainMapper);
-
 
     // Process reads in blocks.
     // load reads here
