@@ -717,7 +717,7 @@ inline void runDisMapper(Mapper<TSpec, TConfig> & mainMapper, DisOptions & disOp
         uint8_t threshold = disOptions.getThreshold(avgReadLen);
 
 //        uint8_t batchSize = numReads/me.options.threadsCount;
-        uint32_t numThr = numReads/disOptions.threadsCount;
+        uint32_t numThr = disOptions.threadsCount;
 //        uint32_t numThr = 8;
         uint32_t batchSize = numReads/numThr;
         if(batchSize * numThr < numReads) ++batchSize;
