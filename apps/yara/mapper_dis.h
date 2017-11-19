@@ -705,10 +705,10 @@ inline void runDisMapper(Mapper<TSpec, TConfig> & mainMapper, DisOptions & disOp
         uint32_t avgReadLen = lengthSum( mainMapper.reads.seqs) / (numReads * 2);
         uint8_t threshold = disOptions.getThreshold(avgReadLen);
 
+        std::vector<bool> whichBinsV(disOptions.numberOfBins, false);
         disOptions.origReadIdMap.resize(disOptions.numberOfBins);
         for (uint32_t readID = 0; readID < numReads; ++readID)
         {
-            std::vector<bool> whichBinsV(disOptions.numberOfBins, false);
             whichBinsV = bf.whichBins(mainMapper.reads.seqs[readID], threshold);
             for (uint32_t binNo = 0; binNo < disOptions.numberOfBins; ++binNo)
             {
