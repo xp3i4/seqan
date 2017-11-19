@@ -671,17 +671,6 @@ inline void openOutputFile(Mapper<TSpec, TConfig> & mainMapper, DisOptions & dis
 // ----------------------------------------------------------------------------
 // Function runDisMapper()
 // ----------------------------------------------------------------------------
-
-template<typename T>
-std::ostream& operator<<(std::ostream& s, const std::vector<T>& v) {
-    char comma[3] = {'\0', ' ', '\0'};
-    for (const auto& e : v) {
-        s << comma << e;
-        comma[0] = ',';
-    }
-    return s;
-}
-
 template <typename TSpec, typename TConfig>
 inline void runDisMapper(Mapper<TSpec, TConfig> & mainMapper, DisOptions & disOptions)
 {
@@ -699,6 +688,7 @@ inline void runDisMapper(Mapper<TSpec, TConfig> & mainMapper, DisOptions & disOp
     append(bfFile, "bloom.bf");
 
     SeqAnBloomFilter<64, 20, 4, 40960000000> bf(toCString(bfFile));
+    disOptions.origReadIdMap.resize(disOptions.numberOfBins);
 
     // Process reads in blocks.
     // load reads here
@@ -716,44 +706,20 @@ inline void runDisMapper(Mapper<TSpec, TConfig> & mainMapper, DisOptions & disOp
         uint32_t avgReadLen = lengthSum( mainMapper.reads.seqs) / (numReads * 2);
         uint8_t threshold = disOptions.getThreshold(avgReadLen);
 
-//        uint8_t batchSize = numReads/me.options.threadsCount;
-        uint32_t numThr = disOptions.threadsCount;
-//        uint32_t numThr = 8;
-        uint32_t batchSize = numReads/numThr;
-        if(batchSize * numThr < numReads) ++batchSize;
-
-        Semaphore thread_limiter(4);
-        std::vector<std::future<void>> tasks;
-
-        std::vector<std::vector<std::vector<uint32_t> > > selectedReadsVec;
-        selectedReadsVec.resize(numThr);
-
-        for (uint32_t taskNo = 0; taskNo < numThr; ++taskNo)
+        std::vector<bool> whichBinsV(disOptions.numberOfBins, false);
+        for (uint32_t readID = 0; readID < numReads; ++readID)
         {
-            tasks.emplace_back(std::async([=, &thread_limiter, &mainMapper, &selectedReadsVec] {
-                selectedReadsVec[taskNo].resize(disOptions.numberOfBins);
-                std::vector<bool> whichBinsV(disOptions.numberOfBins, false);
-                for (uint32_t readID = taskNo*batchSize; readID < numReads && readID < (taskNo +1) * batchSize; ++readID)
-                {
-                    whichBinsV = bf.whichBins(mainMapper.reads.seqs[readID], threshold);
-                    for (uint32_t binNo = 0; binNo < disOptions.numberOfBins; ++binNo)
-                    {
-                        if(whichBinsV[binNo])
-                            selectedReadsVec[taskNo][binNo].push_back(readID);
-                    }
-                }
-            }));
-        }
-        for (auto &&task : tasks)
-        {
-            task.get();
-        }
-        for (uint32_t taskNo = 0; taskNo < numThr; ++taskNo)
-        {
+            whichBinsV = bf.whichBins(mainMapper.reads.seqs[readID], threshold);
             for (uint32_t binNo = 0; binNo < disOptions.numberOfBins; ++binNo)
             {
-                std::cout << "bin " << binNo << ":" << selectedReadsVec[taskNo][binNo] << std::endl;
+                if(whichBinsV[binNo])
+                    disOptions.origReadIdMap[binNo].push_back(readID);
             }
+        }
+
+        for (uint32_t binNo = 0; binNo < disOptions.numberOfBins; ++binNo)
+        {
+            std::cout << "bin " << binNo << ":" << disOptions.origReadIdMap[binNo] << std::endl;
         }
 //        initReadsContext(mainMapper, mainMapper.reads.seqs);
 //        setHost(mainMapper.cigarSet, mainMapper.cigars);
@@ -775,6 +741,7 @@ inline void runDisMapper(Mapper<TSpec, TConfig> & mainMapper, DisOptions & disOp
 //        clearMatches(mainMapper);
 //        clearAlignments(mainMapper);
         clearReads(mainMapper);
+        disOptions.origReadIdMap.clear();
     }
     closeReads(mainMapper);
     closeOutputFile(mainMapper);

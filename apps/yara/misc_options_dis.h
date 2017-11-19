@@ -119,7 +119,7 @@ namespace seqan
 
             long int lCurPos = ftell(file);
             fseek(file, 0, 2);
-            size_t fileSize = ftell(file);
+            uint64_t fileSize = ftell(file);
             fseek(file, lCurPos, 0);
             if (fileSize != m_sizeInBytes)
             {
@@ -129,7 +129,7 @@ namespace seqan
                 exit(1);
             }
 
-            size_t countRead = std::fread(_filterFile, fileSize, 1, file);
+            uint64_t countRead = std::fread(_filterFile, fileSize, 1, file);
             if (countRead != 1 && fclose(file) != 0)
             {
                 std::cerr << "file \"" << fileName << "\" could not be read." << std::endl;
@@ -184,19 +184,32 @@ namespace seqan
         inline void _filProfileMatrix(std::vector<std::vector<uint8_t> >  & profileMatrix,
                                       std::vector<uint64_t> const & kmerHashes) const
         {
+
+            Semaphore thread_limiter(8);
+            std::vector<std::future<void>> tasks;
+
             for(uint8_t k = 0; k < kmerHashes.size() ; k++)
             {
-                uint64_t tmp = 0;
-                for(uint8_t i = 0; i < N_HASH ; i++)
-                {
-                    tmp = kmerHashes[k] * (_preCalcValues[i]);
-                    tmp ^= tmp >> _shiftValue;
-                    uint64_t normalizedValue = (tmp % m_sizeInHashes) * BINS_SIZE;
-                    for(uint8_t j = 0; j < m_binSizeInChars ; j++)
+                tasks.emplace_back(std::async([=, &thread_limiter, &profileMatrix] {
+                    uint64_t tmp = 0;
+                    std::vector<uint8_t> tmpProfile(m_binSizeInChars, 255);
+                    for(uint8_t i = 0; i < N_HASH ; i++)
                     {
-                        profileMatrix[k][j] &= _filterFile[normalizedValue / bitsPerChar + j];
+                        tmp = kmerHashes[k] * (_preCalcValues[i]);
+                        tmp ^= tmp >> _shiftValue;
+                        uint64_t normalizedValue = (tmp % m_sizeInHashes) * BINS_SIZE;
+                        for(uint8_t j = 0; j < m_binSizeInChars ; j++)
+                        {
+                            tmpProfile[j] &= _filterFile[normalizedValue / bitsPerChar + j];
+                            ++normalizedValue;
+                        }
                     }
-                }
+                    profileMatrix[k] = std::move(tmpProfile);
+                }));
+            }
+            for (auto &&task : tasks)
+            {
+                task.get();
             }
         }
 
@@ -233,10 +246,13 @@ namespace seqan
             TShape kmerShape;
             hashInit(kmerShape, begin(text));
 
-            for (uint32_t i = 0; i < length(text) - length(kmerShape) + 1; ++i)
+            uint8_t possible = length(text) - length(kmerShape) + 1;
+            auto it = begin(text);
+            for (uint8_t i = 0; i < possible; ++i)
             {
-                uint64_t kmerHash = hashNext(kmerShape, begin(text) + i);
+                uint64_t kmerHash = hashNext(kmerShape, it);
                 insertKmer(kmerHash, binNo);
+                ++it;
             }
         }
 
@@ -250,9 +266,9 @@ namespace seqan
         }
 
 
-        size_t                  m_sizeInBytes;
-        size_t                  m_sizeInHashes;
-        size_t                  m_binSizeInChars;
+        uint64_t                  m_sizeInBytes;
+        uint64_t                  m_sizeInHashes;
+        uint64_t                  m_binSizeInChars;
         uint8_t*                _filterFile;
         std::vector<uint64_t>   _preCalcValues = {};
         uint64_t const          _shiftValue = 27;
@@ -276,6 +292,17 @@ inline void appendFileName(CharString & target, uint32_t const i)
 {
     CharString source = target;
     appendFileName(target, source, i);
+}
+
+
+template<typename T>
+std::ostream& operator<<(std::ostream& s, const std::vector<T>& v) {
+    char comma[3] = {'\0', ' ', '\0'};
+    for (const auto& e : v) {
+        s << comma << e;
+        comma[0] = ',';
+    }
+    return s;
 }
 
 #endif  // #ifndef APP_YARA_MISC_OPTIONS_DIS_H_
