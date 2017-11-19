@@ -74,15 +74,14 @@ public:
 namespace seqan
 {
     static const uint8_t bitsPerChar = 0x08;
-    static const unsigned char bitMask[0x08] = { 0x01, 0x02, 0x04, 0x08, 0x10, 0x20,
-        0x40, 0x80 };
+    static const uint8_t bitMask[0x08] = { 0x01, 0x02, 0x04, 0x08, 0x10, 0x20, 0x40, 0x80 };
 
     template<uint8_t BINS_SIZE, uint8_t KMER_SIZE, uint8_t N_HASH, uint64_t SIZE, typename TString=Dna5String>
     class SeqAnBloomFilter
     {
     public:
 
-        typedef Shape<Dna5, UngappedShape<KMER_SIZE> > TShape;
+        typedef Shape<Dna, UngappedShape<KMER_SIZE> > TShape;
 
         bool save(const char *fileName) const
         {
@@ -117,7 +116,7 @@ namespace seqan
                 exit(1);
             }
 
-            long int lCurPos = ftell(file);
+            uint64_t lCurPos = ftell(file);
             fseek(file, 0, 2);
             uint64_t fileSize = ftell(file);
             fseek(file, lCurPos, 0);
@@ -225,7 +224,7 @@ namespace seqan
             m_sizeInBytes = SIZE / bitsPerChar;
             m_sizeInHashes = SIZE / BINS_SIZE;
             m_binSizeInChars = BINS_SIZE/bitsPerChar;
-            _filterFile = new unsigned char[m_sizeInBytes];
+            _filterFile = new uint8_t[m_sizeInBytes];
         }
 
         void insertKmer(uint64_t & kmerHash, uint8_t const & binNo)

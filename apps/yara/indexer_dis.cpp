@@ -454,6 +454,21 @@ int main(int argc, char const ** argv)
     if (res != ArgumentParser::PARSE_OK)
         return res == ArgumentParser::PARSE_ERROR;
 
+//    SeqAnBloomFilter<16, 20, 4, 4096000> bf;
+//    Dna5String seq1 = "ANGNNNTTGTGACGCTTATTTGAAGTTATCCACTTATACACATAATTTCTCGCAAAAATTGTGGATAACACATGCGCTAT";
+//    Dna5String seq2 = "ACACACAGTTATTCAAAATTTAACAACATATTCACAGCCATTTGACATCACTTGGAGTTAAAAAGTATAATTATGTGGAT";
+//    Dna5String que1 = "AAGAAATTGTGACGCTTATTTGAAGT";
+//    Dna5String que2 = "ACNCACAGTTATTCAAAATTTAAAAT";
+//
+//    for (uint8_t i=0; i<8; ++i)
+//    {
+//        bf.addKmers(seq1, 2*i);
+//        bf.addKmers(seq2, 2*i+1);
+//    }
+//
+//    std::cout << bf.whichBins(que1, 5) << std::endl;
+//    std::cout << bf.whichBins(que2, 4) << std::endl;
+
     try
     {
         CharString filter_file = options.contigsIndexFile;
