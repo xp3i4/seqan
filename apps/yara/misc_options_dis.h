@@ -116,9 +116,9 @@ namespace seqan
                 exit(1);
             }
 
-            uint64_t lCurPos = ftell(file);
+            long int lCurPos = ftell(file);
             fseek(file, 0, 2);
-            uint64_t fileSize = ftell(file);
+            size_t fileSize = ftell(file);
             fseek(file, lCurPos, 0);
             if (fileSize != m_sizeInBytes)
             {
@@ -128,7 +128,7 @@ namespace seqan
                 exit(1);
             }
 
-            uint64_t countRead = std::fread(_filterFile, fileSize, 1, file);
+            size_t countRead = std::fread(_filterFile, fileSize, 1, file);
             if (countRead != 1 && fclose(file) != 0)
             {
                 std::cerr << "file \"" << fileName << "\" could not be read." << std::endl;
@@ -244,13 +244,10 @@ namespace seqan
             TShape kmerShape;
             hashInit(kmerShape, begin(text));
 
-            uint8_t possible = length(text) - length(kmerShape) + 1;
-            auto it = begin(text);
-            for (uint8_t i = 0; i < possible; ++i)
+            for (uint32_t i = 0; i < length(text) - length(kmerShape) + 1; ++i)
             {
-                uint64_t kmerHash = hashNext(kmerShape, it);
+                uint64_t kmerHash = hashNext(kmerShape, begin(text) + i);
                 insertKmer(kmerHash, binNo);
-                ++it;
             }
         }
 
@@ -264,9 +261,9 @@ namespace seqan
         }
 
 
-        uint64_t                  m_sizeInBytes;
-        uint64_t                  m_sizeInHashes;
-        uint64_t                  m_binSizeInChars;
+        size_t                  m_sizeInBytes;
+        size_t                  m_sizeInHashes;
+        size_t                  m_binSizeInChars;
         uint8_t*                _filterFile;
         std::vector<uint64_t>   _preCalcValues = {};
         uint64_t const          _shiftValue = 27;

@@ -671,6 +671,7 @@ inline void openOutputFile(Mapper<TSpec, TConfig> & mainMapper, DisOptions & dis
 // ----------------------------------------------------------------------------
 // Function runDisMapper()
 // ----------------------------------------------------------------------------
+
 template <typename TSpec, typename TConfig>
 inline void runDisMapper(Mapper<TSpec, TConfig> & mainMapper, DisOptions & disOptions)
 {
@@ -740,8 +741,8 @@ inline void runDisMapper(Mapper<TSpec, TConfig> & mainMapper, DisOptions & disOp
 //        disOptions.cigarSet.clear();
 //        clearMatches(mainMapper);
 //        clearAlignments(mainMapper);
-        clearReads(mainMapper);
         disOptions.origReadIdMap.clear();
+        clearReads(mainMapper);
     }
     closeReads(mainMapper);
     closeOutputFile(mainMapper);

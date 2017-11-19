@@ -156,7 +156,7 @@ struct YaraIndexer
 //}
 
 
-inline void addBloomFilter (Options & options, SeqAnBloomFilter<64, 20, 4, 40960000000> & bf, uint8_t const binNo)
+inline void addBloomFilter (Options & options, SeqAnBloomFilter<16, 20, 4, 40960000000> & bf, uint8_t const binNo)
 {
     CharString fasta_file = options.contigsFile;
 
@@ -428,8 +428,8 @@ void saveIndex(YaraIndexer<TSpec, TConfig> & me)
 // Function runYaraIndexer()
 // ----------------------------------------------------------------------------
 
-void runYaraIndexer(Options & options)
-{
+//void runYaraIndexer(Options & options)
+//{
 //    saveBloomFilter(options);
 //    YaraIndexer<> indexer(options);
 //    loadContigs(indexer);
@@ -437,7 +437,7 @@ void runYaraIndexer(Options & options)
 //    setContigsLimits(options, indexer.contigs.seqs);
 //    saveContigs(indexer);
 //    saveIndex(indexer);
-}
+//}
 
 // ----------------------------------------------------------------------------
 // Function main()
@@ -454,26 +454,11 @@ int main(int argc, char const ** argv)
     if (res != ArgumentParser::PARSE_OK)
         return res == ArgumentParser::PARSE_ERROR;
 
-//    SeqAnBloomFilter<16, 20, 4, 4096000> bf;
-//    Dna5String seq1 = "ANGNNNTTGTGACGCTTATTTGAAGTTATCCACTTATACACATAATTTCTCGCAAAAATTGTGGATAACACATGCGCTAT";
-//    Dna5String seq2 = "ACACACAGTTATTCAAAATTTAACAACATATTCACAGCCATTTGACATCACTTGGAGTTAAAAAGTATAATTATGTGGAT";
-//    Dna5String que1 = "AAGAAATTGTGACGCTTATTTGAAGT";
-//    Dna5String que2 = "ACNCACAGTTATTCAAAATTTAAAAT";
-//
-//    for (uint8_t i=0; i<8; ++i)
-//    {
-//        bf.addKmers(seq1, 2*i);
-//        bf.addKmers(seq2, 2*i+1);
-//    }
-//
-//    std::cout << bf.whichBins(que1, 5) << std::endl;
-//    std::cout << bf.whichBins(que2, 4) << std::endl;
-
     try
     {
         CharString filter_file = options.contigsIndexFile;
         append(filter_file, "bloom.bf");
-        SeqAnBloomFilter<64, 20, 4, 40960000000> bf;
+        SeqAnBloomFilter<16, 20, 4, 40960000000> bf;
 
         Semaphore thread_limiter(8);
         std::vector<std::future<void>> tasks;
