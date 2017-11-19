@@ -200,7 +200,6 @@ namespace seqan
                         for(uint8_t j = 0; j < m_binSizeInChars ; j++)
                         {
                             tmpProfile[j] &= _filterFile[normalizedValue / bitsPerChar + j];
-                            ++normalizedValue;
                         }
                     }
                     profileMatrix[k] = std::move(tmpProfile);
