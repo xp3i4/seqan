@@ -688,7 +688,6 @@ inline void runDisMapper(Mapper<TSpec, TConfig> & mainMapper, DisOptions & disOp
     append(bfFile, "bloom.bf");
 
     SeqAnBloomFilter<64, 20, 4, 40960000000> bf(toCString(bfFile));
-    disOptions.origReadIdMap.resize(disOptions.numberOfBins);
 
     // Process reads in blocks.
     // load reads here
@@ -706,9 +705,10 @@ inline void runDisMapper(Mapper<TSpec, TConfig> & mainMapper, DisOptions & disOp
         uint32_t avgReadLen = lengthSum( mainMapper.reads.seqs) / (numReads * 2);
         uint8_t threshold = disOptions.getThreshold(avgReadLen);
 
-        std::vector<bool> whichBinsV(disOptions.numberOfBins, false);
+        disOptions.origReadIdMap.resize(disOptions.numberOfBins);
         for (uint32_t readID = 0; readID < numReads; ++readID)
         {
+            std::vector<bool> whichBinsV(disOptions.numberOfBins, false);
             whichBinsV = bf.whichBins(mainMapper.reads.seqs[readID], threshold);
             for (uint32_t binNo = 0; binNo < disOptions.numberOfBins; ++binNo)
             {
@@ -719,7 +719,7 @@ inline void runDisMapper(Mapper<TSpec, TConfig> & mainMapper, DisOptions & disOp
 
         for (uint32_t binNo = 0; binNo < disOptions.numberOfBins; ++binNo)
         {
-            std::cout << "bin " << binNo << ":" << disOptions.origReadIdMap[binNo] << std::endl;
+            std::cout << "bin " << binNo << ":" << disOptions.origReadIdMap[binNo].size() << std::endl;
         }
 //        initReadsContext(mainMapper, mainMapper.reads.seqs);
 //        setHost(mainMapper.cigarSet, mainMapper.cigars);
