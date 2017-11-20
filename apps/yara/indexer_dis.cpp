@@ -156,7 +156,7 @@ struct YaraIndexer
 //}
 
 
-inline void addBloomFilter (Options & options, SeqAnBloomFilter<16, 20, 4, 40960000000> & bf, uint8_t const binNo)
+inline void addBloomFilter (Options & options, SeqAnBloomFilter<64, 20, 4, 163840000000> & bf, uint8_t const binNo)
 {
     CharString fasta_file = options.contigsFile;
 
@@ -458,7 +458,7 @@ int main(int argc, char const ** argv)
     {
         CharString filter_file = options.contigsIndexFile;
         append(filter_file, "bloom.bf");
-        SeqAnBloomFilter<16, 20, 4, 40960000000> bf;
+        SeqAnBloomFilter<64, 20, 4, 163840000000> bf;
 
         Semaphore thread_limiter(8);
         std::vector<std::future<void>> tasks;

@@ -688,7 +688,7 @@ inline void runDisMapper(Mapper<TSpec, TConfig> & mainMapper, DisOptions & disOp
     CharString bfFile = disOptions.superContigsIndicesFile;
     append(bfFile, "bloom.bf");
 
-    SeqAnBloomFilter<64, 20, 4, 40960000000> bf(toCString(bfFile));
+    SeqAnBloomFilter<64, 20, 4, 163840000000> bf(toCString(bfFile));
 
     // Process reads in blocks.
     // load reads here
