@@ -300,11 +300,11 @@ inline void clasifyLoadedReads(Mapper<TSpec, TMainConfig>  & mainMapper, TSeqAnB
     {
         task.get();
     }
-
-    for (uint32_t binNo = 0; binNo < disOptions.numberOfBins; ++binNo)
-    {
-        std::cout << "bin " << binNo << ":" << disOptions.origReadIdMap[binNo].size() << std::endl;
-    }
+//
+//    for (uint32_t binNo = 0; binNo < disOptions.numberOfBins; ++binNo)
+//    {
+//        std::cout << "bin " << binNo << ":" << disOptions.origReadIdMap[binNo].size() << std::endl;
+//    }
 
     stop(mainMapper.timer);
     mainMapper.stats.loadReads += getValue(mainMapper.timer);
@@ -333,9 +333,9 @@ inline void loadFilteredReads(Mapper<TSpec, TConfig> & me, Mapper<TSpec, TMainCo
         appendValue(me.reads.seqs, mainMapper.reads.seqs[orgId + numReads]);
         disOptions.origReadIdMap[disOptions.currentBinNo].push_back(orgId + numReads);
     }
-    std::cout << "getReadsCount(me.reads.seqs) "<< getReadsCount(me.reads.seqs) << "\n";
-    std::cout << "getReadSeqsCount(me.reads.seqs) "<< getReadSeqsCount(me.reads.seqs) << "\n";
-    std::cout << "disOptions.origReadIdMap.size() "<< disOptions.origReadIdMap.size() << "\n";
+//    std::cout << "getReadsCount(me.reads.seqs) "<< getReadsCount(me.reads.seqs) << "\n";
+//    std::cout << "getReadSeqsCount(me.reads.seqs) "<< getReadSeqsCount(me.reads.seqs) << "\n";
+//    std::cout << "disOptions.origReadIdMap.size() "<< disOptions.origReadIdMap.size() << "\n";
 }
 
 // ----------------------------------------------------------------------------
