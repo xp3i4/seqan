@@ -256,46 +256,86 @@ inline void maskReads(Mapper<TSpec, TConfig> & me, std::vector<bool> const & mas
 }
 
 // ----------------------------------------------------------------------------
-// Function filterLoadReads()
+// Function clasifyLoadedReads()
 // ----------------------------------------------------------------------------
-template <typename TSpec, typename TConfig, typename TMainConfig>
-inline void filterLoadReads(Mapper<TSpec, TConfig> & me, Mapper<TSpec, TMainConfig>  & mainMapper, DisOptions & disOptions)
+template <typename TSpec, typename TMainConfig, typename TSeqAnBloomFilter>
+inline void clasifyLoadedReads(Mapper<TSpec, TMainConfig>  & mainMapper, TSeqAnBloomFilter const & bf, DisOptions & disOptions)
 {
-    //replace with actual filters
-    uint32_t numReads = getReadsCount( mainMapper.reads.seqs);
-    uint32_t avgReadLen = lengthSum( mainMapper.reads.seqs) / (numReads * 2);
-    uint8_t threshold = disOptions.getThreshold(avgReadLen);
     start(mainMapper.timer);
-    CharString bfFile;
-    appendFileName(bfFile, disOptions.superContigsIndicesFile, disOptions.currentBinNo);
-    append(bfFile, ".bf");
 
-    SeqAnBloomFilter<8, 20, 4, 640000000> bf(toCString(bfFile));
-//    bf.open;
+    uint32_t numReads = getReadsCount( mainMapper.reads.seqs);
+    uint32_t avgReadLen = lengthSum(mainMapper.reads.seqs) / (numReads * 2);
+    uint8_t threshold = disOptions.getThreshold(avgReadLen);
 
-    for (uint32_t i = 0; i < numReads; ++i)
+    uint32_t numThr = disOptions.threadsCount;
+//    uint32_t numThr = 4;
+    uint32_t batchSize = numReads/numThr;
+    if(batchSize * numThr < numReads) ++batchSize;
+
+    std::vector<std::future<void>> tasks;
+
+    disOptions.origReadIdMap.clear();
+    disOptions.origReadIdMap.resize(disOptions.numberOfBins);
+
+    for (uint32_t taskNo = 0; taskNo < numThr; ++taskNo)
     {
-//        if(bf.containsNKmers(mainMapper.reads.seqs[i], mainMapper.reads.seqs[i + numReads], threshold))
-        {
-            appendValue(me.reads.seqs, mainMapper.reads.seqs[i]);
-            disOptions.origReadIdMap[disOptions.currentBinNo].push_back(i);
-       }
+        tasks.emplace_back(std::async([=, &mainMapper, &disOptions] {
+            std::vector<bool> whichBinsV(disOptions.numberOfBins, false);
+            for (uint32_t readID = taskNo*batchSize; readID < numReads && readID < (taskNo +1) * batchSize; ++readID)
+            {
+                whichBinsV = bf.whichBins(mainMapper.reads.seqs[readID], mainMapper.reads.seqs[readID + numReads], threshold);
+                for (uint32_t binNo = 0; binNo < disOptions.numberOfBins; ++binNo)
+                {
+                    if(whichBinsV[binNo])
+                    {
+                        mtx.lock();
+                        disOptions.origReadIdMap[binNo].push_back(readID);
+                        mtx.unlock();
+                    }
+                }
+            }
+        }));
+    }
+    for (auto &&task : tasks)
+    {
+        task.get();
     }
 
-    uint32_t numFilteredReads = disOptions.origReadIdMap.size();
+    for (uint32_t binNo = 0; binNo < disOptions.numberOfBins; ++binNo)
+    {
+        std::cout << "bin " << binNo << ":" << disOptions.origReadIdMap[binNo].size() << std::endl;
+    }
 
+    stop(mainMapper.timer);
+    mainMapper.stats.loadReads += getValue(mainMapper.timer);
+}
+
+
+// ----------------------------------------------------------------------------
+// Function loadFilteredReads()
+// ----------------------------------------------------------------------------
+template <typename TSpec, typename TConfig, typename TMainConfig>
+inline void loadFilteredReads(Mapper<TSpec, TConfig> & me, Mapper<TSpec, TMainConfig>  & mainMapper, DisOptions & disOptions)
+{
+    uint32_t numReads = getReadsCount( mainMapper.reads.seqs);
+    uint32_t numFilteredReads = disOptions.origReadIdMap[disOptions.currentBinNo].size();
+
+    //load forward reads
+    for (uint32_t i = 0; i< numFilteredReads; ++i)
+    {
+        uint32_t orgId = disOptions.origReadIdMap[disOptions.currentBinNo][i];
+        appendValue(me.reads.seqs, mainMapper.reads.seqs[orgId]);
+    }
+    //load reverse reads
     for (uint32_t i = 0; i< numFilteredReads; ++i)
     {
         uint32_t orgId = disOptions.origReadIdMap[disOptions.currentBinNo][i];
         appendValue(me.reads.seqs, mainMapper.reads.seqs[orgId + numReads]);
         disOptions.origReadIdMap[disOptions.currentBinNo].push_back(orgId + numReads);
     }
-//    std::cout << "getReadsCount(me.reads.seqs) "<< getReadsCount(me.reads.seqs) << "\n";
-//    std::cout << "getReadSeqsCount(me.reads.seqs) "<< getReadSeqsCount(me.reads.seqs) << "\n";
-//    std::cout << "disOptions.origReadIdMap.size() "<< disOptions.origReadIdMap.size() << "\n";
-
-    stop(mainMapper.timer);
-    mainMapper.stats.loadReads += getValue(mainMapper.timer);
+    std::cout << "getReadsCount(me.reads.seqs) "<< getReadsCount(me.reads.seqs) << "\n";
+    std::cout << "getReadSeqsCount(me.reads.seqs) "<< getReadSeqsCount(me.reads.seqs) << "\n";
+    std::cout << "disOptions.origReadIdMap.size() "<< disOptions.origReadIdMap.size() << "\n";
 }
 
 // ----------------------------------------------------------------------------
@@ -304,9 +344,7 @@ inline void filterLoadReads(Mapper<TSpec, TConfig> & me, Mapper<TSpec, TMainConf
 template <typename TSpec, typename TConfig, typename TMainConfig>
 inline void mapReads(Mapper<TSpec, TConfig> & me, Mapper<TSpec, TMainConfig>  & mainMapper, DisOptions & disOptions)
 {
-
-    disOptions.origReadIdMap.resize(0);
-    filterLoadReads(me, mainMapper, disOptions);
+    loadFilteredReads(me, mainMapper, disOptions);
     if (empty(me.reads.seqs)) return;
     _mapReadsImpl(me, mainMapper, me.reads.seqs, disOptions);
 }
@@ -702,69 +740,28 @@ inline void runDisMapper(Mapper<TSpec, TConfig> & mainMapper, DisOptions & disOp
         if (mainMapper.options.verbose > 1) printRuler(std::cerr);
         loadReads(mainMapper);
         if (empty(mainMapper.reads.seqs)) break;
+        initReadsContext(mainMapper, mainMapper.reads.seqs);
+        setHost(mainMapper.cigarSet, mainMapper.cigars);
 
-        uint32_t numReads = getReadsCount( mainMapper.reads.seqs);
-        uint32_t avgReadLen = lengthSum( mainMapper.reads.seqs) / (numReads * 2);
-        uint8_t threshold = disOptions.getThreshold(avgReadLen);
+        clasifyLoadedReads(mainMapper, bf, disOptions);
 
-        uint32_t numThr = disOptions.threadsCount;
-//        uint32_t numThr = 2;
-        uint32_t batchSize = numReads/numThr;
-        if(batchSize * numThr < numReads) ++batchSize;
-
-        Semaphore thread_limiter(4);
-        std::vector<std::future<void>> tasks;
-        disOptions.origReadIdMap.resize(disOptions.numberOfBins);
-
-
-        for (uint32_t taskNo = 0; taskNo < numThr; ++taskNo)
+        for (uint32_t i=0; i < disOptions.numberOfBins; ++i)
         {
-            tasks.emplace_back(std::async([=, &thread_limiter, &mainMapper, &disOptions] {
-                std::vector<bool> whichBinsV(disOptions.numberOfBins, false);
-                for (uint32_t readID = taskNo*batchSize; readID < numReads && readID < (taskNo +1) * batchSize; ++readID)
-                {
-                    whichBinsV = bf.whichBins(mainMapper.reads.seqs[readID], threshold);
-                    for (uint32_t binNo = 0; binNo < disOptions.numberOfBins; ++binNo)
-                    {
-                        if(whichBinsV[binNo])
-                        {
-                            mtx.lock();
-                            disOptions.origReadIdMap[binNo].push_back(readID);
-                            mtx.unlock();
-                        }
-                    }
-                }
-            }));
-        }
-        for (auto &&task : tasks)
-        {
-            task.get();
+            disOptions.currentBinNo = i;
+            Options options = mainMapper.options;
+            appendFileName(options.contigsIndexFile, disOptions.superContigsIndicesFile, i);
+            if (!openContigsLimits(options))
+                throw RuntimeError("Error while opening reference file.");
+            configureMapper<TSpec, TConfig>(options, mainMapper, disOptions);
         }
 
-        for (uint32_t binNo = 0; binNo < disOptions.numberOfBins; ++binNo)
-        {
-            std::cout << "bin " << binNo << ":" << disOptions.origReadIdMap[binNo].size() << std::endl;
-        }
-//        initReadsContext(mainMapper, mainMapper.reads.seqs);
-//        setHost(mainMapper.cigarSet, mainMapper.cigars);
-//        for (uint32_t i=0; i < disOptions.numberOfBins; ++i)
-//        {
-//            disOptions.currentBinNo = i;
-//            Options options = mainMapper.options;
-//            appendFileName(options.contigsIndexFile, disOptions.superContigsIndicesFile, i);
-//            if (!openContigsLimits(options))
-//                throw RuntimeError("Error while opening reference file.");
-//            configureMapper<TSpec, TConfig>(options, mainMapper, disOptions);
-//        }
-//
-//        aggregateMatches(mainMapper, mainMapper.reads.seqs);
-//        rankMatches2(mainMapper, mainMapper.reads.seqs);
-//        transferCigars(mainMapper, disOptions);
-//        writeMatches(mainMapper);
-//        disOptions.cigarSet.clear();
-//        clearMatches(mainMapper);
-//        clearAlignments(mainMapper);
-        disOptions.origReadIdMap.clear();
+        aggregateMatches(mainMapper, mainMapper.reads.seqs);
+        rankMatches2(mainMapper, mainMapper.reads.seqs);
+        transferCigars(mainMapper, disOptions);
+        writeMatches(mainMapper);
+        disOptions.cigarSet.clear();
+        clearMatches(mainMapper);
+        clearAlignments(mainMapper);
         clearReads(mainMapper);
     }
     closeReads(mainMapper);

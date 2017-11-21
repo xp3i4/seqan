@@ -141,12 +141,11 @@ namespace seqan
             _addKmers(text, binNo);
         }
 
-        std::vector<bool> whichBins(TString const & text, uint8_t const & threshold) const
+        void whichBins(std::vector<bool> & selected, TString const & text, uint8_t const & threshold) const
         {
             TShape kmerShape;
             hashInit(kmerShape, begin(text));
 
-            std::vector<bool> selected(BINS_SIZE, false);
             std::vector<uint8_t> counts(BINS_SIZE, 0);
 
             uint8_t possible = length(text) - length(kmerShape) + 1;
@@ -175,8 +174,21 @@ namespace seqan
                     }
                 }
                 --possible;
-             }
+            }
+        }
 
+        std::vector<bool> whichBins(TString const & text, uint8_t const & threshold) const
+        {
+            std::vector<bool> selected(BINS_SIZE, false);
+            whichBins(selected, text, threshold);
+            return selected;
+        }
+
+        std::vector<bool> whichBins(TString const & text_fwd, TString const & text_rev, uint8_t const & threshold) const
+        {
+            std::vector<bool> selected(BINS_SIZE, false);
+            whichBins(selected, text_fwd, threshold);
+            whichBins(selected, text_rev, threshold);
             return selected;
         }
 
