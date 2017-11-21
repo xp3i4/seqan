@@ -707,16 +707,38 @@ inline void runDisMapper(Mapper<TSpec, TConfig> & mainMapper, DisOptions & disOp
         uint32_t avgReadLen = lengthSum( mainMapper.reads.seqs) / (numReads * 2);
         uint8_t threshold = disOptions.getThreshold(avgReadLen);
 
-        std::vector<bool> whichBinsV(disOptions.numberOfBins, false);
+        uint32_t numThr = disOptions.threadsCount;
+//        uint32_t numThr = 2;
+        uint32_t batchSize = numReads/numThr;
+        if(batchSize * numThr < numReads) ++batchSize;
+
+        Semaphore thread_limiter(4);
+        std::vector<std::future<void>> tasks;
         disOptions.origReadIdMap.resize(disOptions.numberOfBins);
-        for (uint32_t readID = 0; readID < numReads; ++readID)
+
+
+        for (uint32_t taskNo = 0; taskNo < numThr; ++taskNo)
         {
-            whichBinsV = bf.whichBins(mainMapper.reads.seqs[readID], threshold);
-            for (uint32_t binNo = 0; binNo < disOptions.numberOfBins; ++binNo)
-            {
-                if(whichBinsV[binNo])
-                    disOptions.origReadIdMap[binNo].push_back(readID);
-            }
+            tasks.emplace_back(std::async([=, &thread_limiter, &mainMapper, &disOptions] {
+                std::vector<bool> whichBinsV(disOptions.numberOfBins, false);
+                for (uint32_t readID = taskNo*batchSize; readID < numReads && readID < (taskNo +1) * batchSize; ++readID)
+                {
+                    whichBinsV = bf.whichBins(mainMapper.reads.seqs[readID], threshold);
+                    for (uint32_t binNo = 0; binNo < disOptions.numberOfBins; ++binNo)
+                    {
+                        if(whichBinsV[binNo])
+                        {
+                            mtx.lock();
+                            disOptions.origReadIdMap[binNo].push_back(readID);
+                            mtx.unlock();
+                        }
+                    }
+                }
+            }));
+        }
+        for (auto &&task : tasks)
+        {
+            task.get();
         }
 
         for (uint32_t binNo = 0; binNo < disOptions.numberOfBins; ++binNo)
