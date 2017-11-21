@@ -166,7 +166,7 @@ inline void transferCigars(Mapper<TSpec, TMainConfig> & mainMapper, DisOptions &
 {
     typedef typename MapperTraits<TSpec, TMainConfig>::TThreading             TThreading;
     
-    resize(mainMapper.cigarSet.limits, getReadsCount( mainMapper.reads.seqs)+1, 0);
+    resize(mainMapper.cigarSet.limits, getReadsCount(mainMapper.reads.seqs)+1, 0);
     for(auto iter = disOptions.cigarSet.begin(); iter != disOptions.cigarSet.end(); ++iter)
     {
         mainMapper.cigarSet.limits[iter->first + 1] = length(iter->second);
@@ -232,6 +232,9 @@ inline void _mapReadsImpl(Mapper<TSpec, TConfig> & me, Mapper<TSpec, TMainConfig
     copyMatches(mainMapper, me, disOptions);
     copyCigars(mainMapper, me, disOptions);
     appendStats(mainMapper, me);
+    clearMatches(me);
+    clearAlignments(me);
+    clearReads(me);
 }
 
 // ----------------------------------------------------------------------------
@@ -269,7 +272,9 @@ inline void clasifyLoadedReads(Mapper<TSpec, TMainConfig>  & mainMapper, TSeqAnB
 
     // if paired classify only one pair
     if (IsSameType<typename TMainConfig::TSequencing, PairedEnd>::VALUE)
-        numReads = numReads/2;
+    {
+        numReads = getPairsCount( mainMapper.reads.seqs);
+    }
 
     uint32_t numThr = disOptions.threadsCount;
 //    uint32_t numThr = 4;
