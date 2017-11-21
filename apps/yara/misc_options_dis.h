@@ -284,6 +284,63 @@ inline void appendFileName(CharString & target, uint32_t const i)
     appendFileName(target, source, i);
 }
 
+// ----------------------------------------------------------------------------
+// Function getExtensionWithLeadingDot()
+// ----------------------------------------------------------------------------
+
+template <typename TString>
+inline typename Suffix<TString const>::Type
+getExtensionWithLeadingDot(TString const & string)
+{
+    return suffix(string, firstOf(string, IsDot()));
+}
+
+// ----------------------------------------------------------------------------
+// Function getFilesInDir()
+// ----------------------------------------------------------------------------
+inline void getFilesInDir(StringSet<CharString> & fileNames, CharString const directoryPath)
+{
+    DIR *dir;
+    struct dirent *ent;
+    struct stat st;
+
+    dir = opendir(toCString(directoryPath));
+    while ((ent = readdir(dir)) != NULL)
+    {
+        CharString fileName = ent->d_name;
+        CharString fullFileName = directoryPath;
+        append(fullFileName, "/");
+        append(fullFileName, fileName);
+
+
+        bool invalidFile = (fileName[0] == '.')
+        || (stat(toCString(fullFileName), &st) == -1)
+        || ((st.st_mode & S_IFDIR) != 0);
+
+        if (!invalidFile)
+            appendValue(fileNames, fileName);
+    }
+}
+
+// ----------------------------------------------------------------------------
+// Function getValidFilesInDir()
+// ----------------------------------------------------------------------------
+inline void getValidFilesInDir(StringSet<CharString> & fileNames,
+                               CharString const directoryPath,
+                               std::vector<std::string> const & validExtensions)
+{
+    StringSet<CharString>  allFileNames;
+    getFilesInDir(allFileNames, directoryPath);
+    for (uint32_t i = 0; i < length(allFileNames); ++i)
+    {
+        CharString ext = getExtensionWithLeadingDot(allFileNames[i]);
+
+        auto it = std::find(validExtensions.begin(), validExtensions.end(), std::string(toCString(ext)));
+        if (it != validExtensions.end())
+            appendValue(fileNames, allFileNames[i]);
+    }
+
+}
 
 template<typename T>
 std::ostream& operator<<(std::ostream& s, const std::vector<T>& v) {
