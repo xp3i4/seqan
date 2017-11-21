@@ -321,10 +321,10 @@ inline void clasifyLoadedReads(Mapper<TSpec, TMainConfig>  & mainMapper, TSeqAnB
     stop(mainMapper.timer);
     mainMapper.stats.loadReads += getValue(mainMapper.timer);
 
-//    for (uint32_t binNo = 0; binNo < disOptions.numberOfBins; ++binNo)
-//    {
-//        std::cout << "bin " << binNo << ":" << disOptions.origReadIdMap[binNo].size() << std::endl;
-//    }
+    for (uint32_t binNo = 0; binNo < disOptions.numberOfBins; ++binNo)
+    {
+        std::cout << "bin " << binNo << ":" << disOptions.origReadIdMap[binNo].size() << std::endl;
+    }
 }
 
 
@@ -334,6 +334,7 @@ inline void clasifyLoadedReads(Mapper<TSpec, TMainConfig>  & mainMapper, TSeqAnB
 template <typename TSpec, typename TConfig, typename TMainConfig>
 inline void loadFilteredReads(Mapper<TSpec, TConfig> & me, Mapper<TSpec, TMainConfig>  & mainMapper, DisOptions & disOptions)
 {
+    uint32_t numReads = getReadsCount( mainMapper.reads.seqs);
     uint32_t numFilteredReads = disOptions.origReadIdMap[disOptions.currentBinNo].size();
 
     //load forward reads
@@ -344,7 +345,6 @@ inline void loadFilteredReads(Mapper<TSpec, TConfig> & me, Mapper<TSpec, TMainCo
     }
 
     // if paired classify only one pair
-    uint32_t numReads = getReadsCount( mainMapper.reads.seqs);
     if (IsSameType<typename TMainConfig::TSequencing, PairedEnd>::VALUE)
     {
         uint32_t numPairs = getPairsCount( mainMapper.reads.seqs);
@@ -774,6 +774,7 @@ inline void runDisMapper(Mapper<TSpec, TConfig> & mainMapper, DisOptions & disOp
         if (empty(mainMapper.reads.seqs)) break;
         initReadsContext(mainMapper, mainMapper.reads.seqs);
         setHost(mainMapper.cigarSet, mainMapper.cigars);
+        disOptions.cigarSet.clear();
 
         clasifyLoadedReads(mainMapper, bf, disOptions);
 
@@ -791,7 +792,6 @@ inline void runDisMapper(Mapper<TSpec, TConfig> & mainMapper, DisOptions & disOp
         rankMatches2(mainMapper, mainMapper.reads.seqs);
         transferCigars(mainMapper, disOptions);
         writeMatches(mainMapper);
-        disOptions.cigarSet.clear();
         clearMatches(mainMapper);
         clearAlignments(mainMapper);
         clearReads(mainMapper);
