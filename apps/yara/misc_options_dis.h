@@ -146,69 +146,38 @@ namespace seqan
             TShape kmerShape;
             hashInit(kmerShape, begin(text));
 
-            std::vector<bool> selected(BINS_SIZE);
+            std::vector<bool> selected(BINS_SIZE, false);
+            std::vector<uint8_t> counts(BINS_SIZE, 0);
 
             uint8_t possible = length(text) - length(kmerShape) + 1;
-            std::vector<std::vector<uint8_t>> profileMatrix(possible, std::vector<uint8_t>(m_binSizeInChars, 255));
 
-            auto it = begin(text);
             std::vector<uint64_t> kmerHashes(possible, 0);
+            auto it = begin(text);
             for (uint8_t i = 0; i < possible; ++i)
             {
                 kmerHashes[i] = hashNext(kmerShape, it);
                 ++it;
             }
 
-            _filProfileMatrix(profileMatrix, kmerHashes);
-            for (uint8_t binNo = 0; binNo < BINS_SIZE; ++binNo)
+
+            for (uint64_t kmerHash : kmerHashes)
             {
-                uint8_t count = 0;
-                for (uint8_t i = 0; i < possible; ++i)
+                for (uint8_t binNo = 0; binNo < BINS_SIZE; ++binNo)
                 {
-                    uint8_t bit = bitMask[binNo % bitsPerChar];
-                    if ((profileMatrix[i][binNo/bitsPerChar] & bit) == bit)
+                    if (threshold - counts[binNo] > possible || selected[binNo])
+                        continue;
+
+                    if (containsKmer(kmerHash, binNo))
                     {
-                        ++count;
-                        if(count >= threshold)
-                        {
+                        ++counts[binNo];
+                        if(counts[binNo] >= threshold)
                             selected[binNo] = true;
-                            break;
-                        }
                     }
                 }
-            }
+                --possible;
+             }
+
             return selected;
-        }
-
-        inline void _filProfileMatrix(std::vector<std::vector<uint8_t> >  & profileMatrix,
-                                      std::vector<uint64_t> const & kmerHashes) const
-        {
-
-            Semaphore thread_limiter(8);
-            std::vector<std::future<void>> tasks;
-
-            for(uint8_t k = 0; k < kmerHashes.size() ; k++)
-            {
-                tasks.emplace_back(std::async([=, &thread_limiter, &profileMatrix] {
-                    uint64_t tmp = 0;
-                    std::vector<uint8_t> tmpProfile(m_binSizeInChars, 255);
-                    for(uint8_t i = 0; i < N_HASH ; i++)
-                    {
-                        tmp = kmerHashes[k] * (_preCalcValues[i]);
-                        tmp ^= tmp >> _shiftValue;
-                        uint64_t normalizedValue = (tmp % m_sizeInHashes) * BINS_SIZE;
-                        for(uint8_t j = 0; j < m_binSizeInChars ; j++)
-                        {
-                            tmpProfile[j] &= _filterFile[normalizedValue / bitsPerChar + j];
-                        }
-                    }
-                    profileMatrix[k] = std::move(tmpProfile);
-                }));
-            }
-            for (auto &&task : tasks)
-            {
-                task.get();
-            }
         }
 
     private:
@@ -237,6 +206,20 @@ namespace seqan
                 __sync_or_and_fetch(&_filterFile[normalizedValue / bitsPerChar],
                                     bitMask[normalizedValue % bitsPerChar]);
             }
+        }
+        bool containsKmer(uint64_t & kmerHash, uint8_t const & binNo) const
+        {
+            uint8_t bit = bitMask[binNo % bitsPerChar];
+            uint64_t tmp = 0;
+            for(uint8_t i = 0; i < N_HASH ; i++)
+            {
+                tmp = kmerHash * (_preCalcValues[i]);
+                tmp ^= tmp >> _shiftValue;
+                uint64_t normalizedValue = (tmp % m_sizeInHashes) * BINS_SIZE + binNo;
+                if ((_filterFile[normalizedValue / bitsPerChar] & bit) != bit)
+                    return false;
+            }
+            return true;
         }
 
         void _addKmers(TString const & text, uint8_t const & binNo)
