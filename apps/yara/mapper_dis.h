@@ -267,6 +267,10 @@ inline void clasifyLoadedReads(Mapper<TSpec, TMainConfig>  & mainMapper, TSeqAnB
     uint32_t avgReadLen = lengthSum(mainMapper.reads.seqs) / (numReads * 2);
     uint8_t threshold = disOptions.getThreshold(avgReadLen);
 
+    // if paired classify only one pair
+    if (IsSameType<typename TMainConfig::TSequencing, PairedEnd>::VALUE)
+        numReads = numReads/2;
+
     uint32_t numThr = disOptions.threadsCount;
 //    uint32_t numThr = 4;
     uint32_t batchSize = numReads/numThr;
@@ -280,13 +284,21 @@ inline void clasifyLoadedReads(Mapper<TSpec, TMainConfig>  & mainMapper, TSeqAnB
     for (uint32_t taskNo = 0; taskNo < numThr; ++taskNo)
     {
         tasks.emplace_back(std::async([=, &mainMapper, &disOptions] {
-            std::vector<bool> whichBinsV(disOptions.numberOfBins, false);
             for (uint32_t readID = taskNo*batchSize; readID < numReads && readID < (taskNo +1) * batchSize; ++readID)
             {
-                whichBinsV = bf.whichBins(mainMapper.reads.seqs[readID], mainMapper.reads.seqs[readID + numReads], threshold);
+                std::vector<bool> selectedBins(disOptions.numberOfBins, false);
+                bf.whichBins(selectedBins, mainMapper.reads.seqs[readID], threshold);
+                bf.whichBins(selectedBins, mainMapper.reads.seqs[readID + numReads], threshold);
+
+                if (IsSameType<typename TMainConfig::TSequencing, PairedEnd>::VALUE)
+                {
+                    bf.whichBins(selectedBins, mainMapper.reads.seqs[readID + 2*numReads], threshold);
+                    bf.whichBins(selectedBins, mainMapper.reads.seqs[readID + 3*numReads], threshold);
+                }
+
                 for (uint32_t binNo = 0; binNo < disOptions.numberOfBins; ++binNo)
                 {
-                    if(whichBinsV[binNo])
+                    if(selectedBins[binNo])
                     {
                         mtx.lock();
                         disOptions.origReadIdMap[binNo].push_back(readID);
@@ -300,14 +312,14 @@ inline void clasifyLoadedReads(Mapper<TSpec, TMainConfig>  & mainMapper, TSeqAnB
     {
         task.get();
     }
-//
+
+    stop(mainMapper.timer);
+    mainMapper.stats.loadReads += getValue(mainMapper.timer);
+
 //    for (uint32_t binNo = 0; binNo < disOptions.numberOfBins; ++binNo)
 //    {
 //        std::cout << "bin " << binNo << ":" << disOptions.origReadIdMap[binNo].size() << std::endl;
 //    }
-
-    stop(mainMapper.timer);
-    mainMapper.stats.loadReads += getValue(mainMapper.timer);
 }
 
 
@@ -317,7 +329,6 @@ inline void clasifyLoadedReads(Mapper<TSpec, TMainConfig>  & mainMapper, TSeqAnB
 template <typename TSpec, typename TConfig, typename TMainConfig>
 inline void loadFilteredReads(Mapper<TSpec, TConfig> & me, Mapper<TSpec, TMainConfig>  & mainMapper, DisOptions & disOptions)
 {
-    uint32_t numReads = getReadsCount( mainMapper.reads.seqs);
     uint32_t numFilteredReads = disOptions.origReadIdMap[disOptions.currentBinNo].size();
 
     //load forward reads
@@ -326,6 +337,22 @@ inline void loadFilteredReads(Mapper<TSpec, TConfig> & me, Mapper<TSpec, TMainCo
         uint32_t orgId = disOptions.origReadIdMap[disOptions.currentBinNo][i];
         appendValue(me.reads.seqs, mainMapper.reads.seqs[orgId]);
     }
+
+    // if paired classify only one pair
+    uint32_t numReads = getReadsCount( mainMapper.reads.seqs);
+    if (IsSameType<typename TMainConfig::TSequencing, PairedEnd>::VALUE)
+    {
+        uint32_t numPairs = getPairsCount( mainMapper.reads.seqs);
+        //load mates
+        for (uint32_t i = 0; i< numFilteredReads; ++i)
+        {
+            uint32_t orgId = disOptions.origReadIdMap[disOptions.currentBinNo][i];
+            appendValue(me.reads.seqs, mainMapper.reads.seqs[orgId + numPairs]);
+            disOptions.origReadIdMap[disOptions.currentBinNo].push_back(orgId + numPairs);
+        }
+        numFilteredReads *= 2; //now we have twice the reads
+    }
+
     //load reverse reads
     for (uint32_t i = 0; i< numFilteredReads; ++i)
     {
@@ -335,7 +362,7 @@ inline void loadFilteredReads(Mapper<TSpec, TConfig> & me, Mapper<TSpec, TMainCo
     }
 //    std::cout << "getReadsCount(me.reads.seqs) "<< getReadsCount(me.reads.seqs) << "\n";
 //    std::cout << "getReadSeqsCount(me.reads.seqs) "<< getReadSeqsCount(me.reads.seqs) << "\n";
-//    std::cout << "disOptions.origReadIdMap.size() "<< disOptions.origReadIdMap.size() << "\n";
+//    std::cout << "disOptions.origReadIdMap.size() "<< disOptions.origReadIdMap[disOptions.currentBinNo].size() << "\n";
 }
 
 // ----------------------------------------------------------------------------
