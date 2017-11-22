@@ -660,6 +660,8 @@ inline void rankMatches2(Mapper<TSpec, TConfig> & me, TReadSeqs const & readSeqs
             std::cerr << "Mapped reads:\t\t\t" << mappedReads << std::endl;
     }
 
+    if (IsSameType<typename TConfig::TSequencing, SingleEnd>::VALUE) return;
+
     // Update paired reads.
     if (me.options.verbose > 0)
     {
