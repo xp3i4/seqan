@@ -95,6 +95,7 @@ inline void appendStats(Mapper<TSpec, TMainConfig> & mainMapper, Mapper<TSpec, T
     mainMapper.stats.verifyMatches  += childMapper.stats.verifyMatches;
     mainMapper.stats.alignMatches   += childMapper.stats.alignMatches;
     mainMapper.stats.writeMatches   += childMapper.stats.writeMatches;
+    mainMapper.stats.rescuedReads   += childMapper.stats.rescuedReads;
 }
 
 // ----------------------------------------------------------------------------
@@ -114,9 +115,9 @@ inline void copyMatches(Mapper<TSpec, TMainConfig> & mainMapper, Mapper<TSpec, T
     {
         TMatch currentMatch;
         uint32_t readId         = childMapper.matchesByCoord[i].readId;
-        uint32_t origRevReadId  = disOptions.origReadIdMap[disOptions.currentBinNo][readId];
+        uint32_t origReadId     = disOptions.origReadIdMap[disOptions.currentBinNo][readId];
 
-        currentMatch.readId        = origRevReadId;
+        currentMatch.readId        = origReadId;
         currentMatch.contigId      = childMapper.matchesByCoord[i].contigId + disOptions.getContigOffsets();
         currentMatch.isRev         = childMapper.matchesByCoord[i].isRev;
         currentMatch.contigBegin   = childMapper.matchesByCoord[i].contigBegin;
@@ -124,16 +125,17 @@ inline void copyMatches(Mapper<TSpec, TMainConfig> & mainMapper, Mapper<TSpec, T
         currentMatch.errors        = childMapper.matchesByCoord[i].errors;
         appendValue(appender, currentMatch, Generous(), TThreading());
 
-        if(getMinErrors(mainMapper.ctx, origRevReadId) > currentMatch.errors)
+        if(getMinErrors(mainMapper.ctx, origReadId) > currentMatch.errors)
         {
-            setMinErrors(mainMapper.ctx, origRevReadId, currentMatch.errors);
+            setMinErrors(mainMapper.ctx, origReadId, currentMatch.errors);
         }
 
-        if (!isPaired(mainMapper.ctx, origRevReadId) && isPaired(childMapper.ctx, readId))
+        if (!isPaired(mainMapper.ctx, origReadId) && isPaired(childMapper.ctx, readId))
         {
-            setPaired(mainMapper.ctx, origRevReadId);
+            setPaired(mainMapper.ctx, origReadId);
+            mainMapper.primaryMatchesProbs[origReadId] = childMapper.primaryMatchesProbs[readId];
         }
-        setMapped(mainMapper.ctx, origRevReadId);
+        setMapped(mainMapper.ctx, origReadId);
     }
 }
 
@@ -149,11 +151,11 @@ inline void copyCigars(Mapper<TSpec, TMainConfig> & mainMapper, Mapper<TSpec, TC
     {
         TMatch currentMatch = childMapper.primaryMatches[i];
         uint32_t readId         = currentMatch.readId;
-        uint32_t origRevReadId  = disOptions.origReadIdMap[disOptions.currentBinNo][readId];
+        uint32_t origReadId     = disOptions.origReadIdMap[disOptions.currentBinNo][readId];
         
-        if(getMinErrors(mainMapper.ctx, origRevReadId) == currentMatch.errors)
+        if(getMinErrors(mainMapper.ctx, origReadId) == currentMatch.errors)
         {
-            disOptions.cigarSet[origRevReadId] = childMapper.cigarSet[readId];
+            disOptions.cigarSet[origReadId] = childMapper.cigarSet[readId];
         }
     }
 }
@@ -276,8 +278,8 @@ inline void clasifyLoadedReads(Mapper<TSpec, TMainConfig>  & mainMapper, TSeqAnB
         numReads = getPairsCount( mainMapper.reads.seqs);
     }
 
-    uint32_t numThr = disOptions.threadsCount;
-//    uint32_t numThr = 4;
+//    uint32_t numThr = disOptions.threadsCount;
+    uint32_t numThr = 4;
     uint32_t batchSize = numReads/numThr;
     if(batchSize * numThr < numReads) ++batchSize;
 
@@ -657,6 +659,19 @@ inline void rankMatches2(Mapper<TSpec, TConfig> & me, TReadSeqs const & readSeqs
         if (me.options.verbose > 1)
             std::cerr << "Mapped reads:\t\t\t" << mappedReads << std::endl;
     }
+
+    // Update paired reads.
+    if (me.options.verbose > 0)
+    {
+        unsigned long pairedReads = count(me.ctx.paired, true, typename TTraits::TThreading());
+        me.stats.pairedReads += pairedReads;
+
+        if (me.options.verbose > 1)
+        {
+            std::cerr << "Pairing time:\t\t\t" << me.timer << std::endl;
+            std::cerr << "Paired reads:\t\t\t" << pairedReads << std::endl;
+        }
+    }
 }
 
 // ----------------------------------------------------------------------------
@@ -739,11 +754,41 @@ inline void openOutputFile(Mapper<TSpec, TConfig> & mainMapper, DisOptions & dis
 }
 
 // ----------------------------------------------------------------------------
+// Function prepairMainMapper()
+// ----------------------------------------------------------------------------
+template <typename TSpec, typename TMainConfig, typename TSeqAnBloomFilter>
+inline void prepairMainMapper(Mapper<TSpec, TMainConfig> & mainMapper, TSeqAnBloomFilter const & bf, DisOptions & disOptions)
+{
+    initReadsContext(mainMapper, mainMapper.reads.seqs);
+    setHost(mainMapper.cigarSet, mainMapper.cigars);
+    disOptions.cigarSet.clear();
+    if (IsSameType<typename TMainConfig::TSequencing, PairedEnd>::VALUE)
+        resize(mainMapper.primaryMatchesProbs, getReadsCount(mainMapper.reads.seqs), 0.0, Exact());
+     
+    clasifyLoadedReads(mainMapper, bf, disOptions);
+}
+
+// ----------------------------------------------------------------------------
+// Function finalizeMainMapper()
+// ----------------------------------------------------------------------------
+template <typename TSpec, typename TMainConfig>
+inline void finalizeMainMapper(Mapper<TSpec, TMainConfig> & mainMapper, DisOptions & disOptions)
+{
+    aggregateMatches(mainMapper, mainMapper.reads.seqs);
+    rankMatches2(mainMapper, mainMapper.reads.seqs);
+    transferCigars(mainMapper, disOptions);
+    writeMatches(mainMapper);
+    clearMatches(mainMapper);
+    clearAlignments(mainMapper);
+    clearReads(mainMapper);
+}
+
+
+// ----------------------------------------------------------------------------
 // Function runDisMapper()
 // ----------------------------------------------------------------------------
-
-template <typename TSpec, typename TConfig>
-inline void runDisMapper(Mapper<TSpec, TConfig> & mainMapper, DisOptions & disOptions)
+template <typename TSpec, typename TMainConfig>
+inline void runDisMapper(Mapper<TSpec, TMainConfig> & mainMapper, DisOptions & disOptions)
 {
 
     Timer<double> timer;
@@ -761,22 +806,13 @@ inline void runDisMapper(Mapper<TSpec, TConfig> & mainMapper, DisOptions & disOp
 //    SeqAnBloomFilter<16, 20, 4, 40960000000> bf(toCString(bfFile));
     SeqAnBloomFilter<64, 20, 4, 163840000000> bf(toCString(bfFile));
 
-    // Process reads in blocks.
-    // load reads here
-
-    // classify reads here
-    // create mappers and run them on subsets
-    // Process reads in blocks.
     while (true)
     {
         if (mainMapper.options.verbose > 1) printRuler(std::cerr);
         loadReads(mainMapper);
         if (empty(mainMapper.reads.seqs)) break;
-        initReadsContext(mainMapper, mainMapper.reads.seqs);
-        setHost(mainMapper.cigarSet, mainMapper.cigars);
-        disOptions.cigarSet.clear();
 
-        clasifyLoadedReads(mainMapper, bf, disOptions);
+        prepairMainMapper(mainMapper, bf, disOptions);
 
         for (uint32_t i=0; i < disOptions.numberOfBins; ++i)
         {
@@ -785,16 +821,10 @@ inline void runDisMapper(Mapper<TSpec, TConfig> & mainMapper, DisOptions & disOp
             appendFileName(options.contigsIndexFile, disOptions.superContigsIndicesFile, i);
             if (!openContigsLimits(options))
                 throw RuntimeError("Error while opening reference file.");
-            configureMapper<TSpec, TConfig>(options, mainMapper, disOptions);
+            configureMapper<TSpec, TMainConfig>(options, mainMapper, disOptions);
         }
 
-        aggregateMatches(mainMapper, mainMapper.reads.seqs);
-        rankMatches2(mainMapper, mainMapper.reads.seqs);
-        transferCigars(mainMapper, disOptions);
-        writeMatches(mainMapper);
-        clearMatches(mainMapper);
-        clearAlignments(mainMapper);
-        clearReads(mainMapper);
+        finalizeMainMapper(mainMapper, disOptions);
     }
     closeReads(mainMapper);
     closeOutputFile(mainMapper);

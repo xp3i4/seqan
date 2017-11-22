@@ -116,68 +116,6 @@ struct YaraIndexer
 // Functions
 // ==========================================================================
 
-//template <typename TContigSeq>
-//inline void saveBloomFilter (Options & options, TContigSeq & contig)
-//{
-//    CharString filter_file = options.contigsIndexFile;
-//    append(filter_file, ".bf");
-//
-//    SeqAnBloomFilter<20, 4, 800000000> bf;
-//    bf.addKmers(contig);
-//    bf.save(toCString(filter_file));
-//}
-//
-//inline void saveBloomFilter (Options & options)
-//{
-//    CharString filter_file = options.contigsIndexFile;
-//    append(filter_file, ".bf");
-//    
-//    CharString fasta_file = options.contigsFile;
-//    
-//    SeqAnBloomFilter<20, 4, 800000000> bf;
-//
-//    CharString id;
-//    IupacString seq;
-//    
-//    SeqFileIn seqFileIn;
-//    if (!open(seqFileIn, toCString(fasta_file)))
-//    {
-//        CharString msg = "Unable to open contigs File: ";
-//        append (msg, fasta_file);
-//        throw toCString(msg);
-//    }
-//    while(!atEnd(seqFileIn))
-//    {
-//        readRecord(id, seq, seqFileIn);
-//        bf.addKmers(seq);
-//    }
-//    bf.save(toCString(filter_file));
-//    close(seqFileIn);
-//}
-
-
-inline void addBloomFilter (Options & options, SeqAnBloomFilter<64, 20, 4, 163840000000> & bf, uint8_t const binNo)
-{
-    CharString fasta_file = options.contigsFile;
-
-    CharString id;
-    IupacString seq;
-
-    SeqFileIn seqFileIn;
-    if (!open(seqFileIn, toCString(fasta_file)))
-    {
-        CharString msg = "Unable to open contigs File: ";
-        append (msg, fasta_file);
-        throw toCString(msg);
-    }
-    while(!atEnd(seqFileIn))
-    {
-        readRecord(id, seq, seqFileIn);
-        bf.addKmers(seq, binNo);
-    }
-    close(seqFileIn);
-}
-
 // ----------------------------------------------------------------------------
 // Function setupArgumentParser()
 // ----------------------------------------------------------------------------
@@ -425,19 +363,51 @@ void saveIndex(YaraIndexer<TSpec, TConfig> & me)
 }
 
 // ----------------------------------------------------------------------------
+// Function addBloomFilter()
+// ----------------------------------------------------------------------------
+template <typename TSeqAnBloomFilter>
+inline void addBloomFilter (Options & options, TSeqAnBloomFilter & bf, uint8_t const binNo)
+{
+    CharString fasta_file = options.contigsFile;
+
+    CharString id;
+    IupacString seq;
+
+    SeqFileIn seqFileIn;
+    if (!open(seqFileIn, toCString(fasta_file)))
+    {
+        CharString msg = "Unable to open contigs File: ";
+        append (msg, fasta_file);
+        throw toCString(msg);
+    }
+    while(!atEnd(seqFileIn))
+    {
+        readRecord(id, seq, seqFileIn);
+        bf.addKmers(seq, binNo);
+    }
+    close(seqFileIn);
+}
+
+// ----------------------------------------------------------------------------
 // Function runYaraIndexer()
 // ----------------------------------------------------------------------------
 
-//void runYaraIndexer(Options & options)
-//{
-//    saveBloomFilter(options);
-//    YaraIndexer<> indexer(options);
-//    loadContigs(indexer);
-//    saveBloomFilter(options, indexer.contigs.seqs.concat);
-//    setContigsLimits(options, indexer.contigs.seqs);
-//    saveContigs(indexer);
-//    saveIndex(indexer);
-//}
+template <typename TSeqAnBloomFilter>
+void runYaraIndexer(Options & options, TSeqAnBloomFilter & bf, uint8_t const binNo)
+{
+
+    Options binOptions = options;
+    appendFileName(binOptions.contigsFile, options.contigsFile, binNo);
+    append(binOptions.contigsFile, ".fna");
+    appendFileName(binOptions.contigsIndexFile, options.contigsIndexFile, i);
+    addBloomFilter(binOptions, bf, binNo);
+
+    YaraIndexer<> indexer(binOptions);
+    loadContigs(indexer);
+    setContigsLimits(binOptions, indexer.contigs.seqs);
+    saveContigs(indexer);
+    saveIndex(indexer);
+}
 
 // ----------------------------------------------------------------------------
 // Function main()
@@ -467,16 +437,10 @@ int main(int argc, char const ** argv)
         {
             tasks.emplace_back(std::async([=, &thread_limiter, &bf] {
 
-                for (uint32_t i = taskNo*8; i < taskNo*8 + 8; ++i)
+                for (uint32_t binNo = taskNo*8; binNo < taskNo*8 + 8; ++binNo)
                 {
-                    Options options_i = options;
-                    appendFileName(options_i.contigsFile, options.contigsFile, i);
-                    append(options_i.contigsFile, ".fna");
-
-                    appendFileName(options_i.contigsIndexFile, options.contigsIndexFile, i);
-                    addBloomFilter(options_i, bf, i);
-                    std::cout << "Finished with bin : " << i << std::endl;
-                    //            runYaraIndexer(options_i);
+                    runYaraIndexer(options, bf, binNo);
+                    std::cout << "Finished indexing bin : " << binNo << std::endl;
                 }
             }));
         }
