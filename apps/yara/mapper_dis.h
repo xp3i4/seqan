@@ -278,8 +278,8 @@ inline void clasifyLoadedReads(Mapper<TSpec, TMainConfig>  & mainMapper, TSeqAnB
         numReads = getPairsCount( mainMapper.reads.seqs);
     }
 
-//    uint32_t numThr = disOptions.threadsCount;
-    uint32_t numThr = 4;
+    uint32_t numThr = disOptions.threadsCount;
+//    uint32_t numThr = 4;
     uint32_t batchSize = numReads/numThr;
     if(batchSize * numThr < numReads) ++batchSize;
 

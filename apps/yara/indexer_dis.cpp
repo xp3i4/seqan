@@ -440,7 +440,9 @@ int main(int argc, char const ** argv)
                 for (uint8_t binNo = taskNo*8; binNo < taskNo*8 + 8; ++binNo)
                 {
                     runYaraIndexer(options, bf, binNo);
-                    std::cout << "Finished indexing bin : " << binNo << std::endl;
+                    mtx.lock();
+                    std::cout << "Finished indexing bin : " << (int)binNo << std::endl;
+                    mtx.unlock();
                 }
             }));
         }
