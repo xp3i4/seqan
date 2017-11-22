@@ -393,13 +393,13 @@ inline void addBloomFilter (Options & options, TSeqAnBloomFilter & bf, uint8_t c
 // ----------------------------------------------------------------------------
 
 template <typename TSeqAnBloomFilter>
-void runYaraIndexer(Options & options, TSeqAnBloomFilter & bf, uint8_t const binNo)
+void runYaraIndexer(Options const & options, TSeqAnBloomFilter & bf, uint8_t const binNo)
 {
 
     Options binOptions = options;
     appendFileName(binOptions.contigsFile, options.contigsFile, binNo);
     append(binOptions.contigsFile, ".fna");
-    appendFileName(binOptions.contigsIndexFile, options.contigsIndexFile, i);
+    appendFileName(binOptions.contigsIndexFile, options.contigsIndexFile, binNo);
     addBloomFilter(binOptions, bf, binNo);
 
     YaraIndexer<> indexer(binOptions);
@@ -433,11 +433,11 @@ int main(int argc, char const ** argv)
         Semaphore thread_limiter(8);
         std::vector<std::future<void>> tasks;
 
-        for (uint32_t taskNo = 0; taskNo < options.numberOfBins/8; ++taskNo)
+        for (uint8_t taskNo = 0; taskNo < options.numberOfBins/8; ++taskNo)
         {
             tasks.emplace_back(std::async([=, &thread_limiter, &bf] {
 
-                for (uint32_t binNo = taskNo*8; binNo < taskNo*8 + 8; ++binNo)
+                for (uint8_t binNo = taskNo*8; binNo < taskNo*8 + 8; ++binNo)
                 {
                     runYaraIndexer(options, bf, binNo);
                     std::cout << "Finished indexing bin : " << binNo << std::endl;
