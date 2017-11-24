@@ -234,9 +234,6 @@ inline void _mapReadsImpl(Mapper<TSpec, TConfig> & me, Mapper<TSpec, TMainConfig
     copyMatches(mainMapper, me, disOptions);
     copyCigars(mainMapper, me, disOptions);
     appendStats(mainMapper, me);
-    clearMatches(me);
-    clearAlignments(me);
-    clearReads(me);
 }
 
 // ----------------------------------------------------------------------------
