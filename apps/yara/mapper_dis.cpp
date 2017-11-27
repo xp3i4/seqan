@@ -240,7 +240,7 @@ void setupArgumentParser(ArgumentParser & parser, DisOptions const & disOptions)
                                      ArgParseArgument::INTEGER, "INT"));
 
     setMinValue(parser, "reads-batch", "1000");
-    setMaxValue(parser, "reads-batch", "1000000");
+    setMaxValue(parser, "reads-batch", "10000000");
     setDefaultValue(parser, "reads-batch", disOptions.readsCount);
     hideOption(getOption(parser, "reads-batch"));
 
