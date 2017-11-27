@@ -228,7 +228,7 @@ namespace seqan
                 tmp = kmerHash * (_preCalcValues[i]);
                 tmp ^= tmp >> _shiftValue;
                 uint64_t normalizedValue = (tmp % m_sizeInHashes) * BINS_SIZE + binNo;
-                if ((_filterFile[normalizedValue / bitsPerChar] & bit) != bit)
+                if ((_filterFile[normalizedValue / bitsPerChar] == 0) || (_filterFile[normalizedValue / bitsPerChar] & bit) != bit)
                     return false;
             }
             return true;
