@@ -384,8 +384,8 @@ inline void addBloomFilter (Options & options, TSeqAnBloomFilter & bf, uint8_t c
     {
         readRecord(id, seq, seqFileIn);
         bf.addKmers(seq, binNo);
-        reverseComplement(seq);
-        bf.addKmers(seq, binNo);
+//        reverseComplement(seq);
+//        bf.addKmers(seq, binNo);
     }
     close(seqFileIn);
 }

@@ -299,9 +299,13 @@ inline void clasifyLoadedReads(Mapper<TSpec, TMainConfig>  & mainMapper, TSeqAnB
             {
                 std::vector<bool> selectedBins(disOptions.numberOfBins, false);
                 bf.whichBins(selectedBins, mainMapper.reads.seqs[readID], threshold);
+                bf.whichBins(selectedBins, mainMapper.reads.seqs[readID + numReads], threshold);
 
                 if (IsSameType<typename TMainConfig::TSequencing, PairedEnd>::VALUE)
-                    bf.whichBins(selectedBins, mainMapper.reads.seqs[readID + numReads], threshold);
+                {
+                    bf.whichBins(selectedBins, mainMapper.reads.seqs[readID + 2*numReads], threshold);
+                    bf.whichBins(selectedBins, mainMapper.reads.seqs[readID + 3*numReads], threshold);
+                }
 
                 for (uint32_t binNo = 0; binNo < disOptions.numberOfBins; ++binNo)
                 {
