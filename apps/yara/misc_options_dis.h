@@ -181,13 +181,13 @@ namespace seqan
                 for (uint8_t batchNo = 0; batchNo < m_binSizeInChars; ++batchNo)
                 {
                     uint8_t batchRes = containsKmerBatch(kmerHash, batchNo);
-                    for(uint8_t offset=0; offset<8; ++offset)
+                    if(batchRes == 0) continue;
+                    for(uint8_t offset=0; offset<bitsPerChar; ++offset)
                     {
-                        uint8_t binNo = batchNo*8 + offset;
-                        if (threshold - counts[binNo] > possible || selected[binNo])
-                            continue;
+                        uint8_t binNo = batchNo * bitsPerChar + offset;
+                        if (threshold - counts[binNo] > possible || selected[binNo]) continue;
 
-                        if (IsBitSet(batchRes, binNo))
+                        if (IsBitSet(batchRes, offset))
                         {
                             ++counts[binNo];
                             if(counts[binNo] >= threshold)
