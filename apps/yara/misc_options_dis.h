@@ -219,16 +219,35 @@ namespace seqan
                                     bitMask[normalizedValue % bitsPerChar]);
             }
         }
+        bool IsBitSet(uint8_t num, uint8_t bit) const
+        {
+            return 1 == ( (num >> bit) & 1);
+        }
+
+        uint8_t containsKmerBatch(uint64_t & kmerHash, uint8_t const & batch) const
+        {
+            uint8_t res = 255;
+            uint64_t tmp = 0;
+            uint64_t normalizedValue;
+            for(uint8_t i = 0; i < N_HASH ; i++)
+            {
+                tmp = kmerHash * (_preCalcValues[i]);
+                tmp ^= tmp >> _shiftValue;
+                normalizedValue = (tmp % m_sizeInHashes) * BINS_SIZE;
+                res = res & _filterFile[normalizedValue / bitsPerChar + batch];
+            }
+            return res;
+        }
+
         bool containsKmer(uint64_t & kmerHash, uint8_t const & binNo) const
         {
-            uint8_t bit = bitMask[binNo % bitsPerChar];
             uint64_t tmp = 0;
             for(uint8_t i = 0; i < N_HASH ; i++)
             {
                 tmp = kmerHash * (_preCalcValues[i]);
                 tmp ^= tmp >> _shiftValue;
                 uint64_t normalizedValue = (tmp % m_sizeInHashes) * BINS_SIZE + binNo;
-                if ((_filterFile[normalizedValue / bitsPerChar] == 0) || (_filterFile[normalizedValue / bitsPerChar] & bit) != bit)
+                if (!IsBitSet(_filterFile[normalizedValue / bitsPerChar], (binNo % bitsPerChar)))
                     return false;
             }
             return true;
