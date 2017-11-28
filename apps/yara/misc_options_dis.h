@@ -159,22 +159,45 @@ namespace seqan
             }
 
 
+//            for (uint64_t kmerHash : kmerHashes)
+//            {
+//                for (uint8_t binNo = 0; binNo < BINS_SIZE; ++binNo)
+//                {
+//                    if (threshold - counts[binNo] > possible || selected[binNo])
+//                        continue;
+//
+//                    if (containsKmer(kmerHash, binNo))
+//                    {
+//                        ++counts[binNo];
+//                        if(counts[binNo] >= threshold)
+//                            selected[binNo] = true;
+//                    }
+//                }
+//                --possible;
+//            }
+            
             for (uint64_t kmerHash : kmerHashes)
             {
-                for (uint8_t binNo = 0; binNo < BINS_SIZE; ++binNo)
+                for (uint8_t batchNo = 0; batchNo < m_binSizeInChars; ++batchNo)
                 {
-                    if (threshold - counts[binNo] > possible || selected[binNo])
-                        continue;
-
-                    if (containsKmer(kmerHash, binNo))
+                    uint8_t batchRes = containsKmerBatch(kmerHash, batchNo);
+                    for(uint8_t offset=0; offset<8; ++offset)
                     {
-                        ++counts[binNo];
-                        if(counts[binNo] >= threshold)
-                            selected[binNo] = true;
+                        uint8_t binNo = batchNo*8 + offset;
+                        if (threshold - counts[binNo] > possible || selected[binNo])
+                            continue;
+
+                        if (IsBitSet(batchRes, binNo))
+                        {
+                            ++counts[binNo];
+                            if(counts[binNo] >= threshold)
+                                selected[binNo] = true;
+                        }
                     }
                 }
                 --possible;
             }
+
         }
 
         std::vector<bool> whichBins(TString const & text, uint8_t const & threshold) const
