@@ -384,6 +384,37 @@ inline void getValidFilesInDir(StringSet<CharString> & fileNames,
 
 }
 
+// ----------------------------------------------------------------------------
+// Function verifyIndicesDir()
+// ----------------------------------------------------------------------------
+inline bool verifyIndicesDir(CharString const directoryPath, uint32_t const numberOfBins)
+{
+    CharString bloomIndexFile = directoryPath;
+    append(bloomIndexFile, "bloom.bf");
+
+    FILE *file = fopen(toCString(bloomIndexFile), "rb");
+    if (file == NULL)
+    {
+        std::cerr << "No bloom filter found in the given directory!" << std::endl;
+        return false;
+    }
+    for (uint32_t i=0; i < numberOfBins; ++i)
+    {
+        CharString contigsLimitFile;
+        appendFileName(contigsLimitFile, directoryPath, i);
+        append(contigsLimitFile, ".txt.size");
+
+        String<uint64_t> limits;
+
+        if (!open(limits, toCString(contigsLimitFile), OPEN_RDONLY|OPEN_QUIET))
+        {
+            std::cerr << "No index for bin " << i << '\n';
+            return false;
+        }
+    }
+    return true;
+}
+
 template<typename T>
 std::ostream& operator<<(std::ostream& s, const std::vector<T>& v) {
     char comma[3] = {'\0', ' ', '\0'};

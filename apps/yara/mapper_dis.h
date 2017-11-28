@@ -48,10 +48,9 @@ using namespace seqan;
 struct DisOptions : public Options
 {
 public:
-    CharString              superContigsIndicesFile;
+    CharString              IndicesDirectory;
     CharString              superOutputFile;
     uint8_t                 kmerSize = 20;
-    uint8_t                 maxError = 3;
     uint32_t                numberOfBins = 5;
     uint32_t                currentBinNo = 0;
     std::vector<uint32_t>   contigOffsets;
@@ -65,6 +64,7 @@ public:
 
     uint8_t getThreshold(uint8_t readLen)
     {
+        uint8_t maxError = errorRate * 100;
         if(readLen > kmerSize * (1 + maxError))
             return readLen - kmerSize + 1 - (maxError * kmerSize);
         return 0;
@@ -283,7 +283,6 @@ inline void clasifyLoadedReads(Mapper<TSpec, TMainConfig>  & mainMapper, TSeqAnB
         numReads = getPairsCount( mainMapper.reads.seqs);
 
     uint32_t numThr = disOptions.threadsCount;
-//    uint32_t numThr = 4;
     uint32_t batchSize = numReads/numThr;
     if(batchSize * numThr < numReads) ++batchSize;
 
@@ -543,7 +542,7 @@ inline void loadAllContigs(Mapper<TSpec, TConfig> & mainMapper, DisOptions & dis
         {
             TContigs tmpContigs;
             CharString fileName;
-            appendFileName(fileName, disOptions.superContigsIndicesFile, i);
+            appendFileName(fileName, disOptions.IndicesDirectory, i);
 
             if (!open(tmpContigs, toCString(fileName), OPEN_RDONLY))
                 throw RuntimeError("Error while opening reference file.");
@@ -701,7 +700,7 @@ inline void openOutputFile(Mapper<TSpec, TConfig> & mainMapper, DisOptions & dis
             TContigs tmpContigs;
             String<uint32_t> tmpContigLengths;
             CharString fileName;
-            appendFileName(fileName, disOptions.superContigsIndicesFile, i);
+            appendFileName(fileName, disOptions.IndicesDirectory, i);
             
             if (!open(tmpContigs, toCString(fileName), OPEN_RDONLY))
                 throw RuntimeError("Error while opening reference file.");
@@ -806,7 +805,7 @@ inline void runDisMapper(Mapper<TSpec, TMainConfig> & mainMapper, DisOptions & d
     openOutputFile(mainMapper, disOptions);
     openReads(mainMapper);
 
-    CharString bfFile = disOptions.superContigsIndicesFile;
+    CharString bfFile = disOptions.IndicesDirectory;
     append(bfFile, "bloom.bf");
 
 //    SeqAnBloomFilter<16, 20, 4, 40960000000> bf(toCString(bfFile));
@@ -824,7 +823,7 @@ inline void runDisMapper(Mapper<TSpec, TMainConfig> & mainMapper, DisOptions & d
         {
             disOptions.currentBinNo = i;
             Options options = mainMapper.options;
-            appendFileName(options.contigsIndexFile, disOptions.superContigsIndicesFile, i);
+            appendFileName(options.contigsIndexFile, disOptions.IndicesDirectory, i);
             if (!openContigsLimits(options))
                 throw RuntimeError("Error while opening reference file.");
             configureMapper<TSpec, TMainConfig>(options, mainMapper, disOptions);

@@ -119,15 +119,11 @@ void setupArgumentParser(ArgumentParser & parser, DisOptions const & disOptions)
     setDescription(parser);
 
     // Setup mandatory arguments.
-    addUsageLine(parser, "[\\fIOPTIONS\\fP] <\\fIREFERENCE INDEX PREFIX\\fP> <\\fIKMER INDEX KDX FILE\\fP> <\\fISE-READS FILE\\fP>");
-    addUsageLine(parser, "[\\fIOPTIONS\\fP] <\\fIREFERENCE INDEX PREFIX\\fP> <\\fIKMER INDEX KDX FILE\\fP> <\\fIPE-READS FILE 1\\fP> <\\fIPE-READS FILE 2\\fP>");
+    addUsageLine(parser, "[\\fIOPTIONS\\fP] <\\fIREFERENCE INDEX PREFIX\\fP> <\\fISE-READS FILE\\fP>");
+    addUsageLine(parser, "[\\fIOPTIONS\\fP] <\\fIREFERENCE INDEX PREFIX\\fP> <\\fIPE-READS FILE 1\\fP> <\\fIPE-READS FILE 2\\fP>");
 
     addArgument(parser, ArgParseArgument(ArgParseArgument::INPUT_PREFIX, "REFERENCE INDEX PREFIX"));
     setHelpText(parser, 0, "Prefix to multiple indices of reference genomes.");
-
-//    addArgument(parser, ArgParseArgument(ArgParseArgument::INPUT_FILE, "KMER INDEX KDX FILE"));
-//    setHelpText(parser, 1, "contains a mapping of a kmer and which bins it is pressent at");
-//    setValidValues(parser, 1, "kdx tsv");
 
     addArgument(parser, ArgParseArgument(ArgParseArgument::INPUT_FILE, "READS FILE", true));
     setValidValues(parser, 1, SeqFileIn::getFileExtensions());
@@ -177,7 +173,7 @@ void setupArgumentParser(ArgumentParser & parser, DisOptions const & disOptions)
                                      ArgParseOption::INTEGER));
     setMinValue(parser, "error-rate", "0");
     setMaxValue(parser, "error-rate", "10");
-    setDefaultValue(parser, "error-rate", 100.0 * disOptions.errorRate);
+    setDefaultValue(parser, "error-rate", 3);
 
     addOption(parser, ArgParseOption("s", "strata-rate", "Consider suboptimal alignments within this percentual number \
                                      of errors from the optimal alignment. Increase this threshold to increase \
@@ -226,21 +222,14 @@ void setupArgumentParser(ArgumentParser & parser, DisOptions const & disOptions)
 
     addOption(parser, ArgParseOption("t", "threads", "Specify the number of threads to use.", ArgParseOption::INTEGER));
     setMinValue(parser, "threads", "1");
-#ifdef _OPENMP
     setMaxValue(parser, "threads", "2048");
-#else
-    setMaxValue(parser, "threads", "1");
-#endif
     setDefaultValue(parser, "threads", disOptions.threadsCount);
 
     addOption(parser, ArgParseOption("rb", "reads-batch", "Specify the number of reads to process in one batch.",
                                      ArgParseOption::INTEGER));
-
-    addOption(parser, ArgParseOption("x", "max-errors", "the number of errors that are alowed in the alignment",
-                                     ArgParseArgument::INTEGER, "INT"));
-
+    
     setMinValue(parser, "reads-batch", "1000");
-    setMaxValue(parser, "reads-batch", "10000000");
+    setMaxValue(parser, "reads-batch", "1000000");
     setDefaultValue(parser, "reads-batch", disOptions.readsCount);
     hideOption(getOption(parser, "reads-batch"));
 
@@ -249,7 +238,7 @@ void setupArgumentParser(ArgumentParser & parser, DisOptions const & disOptions)
     addOption(parser, ArgParseOption("b", "number-of-bins", "The number of bins (indices) for distributed mapper",
                                      ArgParseOption::INTEGER));
     setMinValue(parser, "number-of-bins", "1");
-    setMaxValue(parser, "number-of-bins", "1000");
+    setMaxValue(parser, "number-of-bins", "1024");
     setDefaultValue(parser, "number-of-bins", disOptions.numberOfBins);
 
 }
@@ -267,10 +256,7 @@ parseCommandLine(DisOptions & disOptions, ArgumentParser & parser, int argc, cha
         return res;
 
     // Parse indexed genome input file.
-    getArgumentValue(disOptions.superContigsIndicesFile, parser, 0);
-
-    // Parse kmer index input file.
-//    getArgumentValue(disOptions.kmer_index_file, parser, 1);
+    getArgumentValue(disOptions.IndicesDirectory, parser, 0);
 
     // Parse read input files.
     switch (getArgumentValueCount(parser, 1))
@@ -339,9 +325,6 @@ parseCommandLine(DisOptions & disOptions, ArgumentParser & parser, int argc, cha
 
     // Parse Distributed mapper mptions
     getOptionValue(disOptions.numberOfBins, parser, "number-of-bins");
-
-
-//    getOptionValue(disOptions.max_errors, parser, "max-errors");
 
     if (isSet(parser, "verbose")) disOptions.verbose = 1;
     if (isSet(parser, "very-verbose")) disOptions.verbose = 2;
@@ -415,7 +398,7 @@ void configureDisMapper(DisOptions & disOptions,
     {
         disOptions.contigOffsets[i] = disOptions.contigsSize;
         Options options = disOptions;
-        appendFileName(options.contigsIndexFile, disOptions.superContigsIndicesFile, i);
+        appendFileName(options.contigsIndexFile, disOptions.IndicesDirectory, i);
         if (!openContigsLimits(options))
             throw RuntimeError("Error while opening contig limits file.");
 
@@ -483,6 +466,12 @@ int main(int argc, char const ** argv)
 
     if (res != ArgumentParser::PARSE_OK)
         return res == ArgumentParser::PARSE_ERROR;
+
+    if (!verifyIndicesDir(disOptions.IndicesDirectory, disOptions.numberOfBins))
+    {
+        std::cerr <<"Not a valid indices direcory !\n";
+        return 1;
+    }
 
     try
     {
