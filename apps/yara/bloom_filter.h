@@ -91,7 +91,7 @@ namespace seqan
         {
             _init();
             std::ifstream inStream(fileName, std::ios::binary);
-            inStream.read(reinterpret_cast<char*>(&_filterVector[0]), vec_size*sizeof(uint64_t));
+            inStream.read(reinterpret_cast<char*>(&_filterVector[0]), _filterVector.size()*sizeof(uint64_t));
         }
 
         void addKmers(TString const & text, uint32_t const & binNo)
