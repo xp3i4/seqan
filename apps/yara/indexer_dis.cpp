@@ -91,7 +91,7 @@ struct Options
     Options() :
     kmerSize(20),
     numberOfBins(64),
-    bloomFilterSize(1073741824),
+    bloomFilterSize(8589934592), // 1GB
     numberOfHashes(4),
     contigsSize(),
     contigsMaxLength(),
@@ -220,7 +220,7 @@ parseCommandLine(Options & options, ArgumentParser & parser, int argc, char cons
 
     uint64_t bloomSize;
     if (getOptionValue(bloomSize, parser, "bloom-size"))
-        options.bloomFilterSize = bloomSize * 1048576;
+        options.bloomFilterSize = bloomSize * 8388608;
 
 
     return ArgumentParser::PARSE_OK;

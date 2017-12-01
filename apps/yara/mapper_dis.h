@@ -53,7 +53,7 @@ public:
 
     uint32_t                kmerSize = 20;
     uint32_t                numberOfBins = 64;
-    uint64_t                bloomFilterSize = 1073741824;
+    uint64_t                bloomFilterSize = 8589934592; //1GB
     uint32_t                numberOfHashes = 4;
 
     uint32_t                currentBinNo = 0;

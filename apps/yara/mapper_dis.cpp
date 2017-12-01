@@ -346,7 +346,7 @@ parseCommandLine(DisOptions & disOptions, ArgumentParser & parser, int argc, cha
 
     uint64_t bloomSize;
     if (getOptionValue(bloomSize, parser, "bloom-size"))
-        disOptions.bloomFilterSize = bloomSize * 1048576;
+        disOptions.bloomFilterSize = bloomSize * 8388608;
 
 
     if (isSet(parser, "verbose")) disOptions.verbose = 1;
