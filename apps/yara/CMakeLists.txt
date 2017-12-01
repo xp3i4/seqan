@@ -116,6 +116,7 @@ add_executable(yara_indexer_dis indexer_dis.cpp
                                 misc_timer.h
                                 misc_options.h
                                 misc_options_dis.h
+                                bloom_filter.h
                                 misc_types.h
                                 store_seqs.h
                                 bits_matches.h
@@ -168,6 +169,7 @@ add_executable(yara_mapper_dis  mapper_dis.cpp
                                 misc_timer.h
                                 misc_options.h
                                 misc_options_dis.h
+                                bloom_filter.h
                                 misc_types.h
                                 bits_reads.h
                                 bits_hits.h

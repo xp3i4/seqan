@@ -61,6 +61,7 @@
 #include "bits_matches.h"
 #include "misc_options.h"
 #include "misc_options_dis.h"
+#include "bloom_filter.h"
 #include "index_fm.h"
 
 using namespace seqan;
@@ -76,20 +77,27 @@ struct Options
 
     uint32_t        kmerSize;
     uint32_t        numberOfBins;
+    uint64_t        bloomFilterSize;
+    uint32_t        numberOfHashes;
 
     uint64_t        contigsSize;
     uint64_t        contigsMaxLength;
     uint64_t        contigsSum;
 
+    unsigned        threadsCount;
+
     bool            verbose;
 
     Options() :
-        kmerSize(20),
-        numberOfBins(10),
-        contigsSize(),
-        contigsMaxLength(),
-        contigsSum(),
-        verbose(false)
+    kmerSize(20),
+    numberOfBins(64),
+    bloomFilterSize(1073741824),
+    numberOfHashes(4),
+    contigsSize(),
+    contigsMaxLength(),
+    contigsSum(),
+    threadsCount(1),
+    verbose(false)
     {}
 };
 
@@ -108,7 +116,7 @@ struct YaraIndexer
     Timer<double>       timer;
 
     YaraIndexer(Options const & options) :
-        options(options)
+    options(options)
     {}
 };
 
@@ -120,7 +128,7 @@ struct YaraIndexer
 // Function setupArgumentParser()
 // ----------------------------------------------------------------------------
 
-void setupArgumentParser(ArgumentParser & parser, Options const & /* options */)
+void setupArgumentParser(ArgumentParser & parser, Options const & options)
 {
     setAppName(parser, "yara_indexer");
     setShortDescription(parser, "Yara Indexer");
@@ -132,7 +140,7 @@ void setupArgumentParser(ArgumentParser & parser, Options const & /* options */)
     addUsageLine(parser, "[\\fIOPTIONS\\fP] <\\fIREFERENCE FILE\\fP>");
 
     addArgument(parser, ArgParseArgument(ArgParseArgument::INPUT_PREFIX, "REFERENCE FILE"));
-//    setValidValues(parser, 0, SeqFileIn::getFileExtensions());
+    //    setValidValues(parser, 0, SeqFileIn::getFileExtensions());
     setHelpText(parser, 0, "A reference genome file.");
 
     addOption(parser, ArgParseOption("v", "verbose", "Displays verbose output."));
@@ -149,10 +157,26 @@ void setupArgumentParser(ArgumentParser & parser, Options const & /* options */)
     setMinValue(parser, "number-of-bins", "1");
     setMaxValue(parser, "number-of-bins", "1000");
 
+    addOption(parser, ArgParseOption("t", "threads", "Specify the number of threads to use (valid for bloom filter only).", ArgParseOption::INTEGER));
+    setMinValue(parser, "threads", "1");
+    setMaxValue(parser, "threads", "2048");
+    setDefaultValue(parser, "threads", options.threadsCount);
+
+
     addOption(parser, ArgParseOption("k", "kmer-size", "The size of kmers for bloom_filter",
                                      ArgParseOption::INTEGER));
     setMinValue(parser, "kmer-size", "14");
     setMaxValue(parser, "kmer-size", "32");
+
+    addOption(parser, ArgParseOption("nh", "num-hash", "Specify the number of hash functions to use for the bloom filter.", ArgParseOption::INTEGER));
+    setMinValue(parser, "num-hash", "2");
+    setMaxValue(parser, "num-hash", "5");
+    setDefaultValue(parser, "num-hash", options.numberOfHashes);
+
+    addOption(parser, ArgParseOption("bs", "bloom-size", "The size of bloom filter in MB.", ArgParseOption::INTEGER));
+    setMinValue(parser, "bloom-size", "1");
+    setMaxValue(parser, "bloom-size", "100000");
+    setDefaultValue(parser, "bloom-size", 1000);
 }
 
 // ----------------------------------------------------------------------------
@@ -191,6 +215,12 @@ parseCommandLine(Options & options, ArgumentParser & parser, int argc, char cons
 
     if (isSet(parser, "number-of-bins")) getOptionValue(options.numberOfBins, parser, "number-of-bins");
     if (isSet(parser, "kmer-size")) getOptionValue(options.kmerSize, parser, "kmer-size");
+    if (isSet(parser, "threads")) getOptionValue(options.threadsCount, parser, "threads");
+    if (isSet(parser, "num-hash")) getOptionValue(options.numberOfHashes, parser, "num-hash");
+
+    uint64_t bloomSize;
+    if (getOptionValue(bloomSize, parser, "bloom-size"))
+        options.bloomFilterSize = bloomSize * 1048576;
 
 
     return ArgumentParser::PARSE_OK;
@@ -288,10 +318,10 @@ void saveIndex(YaraIndexer<TSpec, TConfig> & me)
         throw RuntimeError("Insufficient memory to index the reference.");
     }
     catch (IOError const & /* e */)
-//    catch (PageFrameError const & /* e */)
+    //    catch (PageFrameError const & /* e */)
     {
         throw RuntimeError("Insufficient disk space to index the reference. \
-                            Specify a bigger temporary folder using the options --tmp-dir.");
+                           Specify a bigger temporary folder using the options --tmp-dir.");
     }
 
     stop(me.timer);
@@ -384,8 +414,8 @@ inline void addBloomFilter (Options & options, TSeqAnBloomFilter & bf, uint8_t c
     {
         readRecord(id, seq, seqFileIn);
         bf.addKmers(seq, binNo);
-//        reverseComplement(seq);
-//        bf.addKmers(seq, binNo);
+        //        reverseComplement(seq);
+        //        bf.addKmers(seq, binNo);
     }
     close(seqFileIn);
 }
@@ -404,11 +434,11 @@ void runYaraIndexer(Options const & options, TSeqAnBloomFilter & bf, uint8_t con
     appendFileName(binOptions.contigsIndexFile, options.contigsIndexFile, binNo);
     addBloomFilter(binOptions, bf, binNo);
 
-//    YaraIndexer<> indexer(binOptions);
-//    loadContigs(indexer);
-//    setContigsLimits(binOptions, indexer.contigs.seqs);
-//    saveContigs(indexer);
-//    saveIndex(indexer);
+    //    YaraIndexer<> indexer(binOptions);
+    //    loadContigs(indexer);
+    //    setContigsLimits(binOptions, indexer.contigs.seqs);
+    //    saveContigs(indexer);
+    //    saveIndex(indexer);
 }
 
 // ----------------------------------------------------------------------------
@@ -426,26 +456,30 @@ int main(int argc, char const ** argv)
     if (res != ArgumentParser::PARSE_OK)
         return res == ArgumentParser::PARSE_ERROR;
 
+
     try
     {
         CharString filter_file = options.contigsIndexFile;
         append(filter_file, "bloom.bf");
-        SeqAnBloomFilter<64, 20, 4, 163840000000> bf;
 
-        Semaphore thread_limiter(8);
+        SeqAnBloomFilter<> bf(options.numberOfBins,
+                              options.numberOfHashes,
+                              options.kmerSize,
+                              options.bloomFilterSize);
+
+        Semaphore thread_limiter(options.threadsCount);
         std::vector<std::future<void>> tasks;
 
-        for (uint8_t taskNo = 0; taskNo < options.numberOfBins/8; ++taskNo)
+        for (uint8_t binNo = 0; binNo < options.numberOfBins; ++binNo)
         {
             tasks.emplace_back(std::async([=, &thread_limiter, &bf] {
+                Critical_section _(thread_limiter);
+                runYaraIndexer(options, bf, binNo);
 
-                for (uint8_t binNo = taskNo*8; binNo < taskNo*8 + 8; ++binNo)
-                {
-                    runYaraIndexer(options, bf, binNo);
-                    mtx.lock();
-                    std::cout << "Finished indexing bin : " << (int)binNo << std::endl;
-                    mtx.unlock();
-                }
+                mtx.lock();
+                std::cout << "Finished indexing bin : " << (int)binNo << std::endl;
+                mtx.unlock();
+
             }));
         }
         for (auto &&task : tasks)

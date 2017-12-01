@@ -50,8 +50,12 @@ struct DisOptions : public Options
 public:
     CharString              IndicesDirectory;
     CharString              superOutputFile;
-    uint8_t                 kmerSize = 20;
-    uint32_t                numberOfBins = 5;
+
+    uint32_t                kmerSize = 20;
+    uint32_t                numberOfBins = 64;
+    uint64_t                bloomFilterSize = 1073741824;
+    uint32_t                numberOfHashes = 4;
+
     uint32_t                currentBinNo = 0;
     std::vector<uint32_t>   contigOffsets;
     std::vector<std::vector<uint32_t>>   origReadIdMap;
@@ -293,7 +297,7 @@ inline void clasifyLoadedReads(Mapper<TSpec, TMainConfig>  & mainMapper, TSeqAnB
 
     for (uint32_t taskNo = 0; taskNo < numThr; ++taskNo)
     {
-        tasks.emplace_back(std::async([=, &mainMapper, &disOptions] {
+        tasks.emplace_back(std::async([=, &mainMapper, &disOptions, &bf] {
             for (uint32_t readID = taskNo*batchSize; readID < numReads && readID < (taskNo +1) * batchSize; ++readID)
             {
                 std::vector<bool> selectedBins(disOptions.numberOfBins, false);
@@ -326,10 +330,10 @@ inline void clasifyLoadedReads(Mapper<TSpec, TMainConfig>  & mainMapper, TSeqAnB
     stop(mainMapper.timer);
     mainMapper.stats.loadReads += getValue(mainMapper.timer);
 
-//    for (uint32_t binNo = 0; binNo < disOptions.numberOfBins; ++binNo)
-//    {
-//        std::cout << "bin " << binNo << ":" << disOptions.origReadIdMap[binNo].size() << std::endl;
-//    }
+    for (uint32_t binNo = 0; binNo < disOptions.numberOfBins; ++binNo)
+    {
+        std::cout << "bin " << binNo << ":" << disOptions.origReadIdMap[binNo].size() << std::endl;
+    }
 }
 
 
@@ -808,8 +812,11 @@ inline void runDisMapper(Mapper<TSpec, TMainConfig> & mainMapper, DisOptions & d
     CharString bfFile = disOptions.IndicesDirectory;
     append(bfFile, "bloom.bf");
 
-//    SeqAnBloomFilter<16, 20, 4, 40960000000> bf(toCString(bfFile));
-    SeqAnBloomFilter<64, 20, 4, 163840000000> bf(toCString(bfFile));
+    SeqAnBloomFilter<> bf(toCString(bfFile),
+                          disOptions.numberOfBins,
+                          disOptions.numberOfHashes,
+                          disOptions.kmerSize,
+                          disOptions.bloomFilterSize);
 
     while (true)
     {

@@ -88,6 +88,7 @@ struct Options;
 #include "find_extender.h"
 #include "misc_options.h"
 #include "misc_options_dis.h"
+#include "bloom_filter.h"
 #include "mapper_collector.h"
 #include "mapper_classifier.h"
 #include "mapper_ranker.h"
@@ -241,6 +242,20 @@ void setupArgumentParser(ArgumentParser & parser, DisOptions const & disOptions)
     setMaxValue(parser, "number-of-bins", "1024");
     setDefaultValue(parser, "number-of-bins", disOptions.numberOfBins);
 
+    addOption(parser, ArgParseOption("k", "kmer-size", "The size of kmers for bloom_filter",
+                                     ArgParseOption::INTEGER));
+    setMinValue(parser, "kmer-size", "14");
+    setMaxValue(parser, "kmer-size", "32");
+
+    addOption(parser, ArgParseOption("nh", "num-hash", "Specify the number of hash functions to use for the bloom filter.", ArgParseOption::INTEGER));
+    setMinValue(parser, "num-hash", "2");
+    setMaxValue(parser, "num-hash", "5");
+    setDefaultValue(parser, "num-hash", disOptions.numberOfHashes);
+
+    addOption(parser, ArgParseOption("bs", "bloom-size", "The size of bloom filter in MB.", ArgParseOption::INTEGER));
+    setMinValue(parser, "bloom-size", "1");
+    setMaxValue(parser, "bloom-size", "100000");
+    setDefaultValue(parser, "bloom-size", 1000);
 }
 
 // ----------------------------------------------------------------------------
@@ -325,6 +340,14 @@ parseCommandLine(DisOptions & disOptions, ArgumentParser & parser, int argc, cha
 
     // Parse Distributed mapper mptions
     getOptionValue(disOptions.numberOfBins, parser, "number-of-bins");
+    if (isSet(parser, "number-of-bins")) getOptionValue(disOptions.numberOfBins, parser, "number-of-bins");
+    if (isSet(parser, "kmer-size")) getOptionValue(disOptions.kmerSize, parser, "kmer-size");
+    if (isSet(parser, "num-hash")) getOptionValue(disOptions.numberOfHashes, parser, "num-hash");
+
+    uint64_t bloomSize;
+    if (getOptionValue(bloomSize, parser, "bloom-size"))
+        disOptions.bloomFilterSize = bloomSize * 1048576;
+
 
     if (isSet(parser, "verbose")) disOptions.verbose = 1;
     if (isSet(parser, "very-verbose")) disOptions.verbose = 2;
