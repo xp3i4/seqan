@@ -330,10 +330,10 @@ inline void clasifyLoadedReads(Mapper<TSpec, TMainConfig>  & mainMapper, TSeqAnB
     stop(mainMapper.timer);
     mainMapper.stats.loadReads += getValue(mainMapper.timer);
 
-    for (uint32_t binNo = 0; binNo < disOptions.numberOfBins; ++binNo)
-    {
-        std::cout << "bin " << binNo << ":" << disOptions.origReadIdMap[binNo].size() << std::endl;
-    }
+//    for (uint32_t binNo = 0; binNo < disOptions.numberOfBins; ++binNo)
+//    {
+//        std::cout << "bin " << binNo << ":" << disOptions.origReadIdMap[binNo].size() << std::endl;
+//    }
 }
 
 

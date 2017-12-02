@@ -414,8 +414,6 @@ inline void addBloomFilter (Options & options, TSeqAnBloomFilter & bf, uint8_t c
     {
         readRecord(id, seq, seqFileIn);
         bf.addKmers(seq, binNo);
-        //        reverseComplement(seq);
-        //        bf.addKmers(seq, binNo);
     }
     close(seqFileIn);
 }
@@ -434,11 +432,11 @@ void runYaraIndexer(Options const & options, TSeqAnBloomFilter & bf, uint8_t con
     appendFileName(binOptions.contigsIndexFile, options.contigsIndexFile, binNo);
     addBloomFilter(binOptions, bf, binNo);
 
-    //    YaraIndexer<> indexer(binOptions);
-    //    loadContigs(indexer);
-    //    setContigsLimits(binOptions, indexer.contigs.seqs);
-    //    saveContigs(indexer);
-    //    saveIndex(indexer);
+    YaraIndexer<> indexer(binOptions);
+    loadContigs(indexer);
+    setContigsLimits(binOptions, indexer.contigs.seqs);
+    saveContigs(indexer);
+    saveIndex(indexer);
 }
 
 // ----------------------------------------------------------------------------
