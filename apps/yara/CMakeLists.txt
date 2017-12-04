@@ -87,7 +87,7 @@ endif (MSVC)
 # ----------------------------------------------------------------------------
 
 # Add include directories.
-include_directories (${BF_INCLUDE_DIRS})
+include_directories (${SDSL_INCLUDE_DIRS})
 include_directories (${SEQAN_INCLUDE_DIRS})
 
 # Add definitions set by find_package (SeqAn).

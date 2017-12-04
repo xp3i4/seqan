@@ -432,11 +432,11 @@ void runYaraIndexer(Options const & options, TSeqAnBloomFilter & bf, uint8_t con
     appendFileName(binOptions.contigsIndexFile, options.contigsIndexFile, binNo);
     addBloomFilter(binOptions, bf, binNo);
 
-    YaraIndexer<> indexer(binOptions);
-    loadContigs(indexer);
-    setContigsLimits(binOptions, indexer.contigs.seqs);
-    saveContigs(indexer);
-    saveIndex(indexer);
+//    YaraIndexer<> indexer(binOptions);
+//    loadContigs(indexer);
+//    setContigsLimits(binOptions, indexer.contigs.seqs);
+//    saveContigs(indexer);
+//    saveIndex(indexer);
 }
 
 // ----------------------------------------------------------------------------
@@ -453,6 +453,39 @@ int main(int argc, char const ** argv)
 
     if (res != ArgumentParser::PARSE_OK)
         return res == ArgumentParser::PARSE_ERROR;
+
+//    SeqAnBloomFilter<> bf(options.numberOfBins,
+//                          options.numberOfHashes,
+//                          options.kmerSize,
+//                          options.bloomFilterSize);
+//
+//    Dna5String seq1 = "TTCCCCGACTTTGGCGTATACCCGAACGATTAACGAACGACTAACGCCTCAGCGTGGGTGATTAAAGAGGCCGGATTGTA";
+//    Dna5String seq2 = "TTCACTGACTTTCGCGTATACCCGAACGATTAACGAACGACTAACGCCTCAGCGTGGGTGATTAAAGAGGCCGGATTGTA";
+//    Dna5String que1 = "TTCACTGACTTTGGCGTATACCCGAACGATTAACG";
+//    Dna5String que2 = "TTCACTGACTTTCGCGTATACCCGAACGATTAACG";
+//
+//    for (uint8_t i=0; i<options.numberOfBins; i+=2)
+//    {
+//        bf.addKmers(seq1, i);
+//        bf.addKmers(seq2, i+1);
+//    }
+//
+//    std::cout << bf.whichBins(que1, 10) << std::endl;
+//    std::cout << bf.whichBins(que2, 10) << std::endl;
+//
+//    CharString filter_file = options.contigsIndexFile;
+//    append(filter_file, "bloom2.bf");
+//
+//    bf.save(toCString(filter_file));
+//
+//    SeqAnBloomFilter<> bf2(toCString(filter_file),
+//                           options.numberOfBins,
+//                           options.numberOfHashes,
+//                           options.kmerSize,
+//                           options.bloomFilterSize);
+//
+//    std::cout << bf2.whichBins(que1, 10) << std::endl;
+//    std::cout << bf2.whichBins(que2, 10) << std::endl;
 
 
     try
