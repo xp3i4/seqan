@@ -287,7 +287,6 @@ namespace seqan
         void _insertKmer(uint64_t & kmerHash, uint32_t const & binNo)
         {
             uint64_t tmp = kmerHash * (_preCalcValues[0]);
-            tmp = kmerHash * (_preCalcValues[0]);
             tmp ^= tmp >> _shiftValue;
 
             uint64_t vectIndex = (tmp % _noOfHashPos) * _binIntWidth + binNo;
