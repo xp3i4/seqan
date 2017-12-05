@@ -66,7 +66,7 @@ namespace seqan
                         _noOfHashFunc(n_hash_func),
                         _kmerSize(kmer_size),
                         _noOfBits(vec_size),
-                        _filterVector(sdsl::bit_vector(vec_size, 0));
+                        _filterVector(sdsl::bit_vector(vec_size, 0))
 
         {
             _init();
