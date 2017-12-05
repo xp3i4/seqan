@@ -68,6 +68,7 @@ namespace seqan
                         _noOfBits(vec_size)
         {
             _init();
+            sdsl::util::assign(_filterVector, bit_vector(_noOfBits,0));
         }
 
 //        SeqAnBloomFilter(const char *fileName, uint32_t n_bins, uint8_t n_hash_func, uint8_t kmer_size, uint64_t vec_size):
@@ -208,7 +209,6 @@ namespace seqan
             _binIntWidth = std::ceil((float)_noOfBins / uInt64Width);
             _noOfHashPos = _noOfBits / (uInt64Width * _binIntWidth);
 //            _filterVector.resize(_noOfBits / uInt64Width);
-            _filterVector.bit_resize(_noOfBits);
         }
 
 
