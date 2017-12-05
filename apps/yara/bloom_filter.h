@@ -144,20 +144,18 @@ namespace seqan
 //                --possible;
 //            }
 
+
             for (uint64_t kmerHash : kmerHashes)
             {
                 //if the number of bu
                 for (uint8_t batchNo = 0; batchNo < _binIntWidth; ++batchNo)
                 {
                     uint32_t binNo = batchNo * uInt64Width;
-                    uint64_t batchInt = _containsKmerBatch(kmerHash, batchNo);;
-                    if(batchInt == 0) continue;
+                    std::bitset<64> bitSet = _containsKmerBatch(kmerHash, batchNo);;
+                    if(bitSet.none()) continue;
                     for(uint8_t offset=0; binNo < _noOfBins && offset < uInt64Width; ++offset,++binNo)
                     {
-                        if (threshold - counts[binNo] > possible || selected[binNo])
-                            continue;
-
-                        if (_isBitSet(batchInt, offset))
+                        if (bitSet.test(offset) && !selected[binNo])
                         {
                             ++counts[binNo];
                             if(counts[binNo] >= threshold)
@@ -241,22 +239,20 @@ namespace seqan
 //        }
 
         //sdsl case
-        uint64_t _containsKmerBatch(uint64_t & kmerHash, uint8_t const & batch) const
+        std::bitset<64> _containsKmerBatch(uint64_t & kmerHash, uint8_t const & batch) const
         {
             uint64_t tmp = kmerHash * (_preCalcValues[0]);
             tmp ^= tmp >> _shiftValue;
             uint64_t vectIndex = (tmp % _noOfHashPos) * uInt64Width + batch;
 
-            uint64_t res = _filterVector.get_int(vectIndex, 64);
+            uint64_t res = _filterVector.get_int(vectIndex);
 
             for(uint8_t i = 1; i < _noOfHashFunc ; i++)
             {
-                if(res == 0) break;
-                
                 tmp = kmerHash * (_preCalcValues[i]);
                 tmp ^= tmp >> _shiftValue;
                 vectIndex = (tmp % _noOfHashPos) * uInt64Width + batch;
-                res &= _filterVector.get_int(vectIndex, 64);
+                res &= _filterVector.get_int(vectIndex);
             }
             return res;
         }
