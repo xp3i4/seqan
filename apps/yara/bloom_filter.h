@@ -68,7 +68,7 @@ namespace seqan
                         _noOfBits(vec_size)
         {
             _init();
-            sdsl::util::assign(_filterVector, bit_vector(_noOfBits,0));
+            sdsl::util::assign(_filterVector, sdsl::bit_vector(_noOfBits,0));
         }
 
 //        SeqAnBloomFilter(const char *fileName, uint32_t n_bins, uint8_t n_hash_func, uint8_t kmer_size, uint64_t vec_size):
@@ -89,7 +89,7 @@ namespace seqan
                         _noOfBits(vec_size)
         {
             _init();
-            if (!load_from_file(_filterVector, fileName))
+            if (!sdsl::load_from_file(_filterVector, fileName))
             {
                 std::cerr << "File \"" << fileName << "\" could not be read." << std::endl;
                 exit(1);
@@ -198,7 +198,7 @@ namespace seqan
         bool save(const char *fileName)
         {
             std::cerr << "Storing filter. Filter is " << size_in_mega_bytes(_filterVector) << " MB." << std::endl;
-            return store_to_file(_filterVector, fileName);
+            return sdsl::store_to_file(_filterVector, fileName);
         }
 
     private:
