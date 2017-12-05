@@ -127,43 +127,43 @@ namespace seqan
             }
 
 
-//            for (uint64_t kmerHash : kmerHashes)
-//            {
-//                for (uint8_t binNo = 0; binNo < _noOfBins; ++binNo)
-//                {
-//                    if (threshold - counts[binNo] > possible || selected[binNo])
-//                        continue;
-//
-//                    if (_containsKmer(kmerHash, binNo))
-//                    {
-//                        ++counts[binNo];
-//                        if(counts[binNo] >= threshold)
-//                            selected[binNo] = true;
-//                    }
-//                }
-//                --possible;
-//            }
-
             for (uint64_t kmerHash : kmerHashes)
             {
-                //if the number of bu
-                for (uint8_t batchNo = 0; batchNo < _binIntWidth; ++batchNo)
+                for (uint8_t binNo = 0; binNo < _noOfBins; ++binNo)
                 {
-                    uint32_t binNo = batchNo * uInt64Width;
-                    std::bitset<64> bitSet = _containsKmerBatch(kmerHash, batchNo);;
-                    if(bitSet.none()) continue;
-                    for(uint8_t offset=0; binNo < _noOfBins && offset < uInt64Width; ++offset,++binNo)
+                    if (threshold - counts[binNo] > possible || selected[binNo])
+                        continue;
+
+                    if (_containsKmer(kmerHash, binNo))
                     {
-                        if (!selected[binNo] && bitSet.test(offset))
-                        {
-                            ++counts[binNo];
-                            if(counts[binNo] >= threshold)
-                                selected[binNo] = true;
-                        }
+                        ++counts[binNo];
+                        if(counts[binNo] >= threshold)
+                            selected[binNo] = true;
                     }
                 }
                 --possible;
             }
+
+//            for (uint64_t kmerHash : kmerHashes)
+//            {
+//                //if the number of bu
+//                for (uint8_t batchNo = 0; batchNo < _binIntWidth; ++batchNo)
+//                {
+//                    uint32_t binNo = batchNo * uInt64Width;
+//                    std::bitset<64> bitSet = _containsKmerBatch(kmerHash, batchNo);;
+//                    if(bitSet.none()) continue;
+//                    for(uint8_t offset=0; binNo < _noOfBins && offset < uInt64Width; ++offset,++binNo)
+//                    {
+//                        if (!selected[binNo] && bitSet.test(offset))
+//                        {
+//                            ++counts[binNo];
+//                            if(counts[binNo] >= threshold)
+//                                selected[binNo] = true;
+//                        }
+//                    }
+//                }
+//                --possible;
+//            }
         }
 
         std::vector<bool> whichBins(TString const & text, uint8_t const & threshold) const
@@ -255,17 +255,31 @@ namespace seqan
             return res;
         }
 
+//        bool _containsKmer(uint64_t & kmerHash, uint32_t const & binNo) const
+//        {
+//            uint64_t tmp = 0;
+//            uint8_t binOfset = binNo%uInt64Width;
+//            for(uint8_t i = 0; i < _noOfHashFunc ; i++)
+//            {
+//                tmp = kmerHash * (_preCalcValues[i]);
+//                tmp ^= tmp >> _shiftValue;
+//                uint64_t vectIndex = (tmp % _noOfHashPos) * _binIntWidth + binNo/uInt64Width;
+//                std::bitset<64> res(_filterVector[vectIndex]);
+//                if (!res.test(binOfset))
+//                    return false;
+//            }
+//            return true;
+//        }
+        //sdsl
         bool _containsKmer(uint64_t & kmerHash, uint32_t const & binNo) const
         {
             uint64_t tmp = 0;
-            uint8_t binOfset = binNo%uInt64Width;
             for(uint8_t i = 0; i < _noOfHashFunc ; i++)
             {
                 tmp = kmerHash * (_preCalcValues[i]);
                 tmp ^= tmp >> _shiftValue;
-                uint64_t vectIndex = (tmp % _noOfHashPos) * _binIntWidth + binNo/uInt64Width;
-                std::bitset<64> res(_filterVector[vectIndex]);
-                if (!res.test(binOfset))
+                uint64_t vectIndex = (tmp % _noOfHashPos) * _binIntWidth + binNo;
+                if (!_filterVector[vectIndex])
                     return false;
             }
             return true;
@@ -291,14 +305,14 @@ namespace seqan
             tmp ^= tmp >> _shiftValue;
 
             uint64_t vectIndex = (tmp % _noOfHashPos) * _binIntWidth + binNo;
-            _filterVector[vectIndex] = true;
+            _filterVector[vectIndex] = 1;
 
             for(uint8_t i = 1; i < _noOfHashFunc ; i++)
             {
                 tmp = kmerHash * (_preCalcValues[i]);
                 tmp ^= tmp >> _shiftValue;
                 vectIndex = (tmp % _noOfHashPos) * _binIntWidth + binNo;
-                _filterVector[vectIndex] = true;
+                _filterVector[vectIndex] = 1;
             }
         }
 
