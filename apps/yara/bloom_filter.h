@@ -65,10 +65,11 @@ namespace seqan
                         _noOfBins(n_bins),
                         _noOfHashFunc(n_hash_func),
                         _kmerSize(kmer_size),
-                        _noOfBits(vec_size)
+                        _noOfBits(vec_size),
+                        _filterVector(sdsl::bit_vector(vec_size, 0));
+
         {
             _init();
-            util::assign(_filterVector, sdsl::bit_vector(_noOfBits,0));
         }
 
 //        SeqAnBloomFilter(const char *fileName, uint32_t n_bins, uint8_t n_hash_func, uint8_t kmer_size, uint64_t vec_size):
