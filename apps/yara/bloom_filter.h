@@ -151,7 +151,7 @@ namespace seqan
                 for (uint8_t batchNo = 0; batchNo < _binIntWidth; ++batchNo)
                 {
                     uint32_t binNo = batchNo * uInt64Width;
-                    std::bitset<64> bitSet = _containsKmerBatch(kmerHash, batchNo);;
+                    std::bitset<64> bitSet = _containsKmerBatch(kmerHash, batchNo);
                     if(bitSet.none()) continue;
                     for(uint8_t offset=0; binNo < _noOfBins && offset < uInt64Width; ++offset,++binNo)
                     {

@@ -343,6 +343,9 @@ inline void clasifyLoadedReads(Mapper<TSpec, TMainConfig>  & mainMapper, TSeqAnB
 template <typename TSpec, typename TConfig, typename TMainConfig>
 inline void loadFilteredReads(Mapper<TSpec, TConfig> & me, Mapper<TSpec, TMainConfig>  & mainMapper, DisOptions & disOptions)
 {
+
+    start(mainMapper.timer);
+
     uint32_t numReads = getReadsCount( mainMapper.reads.seqs);
     uint32_t numFilteredReads = disOptions.origReadIdMap[disOptions.currentBinNo].size();
 
@@ -374,6 +377,9 @@ inline void loadFilteredReads(Mapper<TSpec, TConfig> & me, Mapper<TSpec, TMainCo
         appendValue(me.reads.seqs, mainMapper.reads.seqs[orgId + numReads]);
         disOptions.origReadIdMap[disOptions.currentBinNo].push_back(orgId + numReads);
     }
+
+    stop(mainMapper.timer);
+    mainMapper.stats.loadReads += getValue(mainMapper.timer);
 //    std::cout << "getReadsCount(me.reads.seqs) "<< getReadsCount(me.reads.seqs) << "\n";
 //    std::cout << "getReadSeqsCount(me.reads.seqs) "<< getReadSeqsCount(me.reads.seqs) << "\n";
 //    std::cout << "disOptions.origReadIdMap.size() "<< disOptions.origReadIdMap[disOptions.currentBinNo].size() << "\n";
@@ -812,11 +818,14 @@ inline void runDisMapper(Mapper<TSpec, TMainConfig> & mainMapper, DisOptions & d
     CharString bfFile = disOptions.IndicesDirectory;
     append(bfFile, "bloom.bf");
 
+    start(mainMapper.timer);
     SeqAnBloomFilter<> bf(toCString(bfFile),
                           disOptions.numberOfBins,
                           disOptions.numberOfHashes,
                           disOptions.kmerSize,
                           disOptions.bloomFilterSize);
+    stop(mainMapper.timer);
+    mainMapper.stats.loadReads += getValue(mainMapper.timer);
 
     while (true)
     {
