@@ -102,24 +102,6 @@ inline void appendStats(Mapper<TSpec, TMainConfig> & mainMapper, Mapper<TSpec, T
     mainMapper.stats.rescuedReads   += childMapper.stats.rescuedReads;
 }
 
-// ----------------------------------------------------------------------------
-// Function updateContext()
-// ----------------------------------------------------------------------------
-template <typename TReadsContext1, typename TReadsContext2>
-inline void updateContext(TReadsContext1 & mainCtx, TReadsContext2 const & childCtx, DisOptions & disOptions)
-{
-    for (uint32_t i = 0; i < length(childCtx.mapped); ++i)
-    {
-        if(!childCtx.mapped[i]) continue;
-        uint32_t origReadId     = disOptions.origReadIdMap[disOptions.currentBinNo][i];
-        setMinErrors(mainCtx, origReadId, getMinErrors(childCtx, i));
-        if (isPaired(childCtx, i))
-        {
-            setPaired(mainCtx, origReadId);
-        }
-        setMapped(mainCtx, origReadId);
-    }
-}
 
 // ----------------------------------------------------------------------------
 // Function copyMatches()
@@ -148,8 +130,6 @@ inline void copyMatches(Mapper<TSpec, TMainConfig> & mainMapper, Mapper<TSpec, T
         currentMatch.errors        = childMapper.matchesByCoord[i].errors;
         appendValue(appender, currentMatch, Generous(), TThreading());
     }
-    
-    updateContext(mainMapper.ctx, childMapper.ctx, disOptions);
 }
 
 // ----------------------------------------------------------------------------
@@ -165,8 +145,17 @@ inline void copyCigars(Mapper<TSpec, TMainConfig> & mainMapper, Mapper<TSpec, TC
         TMatch currentMatch = childMapper.primaryMatches[i];
         uint32_t readId         = currentMatch.readId;
         uint32_t origReadId     = disOptions.origReadIdMap[disOptions.currentBinNo][readId];
-        
-        if(getMinErrors(mainMapper.ctx, origReadId) >= currentMatch.errors)
+
+        setMapped(mainMapper.ctx, origReadId);
+        setMinErrors(mainMapper.ctx, origReadId, currentMatch.errors);
+
+        if (!isPaired(mainMapper.ctx, origReadId) && isPaired(childMapper.ctx, readId)) // First paired match
+        {
+            setPaired(mainMapper.ctx, origReadId);
+            mainMapper.primaryMatchesProbs[origReadId] = childMapper.primaryMatchesProbs[readId];
+        }
+
+        if(getMinErrors(mainMapper.ctx, origReadId) == currentMatch.errors)
         {
             disOptions.cigarSet[origReadId] = childMapper.cigarSet[readId];
         }
@@ -380,6 +369,7 @@ inline void loadFilteredReads(Mapper<TSpec, TConfig> & me, Mapper<TSpec, TMainCo
 
     stop(mainMapper.timer);
     mainMapper.stats.loadReads += getValue(mainMapper.timer);
+//    std::cout << "Current bin " << disOptions.currentBinNo << ":" << disOptions.origReadIdMap[disOptions.currentBinNo].size() << std::endl;
 //    std::cout << "getReadsCount(me.reads.seqs) "<< getReadsCount(me.reads.seqs) << "\n";
 //    std::cout << "getReadSeqsCount(me.reads.seqs) "<< getReadSeqsCount(me.reads.seqs) << "\n";
 //    std::cout << "disOptions.origReadIdMap.size() "<< disOptions.origReadIdMap[disOptions.currentBinNo].size() << "\n";
