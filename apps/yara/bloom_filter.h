@@ -199,8 +199,12 @@ namespace seqan
         //save case sdsl
         bool save(const char *fileName)
         {
-            std::cerr << "Storing filter. Filter is " << size_in_mega_bytes(_filterVector) << " MB." << std::endl;
             return sdsl::store_to_file(_filterVector, fileName);
+        }
+
+        double size_mb()
+        {
+            return sdsl::size_in_mega_bytes(_filterVector);
         }
 
     private:

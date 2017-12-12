@@ -1,5 +1,5 @@
 // ==========================================================================
-//                                 kmer_indexer.cpp
+//                                 indexer_dis.cpp
 // ==========================================================================
 // Copyright (c) 2017-2022, Temesgen H. Dadi, FU Berlin
 // All rights reserved.
@@ -61,7 +61,6 @@
 #include "bits_matches.h"
 #include "misc_options.h"
 #include "misc_options_dis.h"
-#include "bloom_filter.h"
 #include "index_fm.h"
 
 using namespace seqan;
@@ -75,10 +74,8 @@ struct Options
     CharString      contigsFile;
     CharString      contigsIndexFile;
 
-    uint32_t        kmerSize;
     uint32_t        numberOfBins;
-    uint64_t        bloomFilterSize;
-    uint32_t        numberOfHashes;
+    uint32_t        currentBinNo;
 
     uint64_t        contigsSize;
     uint64_t        contigsMaxLength;
@@ -89,10 +86,8 @@ struct Options
     bool            verbose;
 
     Options() :
-    kmerSize(20),
     numberOfBins(64),
-    bloomFilterSize(8589934592), // 1GB
-    numberOfHashes(4),
+    currentBinNo(0),
     contigsSize(),
     contigsMaxLength(),
     contigsSum(),
@@ -130,18 +125,18 @@ struct YaraIndexer
 
 void setupArgumentParser(ArgumentParser & parser, Options const & options)
 {
-    setAppName(parser, "yara_indexer");
-    setShortDescription(parser, "Yara Indexer");
+    setAppName(parser, "yara_indexer_dis");
+    setShortDescription(parser, "Distributed Yara Indexer");
     setCategory(parser, "Read Mapping");
 
     setDateAndVersion(parser);
     setDescription(parser);
 
-    addUsageLine(parser, "[\\fIOPTIONS\\fP] <\\fIREFERENCE FILE\\fP>");
+    addUsageLine(parser, "[\\fIOPTIONS\\fP] <\\fIREFERENCE FILES DIR \\fP>");
 
-    addArgument(parser, ArgParseArgument(ArgParseArgument::INPUT_PREFIX, "REFERENCE FILE"));
+    addArgument(parser, ArgParseArgument(ArgParseArgument::INPUT_PREFIX, "REFERENCE FILE DIR"));
     //    setValidValues(parser, 0, SeqFileIn::getFileExtensions());
-    setHelpText(parser, 0, "A reference genome file.");
+    setHelpText(parser, 0, "A directory containing reference genome files.");
 
     addOption(parser, ArgParseOption("v", "verbose", "Displays verbose output."));
 
@@ -159,24 +154,11 @@ void setupArgumentParser(ArgumentParser & parser, Options const & options)
 
     addOption(parser, ArgParseOption("t", "threads", "Specify the number of threads to use (valid for bloom filter only).", ArgParseOption::INTEGER));
     setMinValue(parser, "threads", "1");
-    setMaxValue(parser, "threads", "2048");
+    setMaxValue(parser, "threads", "32");
     setDefaultValue(parser, "threads", options.threadsCount);
 
 
-    addOption(parser, ArgParseOption("k", "kmer-size", "The size of kmers for bloom_filter",
-                                     ArgParseOption::INTEGER));
-    setMinValue(parser, "kmer-size", "14");
-    setMaxValue(parser, "kmer-size", "32");
 
-    addOption(parser, ArgParseOption("nh", "num-hash", "Specify the number of hash functions to use for the bloom filter.", ArgParseOption::INTEGER));
-    setMinValue(parser, "num-hash", "2");
-    setMaxValue(parser, "num-hash", "5");
-    setDefaultValue(parser, "num-hash", options.numberOfHashes);
-
-    addOption(parser, ArgParseOption("bs", "bloom-size", "The size of bloom filter in MB.", ArgParseOption::INTEGER));
-    setMinValue(parser, "bloom-size", "1");
-    setMaxValue(parser, "bloom-size", "100000");
-    setDefaultValue(parser, "bloom-size", 1000);
 }
 
 // ----------------------------------------------------------------------------
@@ -214,14 +196,7 @@ parseCommandLine(Options & options, ArgumentParser & parser, int argc, char cons
     setEnv("TMPDIR", tmpDir);
 
     if (isSet(parser, "number-of-bins")) getOptionValue(options.numberOfBins, parser, "number-of-bins");
-    if (isSet(parser, "kmer-size")) getOptionValue(options.kmerSize, parser, "kmer-size");
     if (isSet(parser, "threads")) getOptionValue(options.threadsCount, parser, "threads");
-    if (isSet(parser, "num-hash")) getOptionValue(options.numberOfHashes, parser, "num-hash");
-
-    uint64_t bloomSize;
-    if (getOptionValue(bloomSize, parser, "bloom-size"))
-        options.bloomFilterSize = bloomSize * 8388608;
-
 
     return ArgumentParser::PARSE_OK;
 }
@@ -234,9 +209,11 @@ template <typename TSpec, typename TConfig>
 void loadContigs(YaraIndexer<TSpec, TConfig> & me)
 {
     if (me.options.verbose)
-        std::cerr << "Loading reference:\t\t\t" << std::flush;
-
-    start(me.timer);
+    {
+        mtx.lock();
+        std::cerr << "[bin " << me.options.currentBinNo << "] Loading reference ..." << std::endl;
+        mtx.unlock();
+    }
 
     if (!open(me.contigsFile, toCString(me.options.contigsFile)))
         throw RuntimeError("Error while opening the reference file.");
@@ -251,10 +228,6 @@ void loadContigs(YaraIndexer<TSpec, TConfig> & me)
         throw RuntimeError("Insufficient memory to load the reference.");
     }
 
-    stop(me.timer);
-
-    if (me.options.verbose)
-        std::cerr << me.timer << std::endl;
 }
 
 // ----------------------------------------------------------------------------
@@ -265,15 +238,14 @@ template <typename TSpec, typename TConfig>
 void saveContigs(YaraIndexer<TSpec, TConfig> & me)
 {
     if (me.options.verbose)
-        std::cerr << "Saving reference:\t\t\t" << std::flush;
+    {
+        mtx.lock();
+        std::cerr <<"[bin " << me.options.currentBinNo << "] Saving reference ..." << std::endl;
+        mtx.unlock();
+    }
 
-    start(me.timer);
     if (!saveContigsLimits(me.options) || !save(me.contigs, toCString(me.options.contigsIndexFile)))
         throw RuntimeError("Error while saving the reference.");
-    stop(me.timer);
-
-    if (me.options.verbose)
-        std::cerr << me.timer << std::endl;
 }
 
 // ----------------------------------------------------------------------------
@@ -288,9 +260,12 @@ void saveIndex(YaraIndexer<TSpec, TConfig> & me)
     typedef Index<typename TIndexConfig::Text, TIndexSpec>          TIndex;
 
     if (me.options.verbose)
-        std::cerr << "Building reference index:\t\t" << std::flush;
+    {
+        mtx.lock();
+        std::cerr << "[bin " << me.options.currentBinNo << "] Building reference index ..." << std::endl;
+        mtx.unlock();
+    }
 
-    start(me.timer);
 
     // Randomly replace Ns with A, C, G, T.
     randomizeNs(me.contigs);
@@ -324,21 +299,14 @@ void saveIndex(YaraIndexer<TSpec, TConfig> & me)
                            Specify a bigger temporary folder using the options --tmp-dir.");
     }
 
-    stop(me.timer);
-
     if (me.options.verbose)
-        std::cerr << me.timer << std::endl;
-
-    if (me.options.verbose)
-        std::cerr << "Saving reference index:\t\t\t" << std::flush;
-
-    start(me.timer);
+    {
+        mtx.lock();
+        std::cerr << "[bin " << me.options.currentBinNo << "] Saving reference index:\t\t\t" << std::endl;
+        mtx.unlock();
+    }
     if (!save(index, toCString(me.options.contigsIndexFile)))
         throw RuntimeError("Error while saving the reference index file.");
-    stop(me.timer);
-
-    if (me.options.verbose)
-        std::cerr << me.timer << std::endl;
 }
 
 template <typename TContigsSize, typename TContigsLen, typename TSpec, typename TConfig>
@@ -393,50 +361,15 @@ void saveIndex(YaraIndexer<TSpec, TConfig> & me)
 }
 
 // ----------------------------------------------------------------------------
-// Function addBloomFilter()
-// ----------------------------------------------------------------------------
-template <typename TSeqAnBloomFilter>
-inline void addBloomFilter (Options & options, TSeqAnBloomFilter & bf, uint8_t const binNo)
-{
-    CharString fasta_file = options.contigsFile;
-
-    CharString id;
-    IupacString seq;
-
-    SeqFileIn seqFileIn;
-    if (!open(seqFileIn, toCString(fasta_file)))
-    {
-        CharString msg = "Unable to open contigs File: ";
-        append (msg, fasta_file);
-        throw toCString(msg);
-    }
-    while(!atEnd(seqFileIn))
-    {
-        readRecord(id, seq, seqFileIn);
-        bf.addKmers(seq, binNo);
-    }
-    close(seqFileIn);
-}
-
-// ----------------------------------------------------------------------------
 // Function runYaraIndexer()
 // ----------------------------------------------------------------------------
-
-template <typename TSeqAnBloomFilter>
-void runYaraIndexer(Options const & options, TSeqAnBloomFilter & bf, uint8_t const binNo)
+void runYaraIndexer(Options & options)
 {
-
-    Options binOptions = options;
-    appendFileName(binOptions.contigsFile, options.contigsFile, binNo);
-    append(binOptions.contigsFile, ".fna");
-    appendFileName(binOptions.contigsIndexFile, options.contigsIndexFile, binNo);
-    addBloomFilter(binOptions, bf, binNo);
-
-//    YaraIndexer<> indexer(binOptions);
-//    loadContigs(indexer);
-//    setContigsLimits(binOptions, indexer.contigs.seqs);
-//    saveContigs(indexer);
-//    saveIndex(indexer);
+    YaraIndexer<> indexer(options);
+    loadContigs(indexer);
+    setContigsLimits(options, indexer.contigs.seqs);
+    saveContigs(indexer);
+    saveIndex(indexer);
 }
 
 // ----------------------------------------------------------------------------
@@ -456,26 +389,41 @@ int main(int argc, char const ** argv)
 
     try
     {
-        CharString filter_file = options.contigsIndexFile;
-        append(filter_file, "bloom.bf");
-
-        SeqAnBloomFilter<> bf(options.numberOfBins,
-                              options.numberOfHashes,
-                              options.kmerSize,
-                              options.bloomFilterSize);
 
         Semaphore thread_limiter(options.threadsCount);
         std::vector<std::future<void>> tasks;
 
-        for (uint8_t binNo = 0; binNo < options.numberOfBins; ++binNo)
-        {
-            tasks.emplace_back(std::async([=, &thread_limiter, &bf] {
-                Critical_section _(thread_limiter);
-                runYaraIndexer(options, bf, binNo);
+        Timer<double>       timer;
+        Timer<double>       globalTimer;
+        start (timer);
+        start (globalTimer);
 
-                mtx.lock();
-                std::cout << "Finished indexing bin : " << (int)binNo << std::endl;
-                mtx.unlock();
+        for (uint32_t binNo = 0; binNo < options.numberOfBins; ++binNo)
+        {   
+            tasks.emplace_back(std::async([=, &thread_limiter] {
+                Critical_section _(thread_limiter);
+
+                Timer<double>       binTimer;
+                start (binTimer);
+
+                Options binOptions = options;
+
+                appendFileName(binOptions.contigsFile, options.contigsFile, binNo);
+                append(binOptions.contigsFile, ".fna");
+                appendFileName(binOptions.contigsIndexFile, options.contigsIndexFile, binNo);
+
+                binOptions.currentBinNo = binNo;
+
+                runYaraIndexer(binOptions);
+
+                stop(binTimer);
+
+                if (options.verbose)
+                {
+                    mtx.lock();
+                    std::cerr <<"[bin " << binNo << "] Done indexing reference\t\t\t" << binTimer << std::endl;
+                    mtx.unlock();
+                }
 
             }));
         }
@@ -483,7 +431,12 @@ int main(int argc, char const ** argv)
         {
             task.get();
         }
-        bf.save(toCString(filter_file));
+        stop(timer);
+        if (options.verbose)
+            std::cerr <<"All bins are done indexing reference!\t" << timer << std::endl;
+
+        stop(globalTimer);
+        std::cerr <<"\nFinshed in \t\t\t" << globalTimer << std::endl;
     }
     catch (Exception const & e)
     {
