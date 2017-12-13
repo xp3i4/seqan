@@ -191,10 +191,14 @@ parseCommandLine(Options & options, ArgumentParser & parser, int argc, char cons
 // Function addBloomFilter()
 // ----------------------------------------------------------------------------
 template <typename TSeqAnBloomFilter>
-inline void addBloomFilter (CharString const & fastaFile, TSeqAnBloomFilter & bf, uint32_t const binNo)
+inline void addBloomFilter (Options const & options, TSeqAnBloomFilter & bf, uint32_t const binNo)
 {
     CharString id;
     IupacString seq;
+
+    CharString fastaFile;
+    appendFileName(fastaFile, options.contigsDir, binNo);
+    append(fastaFile, ".fna");
 
     SeqFileIn seqFileIn;
     if (!open(seqFileIn, toCString(fastaFile)))
@@ -206,6 +210,8 @@ inline void addBloomFilter (CharString const & fastaFile, TSeqAnBloomFilter & bf
     while(!atEnd(seqFileIn))
     {
         readRecord(id, seq, seqFileIn);
+        if(length(seq) < options.kmerSize)
+            continue;
         bf.addKmers(seq, binNo);
     }
     close(seqFileIn);
@@ -250,10 +256,7 @@ int main(int argc, char const ** argv)
                 Timer<double>       binTimer;
                 start (binTimer);
 
-                CharString fastaFile;
-                appendFileName(fastaFile, options.contigsDir, binNo);
-                append(fastaFile, ".fna");
-                addBloomFilter(fastaFile, bf, binNo);
+                addBloomFilter(options, bf, binNo);
 
                 stop(binTimer);
                 if (options.verbose)
