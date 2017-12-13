@@ -351,8 +351,8 @@ namespace seqan
         uint8_t                  _binIntWidth;
 
         //sizes in diferent units
-        size_t                  _noOfBits;
-        size_t                  _noOfHashPos;
+        uint64_t                _noOfBits;
+        uint64_t                _noOfHashPos;
         sdsl::bit_vector        _filterVector;
 //        std::vector<uint64_t>   _filterVector;
         std::vector<uint64_t>   _preCalcValues = {};

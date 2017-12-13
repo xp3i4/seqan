@@ -191,7 +191,7 @@ parseCommandLine(Options & options, ArgumentParser & parser, int argc, char cons
 // Function addBloomFilter()
 // ----------------------------------------------------------------------------
 template <typename TSeqAnBloomFilter>
-inline void addBloomFilter (CharString const & fastaFile, TSeqAnBloomFilter & bf, uint8_t const binNo)
+inline void addBloomFilter (CharString const & fastaFile, TSeqAnBloomFilter & bf, uint32_t const binNo)
 {
     CharString id;
     IupacString seq;
@@ -244,6 +244,7 @@ int main(int argc, char const ** argv)
         for (uint32_t binNo = 0; binNo < options.numberOfBins; ++binNo)
         {
             tasks.emplace_back(std::async([=, &thread_limiter, &bf] {
+
                 Critical_section _(thread_limiter);
 
                 Timer<double>       binTimer;
