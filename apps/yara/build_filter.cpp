@@ -143,7 +143,7 @@ void setupArgumentParser(ArgumentParser & parser, Options const & options)
 
     addOption(parser, ArgParseOption("bs", "bloom-size", "The size of bloom filter in MB.", ArgParseOption::INTEGER));
     setMinValue(parser, "bloom-size", "1");
-    setMaxValue(parser, "bloom-size", "100000");
+    setMaxValue(parser, "bloom-size", "512000");
     setDefaultValue(parser, "bloom-size", 1000);
 }
 

@@ -254,8 +254,11 @@ void setupArgumentParser(ArgumentParser & parser, DisOptions const & disOptions)
 
     addOption(parser, ArgParseOption("bs", "bloom-size", "The size of bloom filter in MB.", ArgParseOption::INTEGER));
     setMinValue(parser, "bloom-size", "1");
-    setMaxValue(parser, "bloom-size", "100000");
+    setMaxValue(parser, "bloom-size", "512000");
     setDefaultValue(parser, "bloom-size", 1000);
+
+    addOption(parser, ArgParseOption("bf", "bloom-filter", "The path to a bloom filter. Default: will look for bloom.bf file inside the indices directory.", ArgParseOption::INPUT_FILE));
+    setValidValues(parser, "bloom-filter", "bf");
 }
 
 // ----------------------------------------------------------------------------
@@ -338,11 +341,19 @@ parseCommandLine(DisOptions & disOptions, ArgumentParser & parser, int argc, cha
     getOptionValue(disOptions.threadsCount, parser, "threads");
     getOptionValue(disOptions.readsCount, parser, "reads-batch");
 
-    // Parse Distributed mapper mptions
+    // Parse Distributed mapper options
     getOptionValue(disOptions.numberOfBins, parser, "number-of-bins");
     if (isSet(parser, "number-of-bins")) getOptionValue(disOptions.numberOfBins, parser, "number-of-bins");
     if (isSet(parser, "kmer-size")) getOptionValue(disOptions.kmerSize, parser, "kmer-size");
     if (isSet(parser, "num-hash")) getOptionValue(disOptions.numberOfHashes, parser, "num-hash");
+
+    // Parse contigs index prefix.
+    getOptionValue(disOptions.filterFile, parser, "bloom-filter");
+    if (!isSet(parser, "bloom-filter"))
+    {
+        disOptions.filterFile = disOptions.IndicesDirectory;
+        append(disOptions.filterFile, "bloom.bf");
+    }
 
     uint64_t bloomSize;
     if (getOptionValue(bloomSize, parser, "bloom-size"))

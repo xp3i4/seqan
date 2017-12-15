@@ -148,15 +148,6 @@ inline void getValidFilesInDir(StringSet<CharString> & fileNames,
 // ----------------------------------------------------------------------------
 inline bool verifyIndicesDir(CharString const directoryPath, uint32_t const numberOfBins)
 {
-    CharString bloomIndexFile = directoryPath;
-    append(bloomIndexFile, "bloom.bf");
-
-    FILE *file = fopen(toCString(bloomIndexFile), "rb");
-    if (file == NULL)
-    {
-        std::cerr << "No bloom filter found in the given directory!" << std::endl;
-        return false;
-    }
     for (uint32_t i=0; i < numberOfBins; ++i)
     {
         CharString contigsLimitFile;

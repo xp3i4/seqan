@@ -49,6 +49,7 @@ struct DisOptions : public Options
 {
 public:
     CharString              IndicesDirectory;
+    CharString              filterFile;
     CharString              superOutputFile;
 
     uint32_t                kmerSize = 20;
@@ -57,6 +58,7 @@ public:
     uint32_t                numberOfHashes = 4;
 
     uint32_t                currentBinNo = 0;
+    uint64_t                filteredReads = 0;
     std::vector<uint32_t>   contigOffsets;
     std::vector<std::vector<uint32_t>>   origReadIdMap;
     std::map<uint32_t, String<CigarElement<> > > cigarSet;
@@ -369,6 +371,8 @@ inline void loadFilteredReads(Mapper<TSpec, TConfig> & me, Mapper<TSpec, TMainCo
 
     stop(mainMapper.timer);
     mainMapper.stats.loadReads += getValue(mainMapper.timer);
+
+    disOptions.filteredReads += getReadSeqsCount(me.reads.seqs);
 //    std::cout << "Current bin " << disOptions.currentBinNo << ":" << disOptions.origReadIdMap[disOptions.currentBinNo].size() << std::endl;
 //    std::cout << "getReadsCount(me.reads.seqs) "<< getReadsCount(me.reads.seqs) << "\n";
 //    std::cout << "getReadSeqsCount(me.reads.seqs) "<< getReadSeqsCount(me.reads.seqs) << "\n";
@@ -805,11 +809,8 @@ inline void runDisMapper(Mapper<TSpec, TMainConfig> & mainMapper, DisOptions & d
     openOutputFile(mainMapper, disOptions);
     openReads(mainMapper);
 
-    CharString bfFile = disOptions.IndicesDirectory;
-    append(bfFile, "bloom.bf");
-
     start(mainMapper.timer);
-    SeqAnBloomFilter<> bf(toCString(bfFile),
+    SeqAnBloomFilter<> bf(toCString(disOptions.filterFile),
                           disOptions.numberOfBins,
                           disOptions.numberOfHashes,
                           disOptions.kmerSize,
@@ -842,7 +843,7 @@ inline void runDisMapper(Mapper<TSpec, TMainConfig> & mainMapper, DisOptions & d
     stop(timer);
     if (mainMapper.options.verbose > 0)
         printStats(mainMapper, timer);
-    
+    std::cerr << "Avg reads per bin:\t\t" << (double)disOptions.filteredReads / disOptions.numberOfBins << std::endl;
 }
 
 // ----------------------------------------------------------------------------
