@@ -52,6 +52,8 @@ public:
     CharString              filterFile;
     CharString              superOutputFile;
 
+    bool                    noFilter = false;
+
     uint32_t                kmerSize = 20;
     uint32_t                numberOfBins = 64;
     uint64_t                bloomFilterSize = 8589934592; //1GB
@@ -60,8 +62,10 @@ public:
     uint32_t                currentBinNo = 0;
     uint64_t                filteredReads = 0;
     std::vector<uint32_t>   contigOffsets;
-    std::vector<std::vector<uint32_t>>   origReadIdMap;
-    std::map<uint32_t, String<CigarElement<> > > cigarSet;
+
+    std::vector<std::vector<uint32_t>>          origReadIdMap;
+    std::map<uint32_t, String<CigarElement<>>>  cigarSet;
+
 
     uint32_t getContigOffsets()
     {
@@ -122,7 +126,9 @@ inline void copyMatches(Mapper<TSpec, TMainConfig> & mainMapper, Mapper<TSpec, T
     {
         TMatch currentMatch;
         uint32_t readId         = childMapper.matchesByCoord[i].readId;
-        uint32_t origReadId     = disOptions.origReadIdMap[disOptions.currentBinNo][readId];
+        uint32_t origReadId     = readId;
+        if(!disOptions.noFilter)
+            origReadId = disOptions.origReadIdMap[disOptions.currentBinNo][readId];
 
         currentMatch.readId        = origReadId;
         currentMatch.contigId      = childMapper.matchesByCoord[i].contigId + disOptions.getContigOffsets();
@@ -146,7 +152,9 @@ inline void copyCigars(Mapper<TSpec, TMainConfig> & mainMapper, Mapper<TSpec, TC
     {
         TMatch currentMatch = childMapper.primaryMatches[i];
         uint32_t readId         = currentMatch.readId;
-        uint32_t origReadId     = disOptions.origReadIdMap[disOptions.currentBinNo][readId];
+        uint32_t origReadId     = readId;
+        if(!disOptions.noFilter)
+            origReadId = disOptions.origReadIdMap[disOptions.currentBinNo][readId];
 
         setMapped(mainMapper.ctx, origReadId);
         setMinErrors(mainMapper.ctx, origReadId, currentMatch.errors);
@@ -241,27 +249,6 @@ inline void _mapReadsImpl(Mapper<TSpec, TConfig> & me, Mapper<TSpec, TMainConfig
 }
 
 // ----------------------------------------------------------------------------
-// Function unMaskReads()
-// ----------------------------------------------------------------------------
-template <typename TSpec, typename TConfig>
-inline void unMaskReads(Mapper<TSpec, TConfig> & me, std::vector<bool> const & maskVector)
-{
-    for (uint32_t i = 0; i < maskVector.size(); ++i)
-        if(!maskVector[i]) assignValue(me.ctx.mapped, i, false);
-}
-
-// ----------------------------------------------------------------------------
-// Function maskReads()
-// ----------------------------------------------------------------------------
-template <typename TSpec, typename TConfig>
-inline void maskReads(Mapper<TSpec, TConfig> & me, std::vector<bool> const & maskVector)
-{
-    for (uint32_t i = 0; i < maskVector.size(); ++i)
-        if(!maskVector[i])
-            setMapped(me.ctx, i);
-}
-
-// ----------------------------------------------------------------------------
 // Function clasifyLoadedReads()
 // ----------------------------------------------------------------------------
 template <typename TSpec, typename TMainConfig, typename TSeqAnBloomFilter>
@@ -337,46 +324,51 @@ inline void loadFilteredReads(Mapper<TSpec, TConfig> & me, Mapper<TSpec, TMainCo
 
     start(mainMapper.timer);
 
-    uint32_t numReads = getReadsCount( mainMapper.reads.seqs);
-    uint32_t numFilteredReads = disOptions.origReadIdMap[disOptions.currentBinNo].size();
-
-    //load forward reads
-    for (uint32_t i = 0; i< numFilteredReads; ++i)
+    if(disOptions.noFilter)
     {
-        uint32_t orgId = disOptions.origReadIdMap[disOptions.currentBinNo][i];
-        appendValue(me.reads.seqs, mainMapper.reads.seqs[orgId]);
+        for (uint32_t i = 0; i< getReadSeqsCount(mainMapper.reads.seqs); ++i)
+        {
+            appendValue(me.reads.seqs, mainMapper.reads.seqs[i]);
+        }
     }
-
-    // if paired classify only one pair
-    if (IsSameType<typename TMainConfig::TSequencing, PairedEnd>::VALUE)
+    else
     {
-        uint32_t numPairs = getPairsCount( mainMapper.reads.seqs);
-        //load mates
+        uint32_t numReads = getReadsCount( mainMapper.reads.seqs);
+        uint32_t numFilteredReads = disOptions.origReadIdMap[disOptions.currentBinNo].size();
+
+        //load forward reads
         for (uint32_t i = 0; i< numFilteredReads; ++i)
         {
             uint32_t orgId = disOptions.origReadIdMap[disOptions.currentBinNo][i];
-            appendValue(me.reads.seqs, mainMapper.reads.seqs[orgId + numPairs]);
-            disOptions.origReadIdMap[disOptions.currentBinNo].push_back(orgId + numPairs);
+            appendValue(me.reads.seqs, mainMapper.reads.seqs[orgId]);
         }
-        numFilteredReads *= 2; //now we have twice the reads
-    }
 
-    //load reverse reads
-    for (uint32_t i = 0; i< numFilteredReads; ++i)
-    {
-        uint32_t orgId = disOptions.origReadIdMap[disOptions.currentBinNo][i];
-        appendValue(me.reads.seqs, mainMapper.reads.seqs[orgId + numReads]);
-        disOptions.origReadIdMap[disOptions.currentBinNo].push_back(orgId + numReads);
-    }
+        // if paired classify only one pair
+        if (IsSameType<typename TMainConfig::TSequencing, PairedEnd>::VALUE)
+        {
+            uint32_t numPairs = getPairsCount( mainMapper.reads.seqs);
+            //load mates
+            for (uint32_t i = 0; i< numFilteredReads; ++i)
+            {
+                uint32_t orgId = disOptions.origReadIdMap[disOptions.currentBinNo][i];
+                appendValue(me.reads.seqs, mainMapper.reads.seqs[orgId + numPairs]);
+                disOptions.origReadIdMap[disOptions.currentBinNo].push_back(orgId + numPairs);
+            }
+            numFilteredReads *= 2; //now we have twice the reads
+        }
 
+        //load reverse reads
+        for (uint32_t i = 0; i< numFilteredReads; ++i)
+        {
+            uint32_t orgId = disOptions.origReadIdMap[disOptions.currentBinNo][i];
+            appendValue(me.reads.seqs, mainMapper.reads.seqs[orgId + numReads]);
+            disOptions.origReadIdMap[disOptions.currentBinNo].push_back(orgId + numReads);
+        }
+    }
     stop(mainMapper.timer);
     mainMapper.stats.loadReads += getValue(mainMapper.timer);
 
-    disOptions.filteredReads += getReadSeqsCount(me.reads.seqs);
-//    std::cout << "Current bin " << disOptions.currentBinNo << ":" << disOptions.origReadIdMap[disOptions.currentBinNo].size() << std::endl;
-//    std::cout << "getReadsCount(me.reads.seqs) "<< getReadsCount(me.reads.seqs) << "\n";
-//    std::cout << "getReadSeqsCount(me.reads.seqs) "<< getReadSeqsCount(me.reads.seqs) << "\n";
-//    std::cout << "disOptions.origReadIdMap.size() "<< disOptions.origReadIdMap[disOptions.currentBinNo].size() << "\n";
+    disOptions.filteredReads += getReadsCount(me.reads.seqs);
 }
 
 // ----------------------------------------------------------------------------
@@ -773,8 +765,8 @@ inline void prepairMainMapper(Mapper<TSpec, TMainConfig> & mainMapper, TSeqAnBlo
     disOptions.cigarSet.clear();
     if (IsSameType<typename TMainConfig::TSequencing, PairedEnd>::VALUE)
         resize(mainMapper.primaryMatchesProbs, getReadsCount(mainMapper.reads.seqs), 0.0, Exact());
-     
-    clasifyLoadedReads(mainMapper, bf, disOptions);
+    if(!disOptions.noFilter)
+        clasifyLoadedReads(mainMapper, bf, disOptions);
 }
 
 // ----------------------------------------------------------------------------
@@ -796,8 +788,8 @@ inline void finalizeMainMapper(Mapper<TSpec, TMainConfig> & mainMapper, DisOptio
 // ----------------------------------------------------------------------------
 // Function runDisMapper()
 // ----------------------------------------------------------------------------
-template <typename TSpec, typename TMainConfig>
-inline void runDisMapper(Mapper<TSpec, TMainConfig> & mainMapper, DisOptions & disOptions)
+template <typename TSpec, typename TMainConfig, typename TSeqAnBloomFilter>
+inline void runDisMapper(Mapper<TSpec, TMainConfig> & mainMapper, TSeqAnBloomFilter const & bf, DisOptions & disOptions)
 {
 
     Timer<double> timer;
@@ -808,15 +800,6 @@ inline void runDisMapper(Mapper<TSpec, TMainConfig> & mainMapper, DisOptions & d
     // Open output file and write header.
     openOutputFile(mainMapper, disOptions);
     openReads(mainMapper);
-
-    start(mainMapper.timer);
-    SeqAnBloomFilter<> bf(toCString(disOptions.filterFile),
-                          disOptions.numberOfBins,
-                          disOptions.numberOfHashes,
-                          disOptions.kmerSize,
-                          disOptions.bloomFilterSize);
-    stop(mainMapper.timer);
-    mainMapper.stats.loadReads += getValue(mainMapper.timer);
 
     while (true)
     {
@@ -859,9 +842,31 @@ inline void spawnDisMapper(DisOptions & disOptions,
     disOptions.outputFile = disOptions.superOutputFile;
     typedef ReadMapperConfig<TThreading, TSequencing, TSeedsDistance, TContigsSize, TContigsLen, TContigsSum>  TMainConfig;
     Mapper<void, TMainConfig> disMapper(disOptions);
-    
-    runDisMapper(disMapper, disOptions);
-    
+
+    if(disOptions.noFilter)
+    {
+        start(disMapper.timer);
+        // dummy filter in case of nofilter option
+        SeqAnBloomFilter<> bf(disOptions.numberOfBins,
+                              disOptions.numberOfHashes,
+                              disOptions.kmerSize,
+                              1);
+        stop(disMapper.timer);
+        disMapper.stats.loadReads += getValue(disMapper.timer);
+        runDisMapper(disMapper, bf, disOptions);
+    }
+    else
+    {
+        start(disMapper.timer);
+        SeqAnBloomFilter<> bf(toCString(disOptions.filterFile),
+                                disOptions.numberOfBins,
+                                disOptions.numberOfHashes,
+                                disOptions.kmerSize,
+                                disOptions.bloomFilterSize);
+        stop(disMapper.timer);
+        disMapper.stats.loadReads += getValue(disMapper.timer);
+        runDisMapper(disMapper, bf, disOptions);
+    }
 }
 
 #endif  // #ifndef APP_YARA_MAPPER_H_
