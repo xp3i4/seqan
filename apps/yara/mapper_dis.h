@@ -377,14 +377,14 @@ inline void loadFilteredReads(Mapper<TSpec, TConfig> & me, Mapper<TSpec, TMainCo
 template <typename TSpec, typename TConfig, typename TMainConfig>
 inline void mapReads(Mapper<TSpec, TConfig> & me, Mapper<TSpec, TMainConfig>  & mainMapper, DisOptions & disOptions)
 {
-    loadFilteredReads(me, mainMapper, disOptions);
-    if (empty(me.reads.seqs)) return;
     _mapReadsImpl(me, mainMapper, me.reads.seqs, disOptions);
 }
 
 template <typename TSpec, typename TConfig, typename TMainConfig>
 inline void runMapper(Mapper<TSpec, TConfig> & me, Mapper<TSpec, TMainConfig> & mainMapper, DisOptions & disOptions)
 {
+    loadFilteredReads(me, mainMapper, disOptions);
+    if (empty(me.reads.seqs)) return;
     loadContigs(me);
     loadContigsIndex(me);
     mapReads(me, mainMapper, disOptions);
@@ -791,10 +791,6 @@ inline void finalizeMainMapper(Mapper<TSpec, TMainConfig> & mainMapper, DisOptio
 template <typename TSpec, typename TMainConfig, typename TSeqAnBloomFilter>
 inline void runDisMapper(Mapper<TSpec, TMainConfig> & mainMapper, TSeqAnBloomFilter const & bf, DisOptions & disOptions)
 {
-
-    Timer<double> timer;
-
-    start(timer);
     configureThreads(mainMapper);
 
     // Open output file and write header.
@@ -823,10 +819,6 @@ inline void runDisMapper(Mapper<TSpec, TMainConfig> & mainMapper, TSeqAnBloomFil
     }
     closeReads(mainMapper);
     closeOutputFile(mainMapper);
-    stop(timer);
-    if (mainMapper.options.verbose > 0)
-        printStats(mainMapper, timer);
-    std::cerr << "Avg reads per bin:\t\t" << (double)disOptions.filteredReads / disOptions.numberOfBins << std::endl;
 }
 
 // ----------------------------------------------------------------------------
@@ -842,6 +834,10 @@ inline void spawnDisMapper(DisOptions & disOptions,
     disOptions.outputFile = disOptions.superOutputFile;
     typedef ReadMapperConfig<TThreading, TSequencing, TSeedsDistance, TContigsSize, TContigsLen, TContigsSum>  TMainConfig;
     Mapper<void, TMainConfig> disMapper(disOptions);
+
+    Timer<double> timer;
+
+    start(timer);
 
     if(disOptions.noFilter)
     {
@@ -867,6 +863,11 @@ inline void spawnDisMapper(DisOptions & disOptions,
         disMapper.stats.loadReads += getValue(disMapper.timer);
         runDisMapper(disMapper, bf, disOptions);
     }
+    stop(timer);
+    if (disMapper.options.verbose > 0)
+        printStats(disMapper, timer);
+    std::cerr << "Avg reads per bin:\t\t" << (double)disOptions.filteredReads / disOptions.numberOfBins << std::endl;
+
 }
 
 #endif  // #ifndef APP_YARA_MAPPER_H_
