@@ -53,6 +53,7 @@ public:
     CharString              superOutputFile;
 
     bool                    noFilter = false;
+    bool                    skipSamHeader = false;
 
     uint32_t                kmerSize = 20;
     uint32_t                numberOfBins = 64;
@@ -748,10 +749,17 @@ inline void openOutputFile(Mapper<TSpec, TConfig> & mainMapper, DisOptions & dis
     resize(contigLengths(context(mainMapper.outputFile)), length(allContigLengths));
     assign(contigLengths(context(mainMapper.outputFile)), allContigLengths);
     
-    // Write header.
-    BamHeader header;
-    fillHeader(header, mainMapper.options);
-    writeHeader(mainMapper.outputFile, header);
+    typedef FileFormat<BamFileOut>::Type    TOutputFormat;
+    TOutputFormat of;
+    assign(of, Bam());
+
+    if(mainMapper.outputFile.format.tagId == of.tagId || !disOptions.skipSamHeader)
+    {
+        // Write header.
+        BamHeader header;
+        fillHeader(header, mainMapper.options);
+        writeHeader(mainMapper.outputFile, header);
+    }
 }
 
 // ----------------------------------------------------------------------------

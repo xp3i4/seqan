@@ -165,6 +165,8 @@ void setupArgumentParser(ArgumentParser & parser, DisOptions const & disOptions)
     addOption(parser, ArgParseOption("ra", "rabema-alignments", "Output alignments compatible with the \
                                      Read Alignment BEnchMArk (RABEMA)."));
 
+    addOption(parser, ArgParseOption("sk", "skip-sam-headers", "Skip writing SQ: headers to SAM output (works only with SAM format)."));
+
     // Setup mapping disOptions.
     addSection(parser, "Mapping Options");
 
@@ -316,6 +318,7 @@ parseCommandLine(DisOptions & disOptions, ArgumentParser & parser, int argc, cha
     getOptionValue(disOptions.readGroup, parser, "read-group");
     getOptionValue(disOptions.secondaryAlignments, parser, "secondary-alignments", disOptions.secondaryAlignmentsList);
     getOptionValue(disOptions.rabema, parser, "rabema-alignments");
+    if (isSet(parser, "skip-sam-headers")) disOptions.skipSamHeader = true;
 
     // Parse mapping disOptions.
     unsigned errorRate;
@@ -505,10 +508,7 @@ int main(int argc, char const ** argv)
         return res == ArgumentParser::PARSE_ERROR;
 
     if (!verifyIndicesDir(disOptions.IndicesDirectory, disOptions.numberOfBins))
-    {
-        std::cerr <<"Not a valid indices direcory !\n";
         return 1;
-    }
 
     try
     {
