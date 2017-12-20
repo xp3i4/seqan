@@ -260,9 +260,7 @@ void setupArgumentParser(ArgumentParser & parser, DisOptions const & disOptions)
     addOption(parser, ArgParseOption("bf", "bloom-filter", "The path to a bloom filter. Default: will look for bloom.bf file inside the indices directory.", ArgParseOption::INPUT_FILE));
     setValidValues(parser, "bloom-filter", "bf");
 
-    addOption(parser, ArgParseOption("nf", "no-filter", "turn off pre filtering reads against bins. Will slow down the progarm.", ArgParseOption::BOOL));
-    setDefaultValue(parser, "no-filter", disOptions.noFilter);
-    hideOption(getOption(parser, "no-filter"));
+    addOption(parser, ArgParseOption("nf", "no-filter", "turn off pre filtering reads against bins. Will slow down the progarm."));
 }
 
 // ----------------------------------------------------------------------------
@@ -350,7 +348,7 @@ parseCommandLine(DisOptions & disOptions, ArgumentParser & parser, int argc, cha
     if (isSet(parser, "number-of-bins")) getOptionValue(disOptions.numberOfBins, parser, "number-of-bins");
     if (isSet(parser, "kmer-size")) getOptionValue(disOptions.kmerSize, parser, "kmer-size");
     if (isSet(parser, "num-hash")) getOptionValue(disOptions.numberOfHashes, parser, "num-hash");
-    if (isSet(parser, "no-filter")) getOptionValue(disOptions.noFilter, parser, "no-filter");
+    if (isSet(parser, "no-filter")) disOptions.noFilter = true;
 
     // Parse contigs index prefix.
     getOptionValue(disOptions.filterFile, parser, "bloom-filter");

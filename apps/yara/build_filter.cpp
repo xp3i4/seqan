@@ -232,6 +232,9 @@ int main(int argc, char const ** argv)
     if (res != ArgumentParser::PARSE_OK)
         return res == ArgumentParser::PARSE_ERROR;
 
+    if (!verifyFnaDir(options.contigsDir, options.numberOfBins))
+        return 1;
+
     try
     {
         SeqAnBloomFilter<> bf(options.numberOfBins,

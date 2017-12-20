@@ -165,6 +165,28 @@ inline bool verifyIndicesDir(CharString const directoryPath, uint32_t const numb
     return true;
 }
 
+// ----------------------------------------------------------------------------
+// Function verifyFnaDir()
+// ----------------------------------------------------------------------------
+inline bool verifyFnaDir(CharString const directoryPath, uint32_t const numberOfBins)
+{
+    for (uint32_t i=0; i < numberOfBins; ++i)
+    {
+        CharString fastaFile;
+        appendFileName(fastaFile, directoryPath, i);
+        append(fastaFile, ".fna");
+
+        SeqFileIn seqFileIn;
+        if (!open(seqFileIn, toCString(fastaFile)))
+        {
+            std::cerr << "Fasta file: " << fastaFile << " can not be found! (bin " << i << ")" << '\n';
+            return false;
+        }
+        close(seqFileIn);
+    }
+    return true;
+}
+
 template<typename T>
 std::ostream& operator<<(std::ostream& s, const std::vector<T>& v) {
     char comma[3] = {'\0', ' ', '\0'};
