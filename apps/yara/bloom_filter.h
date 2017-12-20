@@ -72,17 +72,6 @@ namespace seqan
             _init();
         }
 
-//        SeqAnBloomFilter(const char *fileName, uint32_t n_bins, uint8_t n_hash_func, uint8_t kmer_size, uint64_t vec_size):
-//                        _noOfBins(n_bins),
-//                        _noOfHashFunc(n_hash_func),
-//                        _kmerSize(kmer_size),
-//                        _noOfBits(vec_size)
-//        {
-//            _init();
-//            std::ifstream inStream(fileName, std::ios::binary);
-//            inStream.read(reinterpret_cast<char*>(&_filterVector[0]), _filterVector.size()*sizeof(uint64_t));
-//        }
-
         SeqAnBloomFilter(const char *fileName, uint32_t n_bins, uint8_t n_hash_func, uint8_t kmer_size, uint64_t vec_size):
                         _noOfBins(n_bins),
                         _noOfHashFunc(n_hash_func),
@@ -126,25 +115,6 @@ namespace seqan
                 ++it;
             }
 
-
-//            for (uint64_t kmerHash : kmerHashes)
-//            {
-//                for (uint8_t binNo = 0; binNo < _noOfBins; ++binNo)
-//                {
-//                    if (threshold - counts[binNo] > possible || selected[binNo])
-//                        continue;
-//
-//                    if (_containsKmer(kmerHash, binNo))
-//                    {
-//                        ++counts[binNo];
-//                        if(counts[binNo] >= threshold)
-//                            selected[binNo] = true;
-//                    }
-//                }
-//                --possible;
-//            }
-
-
             for (uint64_t kmerHash : kmerHashes)
             {
                 //if the number of bu
@@ -182,20 +152,6 @@ namespace seqan
             return selected;
         }
 
-        //        bool save(const char *fileName) const
-        //        {
-        //            std::ofstream outStream(fileName, std::ios::out | std::ios::binary);
-        //
-        //            std::cerr << "Storing filter. Filter is " << _noOfBits << " bytes." << std::endl;
-        //            assert(outStream);
-        //
-        //            outStream.write(reinterpret_cast<const char*>(&_filterVector[0]), _filterVector.size()*sizeof(uint64_t));
-        //
-        //            outStream.close();
-        //            assert(outStream);
-        //            return true;
-        //        }
-
         //save case sdsl
         bool save(const char *fileName)
         {
@@ -212,10 +168,8 @@ namespace seqan
         void _init()
         {
             _initPreCalcValues();
-            _binIntWidth = 1;
-//            _binIntWidth = std::ceil((float)_noOfBins / uInt64Width);
+            _binIntWidth = std::ceil((float)_noOfBins / uInt64Width);
             _noOfHashPos = _noOfBits / (uInt64Width * _binIntWidth);
-//            _filterVector.resize(_noOfBits / uInt64Width);
         }
 
         template<typename TInt>
@@ -224,25 +178,6 @@ namespace seqan
             return 1 == ( (num >> bit) & 1);
         }
 
-//        std::bitset<64> _containsKmerBatch(uint64_t & kmerHash, uint8_t const & batch) const
-//        {
-//            uint64_t tmp = kmerHash * (_preCalcValues[0]);
-//            tmp ^= tmp >> _shiftValue;
-//            uint64_t vectIndex = (tmp % _noOfHashPos) * _binIntWidth + batch;
-//
-//            std::bitset<64> res(_filterVector[vectIndex]);
-//
-//            for(uint8_t i = 1; i < _noOfHashFunc ; i++)
-//            {
-//                tmp = kmerHash * (_preCalcValues[i]);
-//                tmp ^= tmp >> _shiftValue;
-//                vectIndex = (tmp % _noOfHashPos) * _binIntWidth + batch;
-//                res &= _filterVector[vectIndex];
-//            }
-//            return res;
-//        }
-
-        //sdsl case
         std::bitset<64> _containsKmerBatch(uint64_t & kmerHash, uint8_t const & batch) const
         {
             uint64_t tmp = kmerHash * (_preCalcValues[0]);
@@ -261,22 +196,6 @@ namespace seqan
             return res;
         }
 
-//        bool _containsKmer(uint64_t & kmerHash, uint32_t const & binNo) const
-//        {
-//            uint64_t tmp = 0;
-//            uint8_t binOfset = binNo%uInt64Width;
-//            for(uint8_t i = 0; i < _noOfHashFunc ; i++)
-//            {
-//                tmp = kmerHash * (_preCalcValues[i]);
-//                tmp ^= tmp >> _shiftValue;
-//                uint64_t vectIndex = (tmp % _noOfHashPos) * _binIntWidth + binNo/uInt64Width;
-//                std::bitset<64> res(_filterVector[vectIndex]);
-//                if (!res.test(binOfset))
-//                    return false;
-//            }
-//            return true;
-//        }
-        //sdsl
         bool _containsKmer(uint64_t & kmerHash, uint32_t const & binNo) const
         {
             uint64_t tmp = 0;
@@ -291,20 +210,6 @@ namespace seqan
             return true;
         }
 
-//        void _insertKmer(uint64_t & kmerHash, uint32_t const & binNo)
-//        {
-//            uint64_t tmp = 0;
-//            uint8_t binOfset = binNo%uInt64Width;
-//            for(uint8_t i = 0; i < _noOfHashFunc ; i++)
-//            {
-//                tmp = kmerHash * (_preCalcValues[i]);
-//                tmp ^= tmp >> _shiftValue;
-//                uint64_t vectIndex = (tmp % _noOfHashPos) * _binIntWidth + binNo/uInt64Width;
-//                __sync_or_and_fetch(&_filterVector[vectIndex], bitMask[binOfset]);
-//            }
-//        }
-
-        //sdsl vector
         void _insertKmer(uint64_t & kmerHash, uint32_t const & binNo)
         {
             uint64_t tmp = kmerHash * (_preCalcValues[0]);
