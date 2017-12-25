@@ -244,21 +244,6 @@ void setupArgumentParser(ArgumentParser & parser, DisOptions const & disOptions)
     setMaxValue(parser, "number-of-bins", "1024");
     setDefaultValue(parser, "number-of-bins", disOptions.numberOfBins);
 
-    addOption(parser, ArgParseOption("k", "kmer-size", "The size of kmers for bloom_filter",
-                                     ArgParseOption::INTEGER));
-    setMinValue(parser, "kmer-size", "14");
-    setMaxValue(parser, "kmer-size", "32");
-
-    addOption(parser, ArgParseOption("nh", "num-hash", "Specify the number of hash functions to use for the bloom filter.", ArgParseOption::INTEGER));
-    setMinValue(parser, "num-hash", "2");
-    setMaxValue(parser, "num-hash", "5");
-    setDefaultValue(parser, "num-hash", disOptions.numberOfHashes);
-
-    addOption(parser, ArgParseOption("bs", "bloom-size", "The size of bloom filter in MB.", ArgParseOption::INTEGER));
-    setMinValue(parser, "bloom-size", "1");
-    setMaxValue(parser, "bloom-size", "512000");
-    setDefaultValue(parser, "bloom-size", 1000);
-
     addOption(parser, ArgParseOption("bf", "bloom-filter", "The path to a bloom filter. Default: will look for bloom.bf file inside the indices directory.", ArgParseOption::INPUT_FILE));
     setValidValues(parser, "bloom-filter", "bf");
 
@@ -349,8 +334,6 @@ parseCommandLine(DisOptions & disOptions, ArgumentParser & parser, int argc, cha
     // Parse Distributed mapper options
     getOptionValue(disOptions.numberOfBins, parser, "number-of-bins");
     if (isSet(parser, "number-of-bins")) getOptionValue(disOptions.numberOfBins, parser, "number-of-bins");
-    if (isSet(parser, "kmer-size")) getOptionValue(disOptions.kmerSize, parser, "kmer-size");
-    if (isSet(parser, "num-hash")) getOptionValue(disOptions.numberOfHashes, parser, "num-hash");
     if (isSet(parser, "no-filter")) disOptions.noFilter = true;
 
     // Parse contigs index prefix.
@@ -360,11 +343,6 @@ parseCommandLine(DisOptions & disOptions, ArgumentParser & parser, int argc, cha
         disOptions.filterFile = disOptions.IndicesDirectory;
         append(disOptions.filterFile, "bloom.bf");
     }
-
-    uint64_t bloomSize;
-    if (getOptionValue(bloomSize, parser, "bloom-size"))
-        disOptions.bloomFilterSize = bloomSize * 8388608;
-
 
     if (isSet(parser, "verbose")) disOptions.verbose = 1;
     if (isSet(parser, "very-verbose")) disOptions.verbose = 2;

@@ -166,6 +166,22 @@ inline bool verifyIndicesDir(CharString const directoryPath, uint32_t const numb
 }
 
 // ----------------------------------------------------------------------------
+// Function verifyFnaFile()
+// ----------------------------------------------------------------------------
+inline bool verifyFnaFile(CharString const & fastaFile)
+{
+    SeqFileIn seqFileIn;
+    if (!open(seqFileIn, toCString(fastaFile)))
+    {
+        std::cerr << "Fasta file: " << fastaFile << " can not be found!\n" ;
+        return false;
+    }
+    close(seqFileIn);
+    return true;
+}
+
+
+// ----------------------------------------------------------------------------
 // Function verifyFnaDir()
 // ----------------------------------------------------------------------------
 inline bool verifyFnaDir(CharString const directoryPath, uint32_t const numberOfBins)
@@ -175,14 +191,8 @@ inline bool verifyFnaDir(CharString const directoryPath, uint32_t const numberOf
         CharString fastaFile;
         appendFileName(fastaFile, directoryPath, i);
         append(fastaFile, ".fna");
-
-        SeqFileIn seqFileIn;
-        if (!open(seqFileIn, toCString(fastaFile)))
-        {
-            std::cerr << "Fasta file: " << fastaFile << " can not be found! (bin " << i << ")" << '\n';
+        if(!verifyFnaFile(fastaFile))
             return false;
-        }
-        close(seqFileIn);
     }
     return true;
 }

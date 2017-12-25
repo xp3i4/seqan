@@ -57,8 +57,6 @@ public:
 
     uint32_t                kmerSize = 20;
     uint32_t                numberOfBins = 64;
-    uint64_t                bloomFilterSize = 8589934592; //1GB
-    uint32_t                numberOfHashes = 4;
 
     uint32_t                currentBinNo = 0;
     uint64_t                filteredReads = 0;
@@ -851,10 +849,8 @@ inline void spawnDisMapper(DisOptions & disOptions,
     {
         start(disMapper.timer);
         // dummy filter in case of nofilter option
-        SeqAnBloomFilter<> bf(disOptions.numberOfBins,
-                              disOptions.numberOfHashes,
-                              disOptions.kmerSize,
-                              1);
+        SeqAnBloomFilter<> bf(64, 3, 20, 1);
+
         stop(disMapper.timer);
         disMapper.stats.loadReads += getValue(disMapper.timer);
         runDisMapper(disMapper, bf, disOptions);
@@ -862,11 +858,13 @@ inline void spawnDisMapper(DisOptions & disOptions,
     else
     {
         start(disMapper.timer);
-        SeqAnBloomFilter<> bf(toCString(disOptions.filterFile),
-                                disOptions.numberOfBins,
-                                disOptions.numberOfHashes,
-                                disOptions.kmerSize,
-                                disOptions.bloomFilterSize);
+        SeqAnBloomFilter<> bf(toCString(disOptions.filterFile));
+
+        disOptions.kmerSize = bf.getKmerSize();
+
+        if(bf.getNumberOfBins() != disOptions.numberOfBins)
+            std::cerr << "[WARNING] Provided number of bins (" << disOptions.numberOfBins << ")differs from that of the bloom filter (" << bf.getNumberOfBins() << ")";
+
         stop(disMapper.timer);
         disMapper.stats.loadReads += getValue(disMapper.timer);
         runDisMapper(disMapper, bf, disOptions);

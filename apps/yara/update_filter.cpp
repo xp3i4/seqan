@@ -1,5 +1,5 @@
 // ==========================================================================
-//                                 build_filter.cpp
+//                                 update_filter.cpp
 // ==========================================================================
 // Copyright (c) 2017-2022, Temesgen H. Dadi, FU Berlin
 // All rights reserved.
@@ -32,7 +32,7 @@
 // Author: Temesgen H. Dadi <temesgen.dadi@fu-berlin.de>
 // ==========================================================================
 
-#define BUILD_FILTER
+#define UPDATE_FILTER
 // ----------------------------------------------------------------------------
 // STL headers
 // ----------------------------------------------------------------------------
@@ -67,22 +67,21 @@ using namespace seqan;
 
 struct Options
 {
-    CharString      contigsDir;
-    CharString      filterFile;
+    CharString                      filterFile;
+    std::map<uint32_t, CharString>  binContigs;
 
-    uint32_t        kmerSize;
-    uint32_t        numberOfBins;
-    uint64_t        bloomFilterSize;
-    uint32_t        numberOfHashes;
+    uint32_t                        kmerSize;
+    uint32_t                        numberOfBins;
+    uint64_t                        bloomFilterSize;
+    uint32_t                        numberOfHashes;
 
-    unsigned        threadsCount;
-
-    bool            verbose;
+    unsigned                        threadsCount;
+    bool                            verbose;
 
     Options() :
     kmerSize(20),
     numberOfBins(64),
-    bloomFilterSize(8589934592 + bfMetadataSize), // 1GB
+    bloomFilterSize(8589934592), // 1GB
     numberOfHashes(4),
     threadsCount(1),
     verbose(false)
@@ -94,57 +93,47 @@ struct Options
 // ==========================================================================
 
 // ----------------------------------------------------------------------------
+// Function getBinNoFromFile()
+// ----------------------------------------------------------------------------
+bool getBinNoFromFile(uint32_t & binNo, CharString const & currentFile)
+{
+    CharString fileName = getFilename(currentFile);
+    CharString fileNameNoext = trimExtension(fileName);
+//    std::string _binNo = toCString(fileNameNoext);
+
+    char* p;
+    binNo = std::strtol(toCString(fileNameNoext), &p, 10);
+    return *p == 0;
+}
+
+// ----------------------------------------------------------------------------
 // Function setupArgumentParser()
 // ----------------------------------------------------------------------------
 
 void setupArgumentParser(ArgumentParser & parser, Options const & options)
 {
-    setAppName(parser, "yara_build_filter");
-    setShortDescription(parser, "Build Filter for Distributed Yara");
+    setAppName(parser, "yara_update_filter");
+    setShortDescription(parser, "Update Bloom Filter for Distributed Yara");
     setCategory(parser, "Read Mapping");
 
     setDateAndVersion(parser);
     setDescription(parser);
 
-    addUsageLine(parser, "[\\fIOPTIONS\\fP] <\\fIREFERENCE FILES DIR \\fP>");
+    addArgument(parser, ArgParseArgument(ArgParseArgument::INPUT_FILE, "BLOOM FILTER"));
+    setValidValues(parser, 0, "bf");
+    setHelpText(parser, 0, "The path of the bloom filter to be updated.");
 
-    addArgument(parser, ArgParseArgument(ArgParseArgument::INPUT_PREFIX, "REFERENCE FILE DIR"));
-    //    setValidValues(parser, 0, SeqFileIn::getFileExtensions());
-    setHelpText(parser, 0, "A directory containing reference genome files.");
+    addArgument(parser, ArgParseArgument(ArgParseArgument::INPUT_FILE, "FASTA FILES", true));
+    setValidValues(parser, 1, SeqFileIn::getFileExtensions());
+    setHelpText(parser, 1, "The fasta files of the bins to updated. File names should be exactly the same us bin number (0-indexing). e.g. 0.fna");
 
-    addOption(parser, ArgParseOption("v", "verbose", "Displays verbose output."));
 
-    addSection(parser, "Output Options");
-
-    addOption(parser, ArgParseOption("o", "output-file", "Specify an output filename for the filter. \
-                                     Default: use the filename prefix of the reference genome.", ArgParseOption::OUTPUT_FILE));
-
-    addOption(parser, ArgParseOption("b", "number-of-bins", "The number of bins (indices) for distributed mapper",
-                                     ArgParseOption::INTEGER));
-
-    setMinValue(parser, "number-of-bins", "1");
-    setMaxValue(parser, "number-of-bins", "1000");
-
-    addOption(parser, ArgParseOption("t", "threads", "Specify the number of threads to use.", ArgParseOption::INTEGER));
+    addOption(parser, ArgParseOption("t", "threads", "Specify the number of threads to use (valid for bloom filter only).", ArgParseOption::INTEGER));
     setMinValue(parser, "threads", "1");
     setMaxValue(parser, "threads", "2048");
     setDefaultValue(parser, "threads", options.threadsCount);
 
-
-    addOption(parser, ArgParseOption("k", "kmer-size", "The size of kmers for bloom_filter",
-                                     ArgParseOption::INTEGER));
-    setMinValue(parser, "kmer-size", "14");
-    setMaxValue(parser, "kmer-size", "32");
-
-    addOption(parser, ArgParseOption("nh", "num-hash", "Specify the number of hash functions to use for the bloom filter.", ArgParseOption::INTEGER));
-    setMinValue(parser, "num-hash", "2");
-    setMaxValue(parser, "num-hash", "5");
-    setDefaultValue(parser, "num-hash", options.numberOfHashes);
-
-    addOption(parser, ArgParseOption("bs", "bloom-size", "The size of bloom filter in MB.", ArgParseOption::INTEGER));
-    setMinValue(parser, "bloom-size", "1");
-    setMaxValue(parser, "bloom-size", "512000");
-    setDefaultValue(parser, "bloom-size", 1000);
+    addOption(parser, ArgParseOption("v", "verbose", "Displays verbose output."));
 }
 
 // ----------------------------------------------------------------------------
@@ -162,28 +151,44 @@ parseCommandLine(Options & options, ArgumentParser & parser, int argc, char cons
     // Parse verbose output option.
     getOptionValue(options.verbose, parser, "verbose");
 
-    // Parse contigs input file.
-    getArgumentValue(options.contigsDir, parser, 0);
+    // Parse bloom filter path.
+    getArgumentValue(options.filterFile, parser, 0);
 
-    // Parse contigs index prefix.
-    getOptionValue(options.filterFile, parser, "output-file");
-    if (!isSet(parser, "output-file"))
-    {
-        options.filterFile = trimExtension(options.contigsDir);
-        append(options.filterFile, "bloom.bf");
-    }
-
-
-    if (isSet(parser, "number-of-bins")) getOptionValue(options.numberOfBins, parser, "number-of-bins");
-    if (isSet(parser, "kmer-size")) getOptionValue(options.kmerSize, parser, "kmer-size");
     if (isSet(parser, "threads")) getOptionValue(options.threadsCount, parser, "threads");
-    if (isSet(parser, "num-hash")) getOptionValue(options.numberOfHashes, parser, "num-hash");
 
-    uint64_t bloomSize;
-    if (getOptionValue(bloomSize, parser, "bloom-size"))
-        options.bloomFilterSize = bloomSize * 8388608 + bfMetadataSize; // 8388608 = 1MB
+    // std::map<uint32_t, CharString>  binContigs;
+    // Parse read input files.
+    uint32_t updateCount = getArgumentValueCount(parser, 1);
+    for (uint32_t i = 0; i < updateCount; ++i)
+    {
+        CharString  currentFile;
+        uint32_t    currentBinNo;
 
+        getArgumentValue(currentFile, parser, 1, i);
+        
+        if (getBinNoFromFile(currentBinNo, currentFile))
+            options.binContigs[currentBinNo] = currentFile;
+        else
+        {
+            std::cerr << "File: " << currentFile << "\ndoesn't have a valid name\n";
+            exit(1);
+        }
+
+    }
     return ArgumentParser::PARSE_OK;
+}
+
+// ----------------------------------------------------------------------------
+// Function verifyFnaFiles()
+// ----------------------------------------------------------------------------
+inline bool verifyFnaFiles(std::map<uint32_t,CharString> const & fileList)
+{
+    for (auto fastaFile : fileList)
+    {
+        if(!verifyFnaFile(fastaFile.second))
+            return false;
+    }
+    return true;
 }
 
 // ----------------------------------------------------------------------------
@@ -201,15 +206,24 @@ int main(int argc, char const ** argv)
     if (res != ArgumentParser::PARSE_OK)
         return res == ArgumentParser::PARSE_ERROR;
 
-    if (!verifyFnaDir(options.contigsDir, options.numberOfBins))
+    // verify all the new fasta files
+    if (!verifyFnaFiles(options.binContigs))
         return 1;
 
     try
     {
-        SeqAnBloomFilter<> bf(options.numberOfBins,
-                              options.numberOfHashes,
-                              options.kmerSize,
-                              options.bloomFilterSize);
+        SeqAnBloomFilter<> bf(toCString(options.filterFile));
+
+        // clear the bins to updated;
+        std::vector<uint32_t> bins2update = {};
+        typedef std::map<uint32_t,CharString>::iterator mapIter;
+        for(mapIter iter = options.binContigs.begin(); iter != options.binContigs.end(); ++iter)
+        {
+            bins2update.push_back(iter->first);
+        }
+
+        bf.clearBins(bins2update, options.threadsCount);
+
         Semaphore thread_limiter(options.threadsCount);
         std::vector<std::future<void>> tasks;
 
@@ -218,26 +232,22 @@ int main(int argc, char const ** argv)
         start (timer);
         start (globalTimer);
 
-        for (uint32_t binNo = 0; binNo < options.numberOfBins; ++binNo)
+        // add the new kmers from the new files
+        //iterate over the maps
+        for(mapIter iter = options.binContigs.begin(); iter != options.binContigs.end(); ++iter)
         {
             tasks.emplace_back(std::async([=, &thread_limiter, &bf] {
-
                 Critical_section _(thread_limiter);
-
                 Timer<double>       binTimer;
+
                 start (binTimer);
-
-                CharString fastaFile;
-                appendFileName(fastaFile, options.contigsDir, binNo);
-                append(fastaFile, ".fna");
-
-                bf.addFastaFile(fastaFile, binNo);
-
+                bf.addFastaFile(iter->second, iter->first);
                 stop(binTimer);
+
                 if (options.verbose)
                 {
                     mtx.lock();
-                    std::cerr <<"[bin " << binNo << "] Done adding kmers!\t\t\t" << binTimer << std::endl;
+                    std::cerr <<"[bin " << iter->first << "] updated using " << iter->second << "!\t\t" << binTimer << std::endl;
                     mtx.unlock();
                 }
             }));
@@ -248,7 +258,7 @@ int main(int argc, char const ** argv)
         }
         stop(timer);
         if (options.verbose)
-            std::cerr <<"All bins are done adding kmers!\t\t" << timer << std::endl;
+            std::cerr <<"All given bins are updated!\t\t" << timer << std::endl;
 
         start(timer);
         bf.save(toCString(options.filterFile));

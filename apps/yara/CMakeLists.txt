@@ -130,6 +130,15 @@ add_executable(yara_build_filter build_filter.cpp
                                  bits_matches.h
                                  bloom_filter.h)
 
+add_executable(yara_update_filter update_filter.cpp
+                                  misc_timer.h
+                                  misc_options.h
+                                  misc_options_dis.h
+                                  misc_types.h
+                                  store_seqs.h
+                                  bits_matches.h
+                                  bloom_filter.h)
+
 add_executable(yara_mapper    mapper.cpp
                               mapper.h
                               mapper_collector.h
@@ -193,8 +202,10 @@ add_executable(yara_mapper_dis  mapper_dis.cpp
 target_link_libraries (yara_indexer ${SEQAN_LIBRARIES})
 target_link_libraries (yara_indexer_dis ${SEQAN_LIBRARIES})
 target_link_libraries (yara_build_filter ${SEQAN_LIBRARIES})
+target_link_libraries (yara_update_filter ${SEQAN_LIBRARIES})
 target_link_libraries (yara_mapper ${SEQAN_LIBRARIES})
 target_link_libraries (yara_mapper_dis ${SEQAN_LIBRARIES})
+
 
 # ----------------------------------------------------------------------------
 # Installation
@@ -206,7 +217,7 @@ if (NOT SEQAN_PREFIX_SHARE_DOC)
 endif (NOT SEQAN_PREFIX_SHARE_DOC)
 
 # Install yara in ${PREFIX}/bin directory
-install (TARGETS yara_indexer yara_indexer_dis yara_build_filter yara_mapper yara_mapper_dis 
+install (TARGETS yara_indexer yara_indexer_dis yara_build_filter yara_update_filter yara_mapper yara_mapper_dis 
          DESTINATION bin)
 
 # Install non-binary files for the package to "." for app builds and
@@ -226,7 +237,7 @@ seqan_add_app_test (yara)
 
 # Include executable yara_mapper in CTD structure.
 set (SEQAN_CTD_EXECUTABLES ${SEQAN_CTD_EXECUTABLES}
-                           yara_indexer yara_indexer_dis yara_build_filter yara_mapper yara_mapper_dis CACHE INTERNAL "")
+                           yara_indexer yara_indexer_dis yara_build_filter yara_update_filter yara_mapper yara_mapper_dis CACHE INTERNAL "")
 
 # ----------------------------------------------------------------------------
 # CPack Install

@@ -32,27 +32,12 @@
 // Author: Temesgen H. Dadi <temesgen.dadi@fu-berlin.de>
 // ==========================================================================
 #include <sdsl/bit_vectors.hpp>
+#include <algorithm>
 
 namespace seqan
 {
     static const uint8_t uInt64Width = 0x40;
-    static const uint64_t bitMask[0x40] = {
-        0x0000000000000001, 0x0000000000000002, 0x0000000000000004, 0x0000000000000008,
-        0x0000000000000010, 0x0000000000000020, 0x0000000000000040, 0x0000000000000080,
-        0x0000000000000100, 0x0000000000000200, 0x0000000000000400, 0x0000000000000800,
-        0x0000000000001000, 0x0000000000002000, 0x0000000000004000, 0x0000000000008000,
-        0x0000000000010000, 0x0000000000020000, 0x0000000000040000, 0x0000000000080000,
-        0x0000000000100000, 0x0000000000200000, 0x0000000000400000, 0x0000000000800000,
-        0x0000000001000000, 0x0000000002000000, 0x0000000004000000, 0x0000000008000000,
-        0x0000000010000000, 0x0000000020000000, 0x0000000040000000, 0x0000000080000000,
-        0x0000000100000000, 0x0000000200000000, 0x0000000400000000, 0x0000000800000000,
-        0x0000001000000000, 0x0000002000000000, 0x0000004000000000, 0x0000008000000000,
-        0x0000010000000000, 0x0000020000000000, 0x0000040000000000, 0x0000080000000000,
-        0x0000100000000000, 0x0000200000000000, 0x0000400000000000, 0x0000800000000000,
-        0x0001000000000000, 0x0002000000000000, 0x0004000000000000, 0x0008000000000000,
-        0x0010000000000000, 0x0020000000000000, 0x0040000000000000, 0x0080000000000000,
-        0x0100000000000000, 0x0200000000000000, 0x0400000000000000, 0x0800000000000000,
-        0x1000000000000000, 0x2000000000000000, 0x4000000000000000, 0x8000000000000000};
+    static const uint32_t bfMetadataSize = 256;
 
     template<typename TString = Dna5String>
     class SeqAnBloomFilter
@@ -92,11 +77,92 @@ namespace seqan
             }
         }
 
+        SeqAnBloomFilter(const char *fileName)
+        {
+            if (!sdsl::load_from_file(_filterVector, fileName))
+            {
+                std::cerr << "File \"" << fileName << "\" could not be read." << std::endl;
+                exit(1);
+            }
+            _noOfBits = _filterVector.bit_size();
+            _getMetadata();
+            _init();
+        }
+
         void addKmers(TString const & text, uint32_t const & binNo)
         {
             _addKmers(text, binNo);
         }
 
+        // ----------------------------------------------------------------------------
+        // Function clearBins()
+        // ----------------------------------------------------------------------------
+        void clearBins(std::vector<uint32_t> & bins2clear, uint32_t & threadsCount)
+        {
+            std::vector<std::future<void>> tasks;
+
+            uint64_t batchSize = _noOfHashPos/threadsCount;
+            if(batchSize * threadsCount < _noOfHashPos) ++batchSize;
+
+            uint32_t blockSize = uInt64Width;
+            if (_noOfBins > uInt64Width)
+                blockSize = _noOfBins;
+
+            for (uint32_t taskNo = 0; taskNo < threadsCount; ++taskNo)
+            {
+                tasks.emplace_back(std::async([=] {
+                    for (uint64_t hashBlock=taskNo*batchSize; hashBlock < _noOfHashPos && hashBlock < (taskNo +1) * batchSize; ++hashBlock)
+                    {
+                        uint64_t vecPos = hashBlock * blockSize;
+                        for(uint32_t binNo : bins2clear)
+                        {
+                            _filterVector[vecPos + binNo] = false;
+                        }
+                    }
+                }));
+            }
+            for (auto &&task : tasks)
+            {
+                task.get();
+            }
+        }
+        // ----------------------------------------------------------------------------
+        // Function addFastaFile()
+        // ----------------------------------------------------------------------------
+        void addFastaFile(CharString const & fastaFile, u_int32_t const & binNo)
+        {
+            CharString id;
+            IupacString seq;
+
+            SeqFileIn seqFileIn;
+            if (!open(seqFileIn, toCString(fastaFile)))
+            {
+                CharString msg = "Unable to open contigs File: ";
+                append (msg, fastaFile);
+                throw toCString(msg);
+            }
+            while(!atEnd(seqFileIn))
+            {
+                readRecord(id, seq, seqFileIn);
+                if(length(seq) < _kmerSize)
+                    continue;
+                addKmers(seq, binNo);
+            }
+            close(seqFileIn);
+        }
+
+        //save case sdsl
+        bool save(const char *fileName)
+        {
+            _setMetadata();
+            return sdsl::store_to_file(_filterVector, fileName);
+        }
+
+        double size_mb()
+        {
+            return sdsl::size_in_mega_bytes(_filterVector);
+        }
+        
         void whichBins(std::vector<bool> & selected, TString const & text, uint8_t const & threshold) const
         {
             TShape kmerShape;
@@ -152,15 +218,14 @@ namespace seqan
             return selected;
         }
 
-        //save case sdsl
-        bool save(const char *fileName)
+        uint32_t getNumberOfBins()
         {
-            return sdsl::store_to_file(_filterVector, fileName);
+            return _noOfBins;
         }
 
-        double size_mb()
+        uint8_t getKmerSize()
         {
-            return sdsl::size_in_mega_bytes(_filterVector);
+            return _kmerSize;
         }
 
     private:
@@ -169,7 +234,30 @@ namespace seqan
         {
             _initPreCalcValues();
             _binIntWidth = std::ceil((float)_noOfBins / uInt64Width);
-            _noOfHashPos = _noOfBits / (uInt64Width * _binIntWidth);
+            _noOfHashPos = (_noOfBits - bfMetadataSize) / (uInt64Width * _binIntWidth);
+        }
+        void _getMetadata()
+        {
+            //-------------------------------------------------------------------
+            //|              bf              | n_bins | n_hash_func | kmer_size |
+            //-------------------------------------------------------------------
+            uint64_t metadataStart = _noOfBits - (bfMetadataSize+1);
+
+            _noOfBins = _filterVector.get_int(metadataStart);
+            _noOfHashFunc = _filterVector.get_int(metadataStart+uInt64Width);
+            _kmerSize = _filterVector.get_int(metadataStart+2*uInt64Width);
+        }
+
+        void _setMetadata()
+        {
+            // -------------------------------------------------------------------
+            // |              bf              | n_bins | n_hash_func | kmer_size |
+            // -------------------------------------------------------------------
+            uint64_t metadataStart = _noOfBits - (bfMetadataSize+1);
+
+            _filterVector.set_int(metadataStart, _noOfBins);
+            _filterVector.set_int(metadataStart + uInt64Width, _noOfHashFunc);
+            _filterVector.set_int(metadataStart + uInt64Width*2, _kmerSize);
         }
 
         template<typename TInt>
@@ -248,7 +336,6 @@ namespace seqan
                 _preCalcValues.push_back(i ^ _kmerSize * _seedValue);
             }
         }
-
 
         uint32_t                 _noOfBins;
         uint8_t                  _noOfHashFunc;
