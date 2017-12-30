@@ -117,7 +117,8 @@ void setupArgumentParser(ArgumentParser & parser, Options const & options)
     addSection(parser, "Output Options");
 
     addOption(parser, ArgParseOption("o", "output-file", "Specify an output filename for the filter. \
-                                     Default: use the filename prefix of the reference genome.", ArgParseOption::OUTPUT_FILE));
+                                     Default: use the directory name of reference genomes.", ArgParseOption::OUTPUT_FILE));
+    setValidValues(parser, "output-file", "bf");
 
     addOption(parser, ArgParseOption("b", "number-of-bins", "The number of bins (indices) for distributed mapper",
                                      ArgParseOption::INTEGER));

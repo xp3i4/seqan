@@ -120,11 +120,11 @@ void setupArgumentParser(ArgumentParser & parser, DisOptions const & disOptions)
     setDescription(parser);
 
     // Setup mandatory arguments.
-    addUsageLine(parser, "[\\fIOPTIONS\\fP] <\\fIREFERENCE INDEX PREFIX\\fP> <\\fISE-READS FILE\\fP>");
-    addUsageLine(parser, "[\\fIOPTIONS\\fP] <\\fIREFERENCE INDEX PREFIX\\fP> <\\fIPE-READS FILE 1\\fP> <\\fIPE-READS FILE 2\\fP>");
+    addUsageLine(parser, "[\\fIOPTIONS\\fP] <\\fIREFERENCE INDEX DIRECTORY\\fP> <\\fISE-READS FILE\\fP>");
+    addUsageLine(parser, "[\\fIOPTIONS\\fP] <\\fIREFERENCE INDEX DIRECTORY\\fP> <\\fIPE-READS FILE 1\\fP> <\\fIPE-READS FILE 2\\fP>");
 
-    addArgument(parser, ArgParseArgument(ArgParseArgument::INPUT_PREFIX, "REFERENCE INDEX PREFIX"));
-    setHelpText(parser, 0, "Prefix to multiple indices of reference genomes.");
+    addArgument(parser, ArgParseArgument(ArgParseArgument::INPUT_PREFIX, "REFERENCE INDEX DIRECTORY"));
+    setHelpText(parser, 0, "A directory containing multiple indices of reference genomes.");
 
     addArgument(parser, ArgParseArgument(ArgParseArgument::INPUT_FILE, "READS FILE", true));
     setValidValues(parser, 1, SeqFileIn::getFileExtensions());

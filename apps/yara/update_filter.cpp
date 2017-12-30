@@ -118,6 +118,7 @@ void setupArgumentParser(ArgumentParser & parser, Options const & options)
 
     setDateAndVersion(parser);
     setDescription(parser);
+    addUsageLine(parser, "[\\fIOPTIONS\\fP] <\\fIBLOOM-FILTER FILE \\fP> <\\fI4.fna\\fP> <\\fI7.fna\\fP>");
 
     addArgument(parser, ArgParseArgument(ArgParseArgument::INPUT_FILE, "BLOOM FILTER"));
     setValidValues(parser, 0, "bf");
