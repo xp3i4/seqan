@@ -215,11 +215,18 @@ int main(int argc, char const ** argv)
     {
         SeqAnBloomFilter<> bf(toCString(options.filterFile));
 
+        uint32_t noOfBins = bf.getNumberOfBins();
+
         // clear the bins to updated;
         std::vector<uint32_t> bins2update = {};
         typedef std::map<uint32_t,CharString>::iterator mapIter;
         for(mapIter iter = options.binContigs.begin(); iter != options.binContigs.end(); ++iter)
         {
+            if(iter->first >= noOfBins)
+            {
+                std::cerr <<"The provided bloom filter has only " << noOfBins <<" Bins.\nRetry after removing " << iter->second << " from arguments!" << std::endl;
+                return 1;
+            }
             bins2update.push_back(iter->first);
         }
 
