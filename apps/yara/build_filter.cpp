@@ -202,8 +202,7 @@ int main(int argc, char const ** argv)
     if (res != ArgumentParser::PARSE_OK)
         return res == ArgumentParser::PARSE_ERROR;
 
-    if (!verifyFnaDir(options.contigsDir, options.numberOfBins))
-        return 1;
+    std::string comExt = commonExtension(options.contigsDir, options.numberOfBins);
 
     try
     {
@@ -230,7 +229,7 @@ int main(int argc, char const ** argv)
 
                 CharString fastaFile;
                 appendFileName(fastaFile, options.contigsDir, binNo);
-                append(fastaFile, ".fna");
+                append(fastaFile, comExt);
 
                 bf.addFastaFile(fastaFile, binNo);
 

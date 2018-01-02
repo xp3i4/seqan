@@ -71,7 +71,7 @@ using namespace seqan;
 
 struct Options
 {
-    CharString      contigsFile;
+    CharString      contigsDir;
     CharString      contigsIndexFile;
 
     uint32_t        numberOfBins;
@@ -107,7 +107,7 @@ struct YaraIndexer
 
     Options const &     options;
     TContigs            contigs;
-    SeqFileIn           contigsFile;
+    SeqFileIn           contigsDir;
     Timer<double>       timer;
 
     YaraIndexer(Options const & options) :
@@ -177,12 +177,12 @@ parseCommandLine(Options & options, ArgumentParser & parser, int argc, char cons
     getOptionValue(options.verbose, parser, "verbose");
 
     // Parse contigs input file.
-    getArgumentValue(options.contigsFile, parser, 0);
+    getArgumentValue(options.contigsDir, parser, 0);
 
     // Parse contigs index prefix.
     getOptionValue(options.contigsIndexFile, parser, "output-prefix");
     if (!isSet(parser, "output-prefix"))
-        options.contigsIndexFile = trimExtension(options.contigsFile);
+        options.contigsIndexFile = trimExtension(options.contigsDir);
 
     // Parse and set temp dir.
     CharString tmpDir;
@@ -215,12 +215,12 @@ void loadContigs(YaraIndexer<TSpec, TConfig> & me)
         mtx.unlock();
     }
 
-    if (!open(me.contigsFile, toCString(me.options.contigsFile)))
+    if (!open(me.contigsDir, toCString(me.options.contigsDir)))
         throw RuntimeError("Error while opening the reference file.");
 
     try
     {
-        readRecords(me.contigs, me.contigsFile);
+        readRecords(me.contigs, me.contigsDir);
         trimSeqNames(me.contigs);
     }
     catch (BadAlloc const & /* e */)
@@ -387,6 +387,8 @@ int main(int argc, char const ** argv)
     if (res != ArgumentParser::PARSE_OK)
         return res == ArgumentParser::PARSE_ERROR;
 
+    std::string comExt = commonExtension(options.contigsDir, options.numberOfBins);
+
     try
     {
 
@@ -408,8 +410,8 @@ int main(int argc, char const ** argv)
 
                 Options binOptions = options;
 
-                appendFileName(binOptions.contigsFile, options.contigsFile, binNo);
-                append(binOptions.contigsFile, ".fna");
+                appendFileName(binOptions.contigsDir, options.contigsDir, binNo);
+                append(binOptions.contigsDir, comExt);
                 appendFileName(binOptions.contigsIndexFile, options.contigsIndexFile, binNo);
 
                 binOptions.currentBinNo = binNo;

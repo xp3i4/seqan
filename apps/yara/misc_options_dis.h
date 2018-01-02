@@ -180,6 +180,37 @@ inline bool verifyFnaFile(CharString const & fastaFile)
     return true;
 }
 
+// ----------------------------------------------------------------------------
+// Function commonExtension()
+// ----------------------------------------------------------------------------
+inline std::string commonExtension(CharString const directoryPath, uint32_t const numberOfBins)
+{
+    std::vector<std::string> extensions =  SeqFileIn::getFileExtensions();
+
+    uint32_t count = 0;
+    for (auto ext : extensions)
+    {
+        count = 0;
+        for (;count < numberOfBins; ++count)
+        {
+            CharString fastaFile;
+            appendFileName(fastaFile, directoryPath, count);
+            append(fastaFile, ext);
+            SeqFileIn seqFileIn;
+            if (!open(seqFileIn, toCString(fastaFile)))
+                break;
+        }
+        if (count == numberOfBins)
+            return ext;
+    }
+
+    // no common extensionfor all bins found.
+    std::cerr << "The given directory:\n\t" << directoryPath
+    << "\ndoes not contain the fasta files of all the bins!"
+    << "\nAll files should have identical valid extension!\n";
+    exit(1);
+    return "";
+}
 
 // ----------------------------------------------------------------------------
 // Function verifyFnaDir()
