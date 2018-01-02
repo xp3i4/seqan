@@ -187,7 +187,7 @@ namespace seqan
                 for (uint8_t batchNo = 0; batchNo < _binIntWidth; ++batchNo)
                 {
                     uint32_t binNo = batchNo * uInt64Width;
-                    std::bitset<64> bitSet = _containsKmerBatch(kmerHash, batchNo);
+                    std::bitset<64> bitSet = _containsKmerBatch(kmerHash, binNo);
                     if(bitSet.none()) continue;
                     for(uint8_t offset=0; binNo < _noOfBins && offset < uInt64Width; ++offset,++binNo)
                     {
@@ -234,6 +234,7 @@ namespace seqan
         {
             _initPreCalcValues();
             _binIntWidth = std::ceil((float)_noOfBins / uInt64Width);
+            _blockBitSize = _binIntWidth * uInt64Width;
             _noOfHashPos = (_noOfBits - bfMetadataSize) / (uInt64Width * _binIntWidth);
         }
         void _getMetadata()
@@ -266,11 +267,11 @@ namespace seqan
             return 1 == ( (num >> bit) & 1);
         }
 
-        std::bitset<64> _containsKmerBatch(uint64_t & kmerHash, uint8_t const & batch) const
+        std::bitset<64> _containsKmerBatch(uint64_t & kmerHash, uint8_t const & batchOffset) const
         {
             uint64_t tmp = kmerHash * (_preCalcValues[0]);
             tmp ^= tmp >> _shiftValue;
-            uint64_t vectIndex = (tmp % _noOfHashPos) * uInt64Width + batch;
+            uint64_t vectIndex = (tmp % _noOfHashPos) * _blockBitSize + batchOffset;
 
             uint64_t res = _filterVector.get_int(vectIndex);
 
@@ -278,7 +279,7 @@ namespace seqan
             {
                 tmp = kmerHash * (_preCalcValues[i]);
                 tmp ^= tmp >> _shiftValue;
-                vectIndex = (tmp % _noOfHashPos) * uInt64Width + batch;
+                vectIndex = (tmp % _noOfHashPos) * _blockBitSize + batchOffset;
                 res &= _filterVector.get_int(vectIndex);
             }
             return res;
@@ -291,7 +292,7 @@ namespace seqan
             {
                 tmp = kmerHash * (_preCalcValues[i]);
                 tmp ^= tmp >> _shiftValue;
-                uint64_t vectIndex = (tmp % _noOfHashPos) * uInt64Width + binNo;
+                uint64_t vectIndex = (tmp % _noOfHashPos) * _blockBitSize + binNo;
                 if (!_filterVector[vectIndex])
                     return false;
             }
@@ -303,14 +304,14 @@ namespace seqan
             uint64_t tmp = kmerHash * (_preCalcValues[0]);
             tmp ^= tmp >> _shiftValue;
 
-            uint64_t vectIndex = (tmp % _noOfHashPos) * uInt64Width + binNo;
+            uint64_t vectIndex = (tmp % _noOfHashPos) * _blockBitSize + binNo;
             _filterVector[vectIndex] = 1;
 
             for(uint8_t i = 1; i < _noOfHashFunc ; i++)
             {
                 tmp = kmerHash * (_preCalcValues[i]);
                 tmp ^= tmp >> _shiftValue;
-                vectIndex = (tmp % _noOfHashPos) * uInt64Width + binNo;
+                vectIndex = (tmp % _noOfHashPos) * _blockBitSize + binNo;
                 _filterVector[vectIndex] = 1;
             }
         }
@@ -341,6 +342,7 @@ namespace seqan
         uint8_t                  _noOfHashFunc;
         uint8_t                  _kmerSize;
         uint8_t                  _binIntWidth;
+        uint32_t                 _blockBitSize;
 
         //sizes in diferent units
         uint64_t                _noOfBits;
