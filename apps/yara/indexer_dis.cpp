@@ -150,7 +150,7 @@ void setupArgumentParser(ArgumentParser & parser, Options const & options)
     addOption(parser, ArgParseOption("b", "number-of-bins", "The number of bins (indices) for distributed mapper",
                                      ArgParseOption::INTEGER));
     setMinValue(parser, "number-of-bins", "1");
-    setMaxValue(parser, "number-of-bins", "1000");
+    setMaxValue(parser, "number-of-bins", "10000");
 
     addOption(parser, ArgParseOption("t", "threads", "Specify the number of threads to use (valid for bloom filter only).", ArgParseOption::INTEGER));
     setMinValue(parser, "threads", "1");
