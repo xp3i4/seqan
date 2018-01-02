@@ -129,7 +129,7 @@ namespace seqan
         // ----------------------------------------------------------------------------
         // Function addFastaFile()
         // ----------------------------------------------------------------------------
-        void addFastaFile(CharString const & fastaFile, u_int32_t const & binNo)
+        void addFastaFile(CharString const & fastaFile, uint32_t const & binNo)
         {
             CharString id;
             IupacString seq;
