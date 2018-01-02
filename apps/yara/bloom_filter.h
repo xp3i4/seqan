@@ -36,7 +36,7 @@
 
 namespace seqan
 {
-    static const uint8_t uInt64Width = 0x40;
+    static const uint8_t INT_WIDTH = 0x20;
     static const uint32_t bfMetadataSize = 256;
 
     template<typename TString = Dna5String>
@@ -104,8 +104,8 @@ namespace seqan
             uint64_t batchSize = _noOfHashPos/threadsCount;
             if(batchSize * threadsCount < _noOfHashPos) ++batchSize;
 
-            uint32_t blockSize = uInt64Width;
-            if (_noOfBins > uInt64Width)
+            uint32_t blockSize = INT_WIDTH;
+            if (_noOfBins > INT_WIDTH)
                 blockSize = _noOfBins;
 
             for (uint32_t taskNo = 0; taskNo < threadsCount; ++taskNo)
@@ -186,10 +186,10 @@ namespace seqan
                 //if the number of bu
                 for (uint8_t batchNo = 0; batchNo < _binIntWidth; ++batchNo)
                 {
-                    uint32_t binNo = batchNo * uInt64Width;
-                    std::bitset<64> bitSet = _containsKmerBatch(kmerHash, binNo);
+                    uint32_t binNo = batchNo * INT_WIDTH;
+                    std::bitset<INT_WIDTH> bitSet = _containsKmerBatch(kmerHash, binNo);
                     if(bitSet.none()) continue;
-                    for(uint8_t offset=0; binNo < _noOfBins && offset < uInt64Width; ++offset,++binNo)
+                    for(uint8_t offset=0; binNo < _noOfBins && offset < INT_WIDTH; ++offset,++binNo)
                     {
                         if (bitSet.test(offset) && !selected[binNo])
                         {
@@ -233,9 +233,9 @@ namespace seqan
         void _init()
         {
             _initPreCalcValues();
-            _binIntWidth = std::ceil((float)_noOfBins / uInt64Width);
-            _blockBitSize = _binIntWidth * uInt64Width;
-            _noOfHashPos = (_noOfBits - bfMetadataSize) / (uInt64Width * _binIntWidth);
+            _binIntWidth = std::ceil((float)_noOfBins / INT_WIDTH);
+            _blockBitSize = _binIntWidth * INT_WIDTH;
+            _noOfHashPos = (_noOfBits - bfMetadataSize) / (INT_WIDTH * _binIntWidth);
         }
         void _getMetadata()
         {
@@ -245,8 +245,8 @@ namespace seqan
             uint64_t metadataStart = _noOfBits - (bfMetadataSize+1);
 
             _noOfBins = _filterVector.get_int(metadataStart);
-            _noOfHashFunc = _filterVector.get_int(metadataStart+uInt64Width);
-            _kmerSize = _filterVector.get_int(metadataStart+2*uInt64Width);
+            _noOfHashFunc = _filterVector.get_int(metadataStart+64);
+            _kmerSize = _filterVector.get_int(metadataStart+128);
         }
 
         void _setMetadata()
@@ -257,8 +257,8 @@ namespace seqan
             uint64_t metadataStart = _noOfBits - (bfMetadataSize+1);
 
             _filterVector.set_int(metadataStart, _noOfBins);
-            _filterVector.set_int(metadataStart + uInt64Width, _noOfHashFunc);
-            _filterVector.set_int(metadataStart + uInt64Width*2, _kmerSize);
+            _filterVector.set_int(metadataStart + 64, _noOfHashFunc);
+            _filterVector.set_int(metadataStart + 128, _kmerSize);
         }
 
         template<typename TInt>
@@ -267,20 +267,21 @@ namespace seqan
             return 1 == ( (num >> bit) & 1);
         }
 
-        std::bitset<64> _containsKmerBatch(uint64_t & kmerHash, uint8_t const & batchOffset) const
+        std::bitset<INT_WIDTH> _containsKmerBatch(uint64_t & kmerHash, uint32_t const & batchOffset) const
         {
             uint64_t tmp = kmerHash * (_preCalcValues[0]);
             tmp ^= tmp >> _shiftValue;
             uint64_t vectIndex = (tmp % _noOfHashPos) * _blockBitSize + batchOffset;
 
-            uint64_t res = _filterVector.get_int(vectIndex);
+            std::bitset<INT_WIDTH> res(_filterVector.get_int(vectIndex, INT_WIDTH));
 
-            for(uint8_t i = 1; i < _noOfHashFunc ; i++)
+            for(uint8_t i = 1; i < _noOfHashFunc && res.any(); i++)
             {
-                tmp = kmerHash * (_preCalcValues[i]);
+                uint64_t tmp = kmerHash * (_preCalcValues[i]);
                 tmp ^= tmp >> _shiftValue;
-                vectIndex = (tmp % _noOfHashPos) * _blockBitSize + batchOffset;
-                res &= _filterVector.get_int(vectIndex);
+                uint64_t  vectIndex = (tmp % _noOfHashPos) * _blockBitSize + batchOffset;
+                std::bitset<INT_WIDTH> tmpBitSet(_filterVector.get_int(vectIndex, INT_WIDTH));
+                res &= tmpBitSet;
             }
             return res;
         }
