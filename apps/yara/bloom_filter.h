@@ -36,7 +36,7 @@
 
 namespace seqan
 {
-    static const uint8_t INT_WIDTH = 0x20;
+    static const uint8_t INT_WIDTH = 0x40;
     static const uint32_t bfMetadataSize = 256;
 
     template<typename TString = Dna5String>
@@ -275,7 +275,7 @@ namespace seqan
 
             std::bitset<INT_WIDTH> res(_filterVector.get_int(vectIndex, INT_WIDTH));
 
-            for(uint8_t i = 1; i < _noOfHashFunc && res.any(); i++)
+            for(uint8_t i = 1; res.any() && i < _noOfHashFunc;  i++)
             {
                 uint64_t tmp = kmerHash * (_preCalcValues[i]);
                 tmp ^= tmp >> _shiftValue;
