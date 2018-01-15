@@ -32,6 +32,7 @@
 // Author: Temesgen H. Dadi <temesgen.dadi@fu-berlin.de>
 // ==========================================================================
 #include <sdsl/bit_vectors.hpp>
+#include <valarray>
 #include <algorithm>
 
 namespace seqan
@@ -163,7 +164,7 @@ namespace seqan
             return sdsl::size_in_mega_bytes(_filterVector);
         }
         
-        void whichBins(std::vector<bool> & selected, TString const & text, uint8_t const & threshold) const
+        inline void whichBins(std::vector<bool> & selected, TString const & text, uint8_t const & threshold) const
         {
             TShape kmerShape;
             resize(kmerShape, _kmerSize);
@@ -183,23 +184,32 @@ namespace seqan
 
             for (uint64_t kmerHash : kmerHashes)
             {
-                //if the number of bu
+                std::valarray<uint64_t> vecIndices(kmerHash * _preCalcValues);
+                fillHashValues(vecIndices);
                 for (uint8_t batchNo = 0; batchNo < _binIntWidth; ++batchNo)
                 {
                     uint32_t binNo = batchNo * INT_WIDTH;
-                    std::bitset<INT_WIDTH> bitSet = _containsKmerBatch(kmerHash, binNo);
-                    if(bitSet.none()) continue;
-                    for(uint8_t offset=0; binNo < _noOfBins && offset < INT_WIDTH; ++offset,++binNo)
+                    std::bitset<INT_WIDTH> bitSet(_filterVector.get_int(vecIndices[0], INT_WIDTH));
+                    for(uint8_t i = 1; i < _noOfHashFunc && bitSet.any();  i++)
                     {
-                        if (bitSet.test(offset) && !selected[binNo])
+                        bitSet &= _filterVector.get_int(vecIndices[i], INT_WIDTH);
+                    }
+                    if(bitSet.any())
+                    {
+                        for(uint8_t offset=0; binNo < _noOfBins && offset < INT_WIDTH; ++offset,++binNo)
                         {
-                            ++counts[binNo];
-                            if(counts[binNo] >= threshold)
-                                selected[binNo] = true;
+                            if (bitSet.test(offset))
+                                ++counts[binNo];
                         }
                     }
+                    vecIndices += INT_WIDTH;
                 }
-                --possible;
+            }
+
+            for(uint32_t binNo=0; binNo < _noOfBins; ++binNo)
+            {
+                if(counts[binNo] >= threshold)
+                    selected[binNo] = true;
             }
         }
 
@@ -207,14 +217,6 @@ namespace seqan
         {
             std::vector<bool> selected(_noOfBins, false);
             whichBins(selected, text, threshold);
-            return selected;
-        }
-
-        std::vector<bool> whichBins(TString const & text_fwd, TString const & text_rev, uint8_t const & threshold) const
-        {
-            std::vector<bool> selected(_noOfBins, false);
-            whichBins(selected, text_fwd, threshold);
-            whichBins(selected, text_rev, threshold);
             return selected;
         }
 
@@ -232,10 +234,16 @@ namespace seqan
 
         void _init()
         {
-            _initPreCalcValues();
             _binIntWidth = std::ceil((float)_noOfBins / INT_WIDTH);
             _blockBitSize = _binIntWidth * INT_WIDTH;
             _noOfHashPos = (_noOfBits - bfMetadataSize) / (INT_WIDTH * _binIntWidth);
+
+            _preCalcValues.resize(_noOfHashFunc);
+            for(uint8_t i = 0; i < _noOfHashFunc ; i++)
+            {
+                _preCalcValues[i]= i;
+            }
+            _preCalcValues ^= (_kmerSize * _seedValue);
         }
         void _getMetadata()
         {
@@ -267,53 +275,21 @@ namespace seqan
             return 1 == ( (num >> bit) & 1);
         }
 
-        std::bitset<INT_WIDTH> _containsKmerBatch(uint64_t & kmerHash, uint32_t const & batchOffset) const
+        inline void fillHashValues(std::valarray<uint64_t> & vecIndices) const
         {
-            uint64_t tmp = kmerHash * (_preCalcValues[0]);
-            tmp ^= tmp >> _shiftValue;
-            uint64_t vectIndex = (tmp % _noOfHashPos) * _blockBitSize + batchOffset;
-
-            std::bitset<INT_WIDTH> res(_filterVector.get_int(vectIndex, INT_WIDTH));
-
-            for(uint8_t i = 1; res.any() && i < _noOfHashFunc;  i++)
-            {
-                uint64_t tmp = kmerHash * (_preCalcValues[i]);
-                tmp ^= tmp >> _shiftValue;
-                uint64_t  vectIndex = (tmp % _noOfHashPos) * _blockBitSize + batchOffset;
-                std::bitset<INT_WIDTH> tmpBitSet(_filterVector.get_int(vectIndex, INT_WIDTH));
-                res &= tmpBitSet;
-            }
-            return res;
+            vecIndices ^= vecIndices >> _shiftValue;
+            vecIndices %= _noOfHashPos;
+            vecIndices *= _noOfBins;
         }
 
-        bool _containsKmer(uint64_t & kmerHash, uint32_t const & binNo) const
+        void _insertKmer(uint64_t & kmerHash, uint32_t const & batchOffset)
         {
-            uint64_t tmp = 0;
+            std::valarray<uint64_t> vecIndices(kmerHash * _preCalcValues);
+            fillHashValues(vecIndices);
+            vecIndices += batchOffset;
             for(uint8_t i = 0; i < _noOfHashFunc ; i++)
             {
-                tmp = kmerHash * (_preCalcValues[i]);
-                tmp ^= tmp >> _shiftValue;
-                uint64_t vectIndex = (tmp % _noOfHashPos) * _blockBitSize + binNo;
-                if (!_filterVector[vectIndex])
-                    return false;
-            }
-            return true;
-        }
-
-        void _insertKmer(uint64_t & kmerHash, uint32_t const & binNo)
-        {
-            uint64_t tmp = kmerHash * (_preCalcValues[0]);
-            tmp ^= tmp >> _shiftValue;
-
-            uint64_t vectIndex = (tmp % _noOfHashPos) * _blockBitSize + binNo;
-            _filterVector[vectIndex] = 1;
-
-            for(uint8_t i = 1; i < _noOfHashFunc ; i++)
-            {
-                tmp = kmerHash * (_preCalcValues[i]);
-                tmp ^= tmp >> _shiftValue;
-                vectIndex = (tmp % _noOfHashPos) * _blockBitSize + binNo;
-                _filterVector[vectIndex] = 1;
+                _filterVector[vecIndices[i]] = 1;
             }
         }
 
@@ -330,15 +306,6 @@ namespace seqan
             }
         }
 
-
-        inline void _initPreCalcValues()
-        {
-            for(uint8_t i = 0; i < _noOfHashFunc ; i++)
-            {
-                _preCalcValues.push_back(i ^ _kmerSize * _seedValue);
-            }
-        }
-
         uint32_t                 _noOfBins;
         uint8_t                  _noOfHashFunc;
         uint8_t                  _kmerSize;
@@ -349,8 +316,8 @@ namespace seqan
         uint64_t                _noOfBits;
         uint64_t                _noOfHashPos;
         sdsl::bit_vector        _filterVector;
-//        std::vector<uint64_t>   _filterVector;
-        std::vector<uint64_t>   _preCalcValues = {};
+
+        std::valarray<uint64_t>   _preCalcValues;
         uint64_t const          _shiftValue = 27;
         uint64_t const          _seedValue = 0x90b45d39fb6da1fa;
     };

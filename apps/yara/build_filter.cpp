@@ -142,10 +142,10 @@ void setupArgumentParser(ArgumentParser & parser, Options const & options)
     setMaxValue(parser, "num-hash", "5");
     setDefaultValue(parser, "num-hash", options.numberOfHashes);
 
-    addOption(parser, ArgParseOption("bs", "bloom-size", "The size of bloom filter in MB.", ArgParseOption::INTEGER));
+    addOption(parser, ArgParseOption("bs", "bloom-size", "The size of bloom filter in GB.", ArgParseOption::INTEGER));
     setMinValue(parser, "bloom-size", "1");
-    setMaxValue(parser, "bloom-size", "512000");
-    setDefaultValue(parser, "bloom-size", 1000);
+    setMaxValue(parser, "bloom-size", "512");
+    setDefaultValue(parser, "bloom-size", 1);
 }
 
 // ----------------------------------------------------------------------------
@@ -182,8 +182,17 @@ parseCommandLine(Options & options, ArgumentParser & parser, int argc, char cons
 
     uint64_t bloomSize;
     if (getOptionValue(bloomSize, parser, "bloom-size"))
-        options.bloomFilterSize = bloomSize * 8388608 + bfMetadataSize; // 8388608 = 1MB
-
+    {
+        if ((bloomSize & (bloomSize - 1)) == 0)
+        {
+            options.bloomFilterSize = bloomSize * 8589934592 + bfMetadataSize; // 8589934592 = 1GB
+        }
+        else
+        {
+            std::cerr <<"[ERROR] --bloom-size (-bs) parameter should be a power of 2!" << std::endl;
+            exit(1);
+        }
+    }
     return ArgumentParser::PARSE_OK;
 }
 
