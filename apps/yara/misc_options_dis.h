@@ -36,6 +36,15 @@
 #define APP_YARA_MISC_OPTIONS_DIS_H_
 std::mutex mtx;
 
+static const uint32_t filterMetadataSize = 256;
+static const uint8_t INT_WIDTH = 0x40;
+
+
+enum FilterType
+{
+    BLOOM, KMER_DIRECT, NONE
+};
+
 using namespace seqan;
 class Semaphore
 {

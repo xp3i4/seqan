@@ -57,6 +57,7 @@
 #include "bits_matches.h"
 #include "misc_options.h"
 #include "misc_options_dis.h"
+#include "kdx_filter.h"
 #include "bloom_filter.h"
 
 using namespace seqan;
@@ -74,19 +75,24 @@ struct Options
     uint32_t        numberOfBins;
     uint64_t        bloomFilterSize;
     uint32_t        numberOfHashes;
-
     unsigned        threadsCount;
-
     bool            verbose;
+
+    FilterType      filterType;
+
+    std::vector<std::string> filterTypeList;
 
     Options() :
     kmerSize(20),
     numberOfBins(64),
-    bloomFilterSize(8589934592 + bfMetadataSize), // 1GB
+    bloomFilterSize(8589934592 + filterMetadataSize), // 1GB
     numberOfHashes(4),
     threadsCount(1),
-    verbose(false)
-    {}
+    verbose(false),
+    filterType(BLOOM),
+    filterTypeList({"bloom", "kmer_direct", "none"})
+    {
+    }
 };
 
 // ==========================================================================
@@ -118,7 +124,7 @@ void setupArgumentParser(ArgumentParser & parser, Options const & options)
 
     addOption(parser, ArgParseOption("o", "output-file", "Specify an output filename for the filter. \
                                      Default: use the directory name of reference genomes.", ArgParseOption::OUTPUT_FILE));
-    setValidValues(parser, "output-file", "bf");
+    setValidValues(parser, "output-file", "filter");
 
     addOption(parser, ArgParseOption("b", "number-of-bins", "The number of bins (indices) for distributed mapper",
                                      ArgParseOption::INTEGER));
@@ -130,6 +136,11 @@ void setupArgumentParser(ArgumentParser & parser, Options const & options)
     setMinValue(parser, "threads", "1");
     setMaxValue(parser, "threads", "2048");
     setDefaultValue(parser, "threads", options.threadsCount);
+
+    addOption(parser, ArgParseOption("ft", "filter-type", "type of filter to build",
+                                     ArgParseOption::STRING));
+    setValidValues(parser, "filter-type", options.filterTypeList);
+    setDefaultValue(parser, "filter-type",  options.filterTypeList[options.filterType]);
 
 
     addOption(parser, ArgParseOption("k", "kmer-size", "The size of kmers for bloom_filter",
@@ -171,9 +182,10 @@ parseCommandLine(Options & options, ArgumentParser & parser, int argc, char cons
     if (!isSet(parser, "output-file"))
     {
         options.filterFile = trimExtension(options.contigsDir);
-        append(options.filterFile, "bloom.bf");
+        append(options.filterFile, "bloom.filter");
     }
 
+    getOptionValue(options.filterType, parser, "filter-type", options.filterTypeList);
 
     if (isSet(parser, "number-of-bins")) getOptionValue(options.numberOfBins, parser, "number-of-bins");
     if (isSet(parser, "kmer-size")) getOptionValue(options.kmerSize, parser, "kmer-size");
@@ -185,7 +197,7 @@ parseCommandLine(Options & options, ArgumentParser & parser, int argc, char cons
     {
         if ((bloomSize & (bloomSize - 1)) == 0)
         {
-            options.bloomFilterSize = bloomSize * 8589934592 + bfMetadataSize; // 8589934592 = 1GB
+            options.bloomFilterSize = bloomSize * 8589934592 + filterMetadataSize; // 8589934592 = 1GB
         }
         else
         {
@@ -195,6 +207,65 @@ parseCommandLine(Options & options, ArgumentParser & parser, int argc, char cons
     }
     return ArgumentParser::PARSE_OK;
 }
+
+// ----------------------------------------------------------------------------
+// Function build_filter()
+// ----------------------------------------------------------------------------
+template <typename TFilter>
+inline void build_filter(Options & options, TFilter & filter)
+{
+    std::string comExt = commonExtension(options.contigsDir, options.numberOfBins);
+
+    Semaphore thread_limiter(options.threadsCount);
+    std::vector<std::future<void>> tasks;
+
+    Timer<double>       timer;
+    Timer<double>       globalTimer;
+    start (timer);
+    start (globalTimer);
+
+    for (uint32_t binNo = 0; binNo < options.numberOfBins; ++binNo)
+    {
+        tasks.emplace_back(std::async([=, &thread_limiter, &filter] {
+
+            Critical_section _(thread_limiter);
+
+            Timer<double>       binTimer;
+            start (binTimer);
+
+            CharString fastaFile;
+            appendFileName(fastaFile, options.contigsDir, binNo);
+            append(fastaFile, comExt);
+
+            filter.addFastaFile(fastaFile, binNo);
+
+            stop(binTimer);
+            if (options.verbose)
+            {
+                mtx.lock();
+                std::cerr <<"[bin " << binNo << "] Done adding kmers!\t\t\t" << binTimer << std::endl;
+                mtx.unlock();
+            }
+        }));
+    }
+    for (auto &&task : tasks)
+    {
+        task.get();
+    }
+    stop(timer);
+    if (options.verbose)
+        std::cerr <<"All bins are done adding kmers!\t\t" << timer << std::endl;
+
+    start(timer);
+    filter.save(toCString(options.filterFile));
+    stop(timer);
+    if (options.verbose)
+        std::cerr <<"Done saving filter (" << filter.size_mb() <<" MB)\t\t" << timer << std::endl;
+    stop(globalTimer);
+    std::cerr <<"\nFinshed in \t\t\t" << globalTimer << std::endl;
+
+}
+
 
 // ----------------------------------------------------------------------------
 // Function main()
@@ -211,62 +282,28 @@ int main(int argc, char const ** argv)
     if (res != ArgumentParser::PARSE_OK)
         return res == ArgumentParser::PARSE_ERROR;
 
-    std::string comExt = commonExtension(options.contigsDir, options.numberOfBins);
-
     try
     {
-        SeqAnBloomFilter<> bf(options.numberOfBins,
-                              options.numberOfHashes,
-                              options.kmerSize,
-                              options.bloomFilterSize);
-        Semaphore thread_limiter(options.threadsCount);
-        std::vector<std::future<void>> tasks;
-
-        Timer<double>       timer;
-        Timer<double>       globalTimer;
-        start (timer);
-        start (globalTimer);
-
-        for (uint32_t binNo = 0; binNo < options.numberOfBins; ++binNo)
+        if (options.filterType == BLOOM)
         {
-            tasks.emplace_back(std::async([=, &thread_limiter, &bf] {
+            SeqAnBloomFilter<> filter  (options.numberOfBins,
+                                        options.numberOfHashes,
+                                        options.kmerSize,
+                                        options.bloomFilterSize);
 
-                Critical_section _(thread_limiter);
-
-                Timer<double>       binTimer;
-                start (binTimer);
-
-                CharString fastaFile;
-                appendFileName(fastaFile, options.contigsDir, binNo);
-                append(fastaFile, comExt);
-
-                bf.addFastaFile(fastaFile, binNo);
-
-                stop(binTimer);
-                if (options.verbose)
-                {
-                    mtx.lock();
-                    std::cerr <<"[bin " << binNo << "] Done adding kmers!\t\t\t" << binTimer << std::endl;
-                    mtx.unlock();
-                }
-            }));
+            build_filter(options, filter);
         }
-        for (auto &&task : tasks)
+        else if (options.filterType == KMER_DIRECT)
         {
-            task.get();
-        }
-        stop(timer);
-        if (options.verbose)
-            std::cerr <<"All bins are done adding kmers!\t\t" << timer << std::endl;
+            uint64_t vec_size = (1u << (2 * options.kmerSize));
+            vec_size *= options.numberOfBins;
+            vec_size += filterMetadataSize;
+            SeqAnKDXFilter<> filter (options.numberOfBins, options.kmerSize, vec_size);
 
-        start(timer);
-        bf.save(toCString(options.filterFile));
-        stop(timer);
-        if (options.verbose)
-            std::cerr <<"Done saving filter (" << bf.size_mb() <<" MB)\t\t" << timer << std::endl;
-        stop(globalTimer);
-        std::cerr <<"\nFinshed in \t\t\t" << globalTimer << std::endl;
-   }
+            build_filter(options, filter);
+        }
+
+    }
     catch (Exception const & e)
     {
         std::cerr << getAppName(parser) << ": " << e.what() << std::endl;

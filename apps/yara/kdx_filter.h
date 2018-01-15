@@ -37,52 +37,29 @@
 
 namespace seqan
 {
-    template<typename TString = Dna5String>
-    class SeqAnBloomFilter
+    template<typename TString = DnaString>
+    class SeqAnKDXFilter
     {
     public:
 
         typedef Shape<Dna, SimpleShape> TShape;
 
-        SeqAnBloomFilter(uint32_t n_bins, uint8_t n_hash_func, uint8_t kmer_size, uint64_t vec_size):
-                        _noOfBins(n_bins),
-                        _noOfHashFunc(n_hash_func),
-                        _kmerSize(kmer_size),
-                        _noOfBits(vec_size),
-                        _filterVector(sdsl::bit_vector(vec_size, 0))
-
+        SeqAnKDXFilter(uint32_t n_bins, uint8_t kmer_size, uint64_t vec_size):
+        _noOfBins(n_bins),
+        _kmerSize(kmer_size),
+        _noOfBits(vec_size),
+        _filterVector(sdsl::bit_vector(vec_size, 0))
         {
             _init();
         }
 
-        SeqAnBloomFilter(const char *fileName, uint32_t n_bins, uint8_t n_hash_func, uint8_t kmer_size, uint64_t vec_size):
-                        _noOfBins(n_bins),
-                        _noOfHashFunc(n_hash_func),
-                        _kmerSize(kmer_size),
-                        _noOfBits(vec_size)
-        {
-            _init();
-            if (!sdsl::load_from_file(_filterVector, fileName))
-            {
-                std::cerr << "File \"" << fileName << "\" could not be read." << std::endl;
-                exit(1);
-            }
-            if (vec_size != _filterVector.bit_size())
-            {
-                std::cerr << "Size mismatch: \n\t Loaded file \t" << _filterVector.bit_size()
-                << " bits\n\t expected\t" << vec_size << std::endl;
-                exit(1);
-            }
-        }
-
-        SeqAnBloomFilter(const char *fileName)
+        SeqAnKDXFilter(const char *fileName)
         {
             if (!sdsl::load_from_file(_filterVector, fileName))
             {
                 std::cerr << "File \"" << fileName << "\" could not be read." << std::endl;
                 exit(1);
             }
-            _noOfBits = _filterVector.bit_size();
             _getMetadata();
             _init();
         }
@@ -91,7 +68,6 @@ namespace seqan
         {
             _addKmers(text, binNo);
         }
-
         // ----------------------------------------------------------------------------
         // Function clearBins()
         // ----------------------------------------------------------------------------
@@ -160,7 +136,7 @@ namespace seqan
         {
             return sdsl::size_in_mega_bytes(_filterVector);
         }
-        
+
         inline void whichBins(std::vector<bool> & selected, TString const & text, uint8_t const & threshold) const
         {
             TShape kmerShape;
@@ -173,33 +149,32 @@ namespace seqan
 
             std::vector<uint64_t> kmerHashes(possible, 0);
             auto it = begin(text);
-            for (uint8_t i = 0; i < possible; ++i)
+            for (uint32_t i = 0; i < possible; ++i)
             {
-                kmerHashes[i] = hashNext(kmerShape, it);
+                kmerHashes[i] = _blockBitSize * hashNext(kmerShape, it);
                 ++it;
             }
 
             for (uint64_t kmerHash : kmerHashes)
             {
-                std::valarray<uint64_t> vecIndices(kmerHash * _preCalcValues);
-                fillHashValues(vecIndices);
+//                for(uint32_t binNo=0; binNo < _noOfBins; ++binNo)
+//                {
+//                    if (_filterVector[kmerHash+binNo])
+//                        ++counts[binNo];
+//                }
                 for (uint8_t batchNo = 0; batchNo < _binIntWidth; ++batchNo)
                 {
                     uint32_t binNo = batchNo * INT_WIDTH;
-                    std::bitset<INT_WIDTH> bitSet(_filterVector.get_int(vecIndices[0], INT_WIDTH));
-                    for(uint8_t i = 1; i < _noOfHashFunc && bitSet.any();  i++)
-                    {
-                        bitSet &= _filterVector.get_int(vecIndices[i], INT_WIDTH);
-                    }
+
+                    std::bitset<INT_WIDTH> bitSet(_filterVector.get_int(kmerHash + binNo, INT_WIDTH));
                     if(bitSet.any())
                     {
-                        for(uint8_t offset=0; binNo < _noOfBins && offset < INT_WIDTH; ++offset,++binNo)
+                        for(uint8_t offset=0; offset < INT_WIDTH; ++offset)
                         {
                             if (bitSet.test(offset))
-                                ++counts[binNo];
+                                ++counts[binNo + offset];
                         }
                     }
-                    vecIndices += INT_WIDTH;
                 }
             }
 
@@ -234,23 +209,16 @@ namespace seqan
             _binIntWidth = std::ceil((float)_noOfBins / INT_WIDTH);
             _blockBitSize = _binIntWidth * INT_WIDTH;
             _noOfHashPos = (_noOfBits - filterMetadataSize) / (INT_WIDTH * _binIntWidth);
-
-            _preCalcValues.resize(_noOfHashFunc);
-            for(uint8_t i = 0; i < _noOfHashFunc ; i++)
-            {
-                _preCalcValues[i]= i;
-            }
-            _preCalcValues ^= (_kmerSize * _seedValue);
         }
         void _getMetadata()
         {
             //-------------------------------------------------------------------
             //|              bf              | n_bins | n_hash_func | kmer_size |
             //-------------------------------------------------------------------
-            uint64_t metadataStart = _noOfBits - (filterMetadataSize+1);
+            _noOfBits = _filterVector.bit_size();
 
+            uint64_t metadataStart = _noOfBits - (filterMetadataSize+1);
             _noOfBins = _filterVector.get_int(metadataStart);
-            _noOfHashFunc = _filterVector.get_int(metadataStart+64);
             _kmerSize = _filterVector.get_int(metadataStart+128);
         }
 
@@ -262,7 +230,6 @@ namespace seqan
             uint64_t metadataStart = _noOfBits - (filterMetadataSize+1);
 
             _filterVector.set_int(metadataStart, _noOfBins);
-            _filterVector.set_int(metadataStart + 64, _noOfHashFunc);
             _filterVector.set_int(metadataStart + 128, _kmerSize);
         }
 
@@ -271,25 +238,6 @@ namespace seqan
         {
             return 1 == ( (num >> bit) & 1);
         }
-
-        inline void fillHashValues(std::valarray<uint64_t> & vecIndices) const
-        {
-            vecIndices ^= vecIndices >> _shiftValue;
-            vecIndices %= _noOfHashPos;
-            vecIndices *= _noOfBins;
-        }
-
-        void _insertKmer(uint64_t & kmerHash, uint32_t const & batchOffset)
-        {
-            std::valarray<uint64_t> vecIndices(kmerHash * _preCalcValues);
-            fillHashValues(vecIndices);
-            vecIndices += batchOffset;
-            for(uint8_t i = 0; i < _noOfHashFunc ; i++)
-            {
-                _filterVector[vecIndices[i]] = 1;
-            }
-        }
-
         void _addKmers(TString const & text, uint32_t const & binNo)
         {
             TShape kmerShape;
@@ -299,12 +247,11 @@ namespace seqan
             for (uint32_t i = 0; i < length(text) - length(kmerShape) + 1; ++i)
             {
                 uint64_t kmerHash = hashNext(kmerShape, begin(text) + i);
-                _insertKmer(kmerHash, binNo);
+                _filterVector[_blockBitSize * kmerHash + binNo] = 1;
             }
         }
 
         uint32_t                 _noOfBins;
-        uint8_t                  _noOfHashFunc;
         uint8_t                  _kmerSize;
         uint8_t                  _binIntWidth;
         uint32_t                 _blockBitSize;
@@ -314,8 +261,5 @@ namespace seqan
         uint64_t                _noOfHashPos;
         sdsl::bit_vector        _filterVector;
 
-        std::valarray<uint64_t>   _preCalcValues;
-        uint64_t const          _shiftValue = 27;
-        uint64_t const          _seedValue = 0x90b45d39fb6da1fa;
     };
 }

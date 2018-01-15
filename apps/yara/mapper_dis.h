@@ -52,7 +52,6 @@ public:
     CharString              filterFile;
     CharString              superOutputFile;
 
-    bool                    noFilter = false;
     bool                    skipSamHeader = false;
 
     uint32_t                kmerSize = 20;
@@ -65,6 +64,9 @@ public:
     std::vector<std::vector<uint32_t>>          origReadIdMap;
     std::map<uint32_t, String<CigarElement<>>>  cigarSet;
 
+    FilterType      filterType = BLOOM;
+
+    std::vector<std::string> filterTypeList = {"bloom", "kmer_direct", "none"};
 
     uint32_t getContigOffsets()
     {
@@ -126,7 +128,7 @@ inline void copyMatches(Mapper<TSpec, TMainConfig> & mainMapper, Mapper<TSpec, T
         TMatch currentMatch;
         uint32_t readId         = childMapper.matchesByCoord[i].readId;
         uint32_t origReadId     = readId;
-        if(!disOptions.noFilter)
+        if(disOptions.filterType != NONE)
             origReadId = disOptions.origReadIdMap[disOptions.currentBinNo][readId];
 
         currentMatch.readId        = origReadId;
@@ -152,7 +154,7 @@ inline void copyCigars(Mapper<TSpec, TMainConfig> & mainMapper, Mapper<TSpec, TC
         TMatch currentMatch = childMapper.primaryMatches[i];
         uint32_t readId         = currentMatch.readId;
         uint32_t origReadId     = readId;
-        if(!disOptions.noFilter)
+        if(disOptions.filterType != NONE)
             origReadId = disOptions.origReadIdMap[disOptions.currentBinNo][readId];
 
         setMapped(mainMapper.ctx, origReadId);
@@ -250,8 +252,8 @@ inline void _mapReadsImpl(Mapper<TSpec, TConfig> & me, Mapper<TSpec, TMainConfig
 // ----------------------------------------------------------------------------
 // Function clasifyLoadedReads()
 // ----------------------------------------------------------------------------
-template <typename TSpec, typename TMainConfig, typename TSeqAnBloomFilter>
-inline void clasifyLoadedReads(Mapper<TSpec, TMainConfig>  & mainMapper, TSeqAnBloomFilter const & bf, DisOptions & disOptions)
+template <typename TSpec, typename TMainConfig, typename TFilter>
+inline void clasifyLoadedReads(Mapper<TSpec, TMainConfig>  & mainMapper, TFilter const & filter, DisOptions & disOptions)
 {
     start(mainMapper.timer);
 
@@ -274,17 +276,17 @@ inline void clasifyLoadedReads(Mapper<TSpec, TMainConfig>  & mainMapper, TSeqAnB
 
     for (uint32_t taskNo = 0; taskNo < numThr; ++taskNo)
     {
-        tasks.emplace_back(std::async([=, &mainMapper, &disOptions, &bf] {
+        tasks.emplace_back(std::async([=, &mainMapper, &disOptions, &filter] {
             for (uint32_t readID = taskNo*batchSize; readID < numReads && readID < (taskNo +1) * batchSize; ++readID)
             {
                 std::vector<bool> selectedBins(disOptions.numberOfBins, false);
-                bf.whichBins(selectedBins, mainMapper.reads.seqs[readID], threshold);
-                bf.whichBins(selectedBins, mainMapper.reads.seqs[readID + numReads], threshold);
+                filter.whichBins(selectedBins, mainMapper.reads.seqs[readID], threshold);
+                filter.whichBins(selectedBins, mainMapper.reads.seqs[readID + numReads], threshold);
 
                 if (IsSameType<typename TMainConfig::TSequencing, PairedEnd>::VALUE)
                 {
-                    bf.whichBins(selectedBins, mainMapper.reads.seqs[readID + 2*numReads], threshold);
-                    bf.whichBins(selectedBins, mainMapper.reads.seqs[readID + 3*numReads], threshold);
+                    filter.whichBins(selectedBins, mainMapper.reads.seqs[readID + 2*numReads], threshold);
+                    filter.whichBins(selectedBins, mainMapper.reads.seqs[readID + 3*numReads], threshold);
                 }
 
                 for (uint32_t binNo = 0; binNo < disOptions.numberOfBins; ++binNo)
@@ -323,7 +325,7 @@ inline void loadFilteredReads(Mapper<TSpec, TConfig> & me, Mapper<TSpec, TMainCo
 
     start(mainMapper.timer);
 
-    if(disOptions.noFilter)
+    if(disOptions.filterType == NONE)
     {
         for (uint32_t i = 0; i< getReadSeqsCount(mainMapper.reads.seqs); ++i)
         {
@@ -763,16 +765,16 @@ inline void openOutputFile(Mapper<TSpec, TConfig> & mainMapper, DisOptions & dis
 // ----------------------------------------------------------------------------
 // Function prepairMainMapper()
 // ----------------------------------------------------------------------------
-template <typename TSpec, typename TMainConfig, typename TSeqAnBloomFilter>
-inline void prepairMainMapper(Mapper<TSpec, TMainConfig> & mainMapper, TSeqAnBloomFilter const & bf, DisOptions & disOptions)
+template <typename TSpec, typename TMainConfig, typename TFilter>
+inline void prepairMainMapper(Mapper<TSpec, TMainConfig> & mainMapper, TFilter const & filter, DisOptions & disOptions)
 {
     initReadsContext(mainMapper, mainMapper.reads.seqs);
     setHost(mainMapper.cigarSet, mainMapper.cigars);
     disOptions.cigarSet.clear();
     if (IsSameType<typename TMainConfig::TSequencing, PairedEnd>::VALUE)
         resize(mainMapper.primaryMatchesProbs, getReadsCount(mainMapper.reads.seqs), 0.0, Exact());
-    if(!disOptions.noFilter)
-        clasifyLoadedReads(mainMapper, bf, disOptions);
+    if(disOptions.filterType != NONE)
+        clasifyLoadedReads(mainMapper, filter, disOptions);
 }
 
 // ----------------------------------------------------------------------------
@@ -794,8 +796,8 @@ inline void finalizeMainMapper(Mapper<TSpec, TMainConfig> & mainMapper, DisOptio
 // ----------------------------------------------------------------------------
 // Function runDisMapper()
 // ----------------------------------------------------------------------------
-template <typename TSpec, typename TMainConfig, typename TSeqAnBloomFilter>
-inline void runDisMapper(Mapper<TSpec, TMainConfig> & mainMapper, TSeqAnBloomFilter const & bf, DisOptions & disOptions)
+template <typename TSpec, typename TMainConfig, typename TFilter>
+inline void runDisMapper(Mapper<TSpec, TMainConfig> & mainMapper, TFilter const & filter, DisOptions & disOptions)
 {
     configureThreads(mainMapper);
 
@@ -809,7 +811,7 @@ inline void runDisMapper(Mapper<TSpec, TMainConfig> & mainMapper, TSeqAnBloomFil
         loadReads(mainMapper);
         if (empty(mainMapper.reads.seqs)) break;
 
-        prepairMainMapper(mainMapper, bf, disOptions);
+        prepairMainMapper(mainMapper, filter, disOptions);
 
         for (uint32_t i=0; i < disOptions.numberOfBins; ++i)
         {
@@ -845,29 +847,41 @@ inline void spawnDisMapper(DisOptions & disOptions,
 
     start(timer);
 
-    if(disOptions.noFilter)
+    if (disOptions.filterType == BLOOM)
     {
-        start(disMapper.timer);
-        // dummy filter in case of nofilter option
-        SeqAnBloomFilter<> bf(64, 3, 20, 1);
+        SeqAnBloomFilter<> filter  (toCString(disOptions.filterFile));
+
+        disOptions.kmerSize = filter.getKmerSize();
+
+        if(filter.getNumberOfBins() != disOptions.numberOfBins)
+            std::cerr << "[WARNING] Provided number of bins (" << disOptions.numberOfBins << ")differs from that of the bloom filter (" << filter.getNumberOfBins() << ")";
 
         stop(disMapper.timer);
         disMapper.stats.loadReads += getValue(disMapper.timer);
-        runDisMapper(disMapper, bf, disOptions);
+        runDisMapper(disMapper, filter, disOptions);
+    }
+    else if (disOptions.filterType == KMER_DIRECT)
+    {
+        SeqAnKDXFilter<> filter (toCString(disOptions.filterFile));
+
+        disOptions.kmerSize = filter.getKmerSize();
+
+        if(filter.getNumberOfBins() != disOptions.numberOfBins)
+            std::cerr << "[WARNING] Provided number of bins (" << disOptions.numberOfBins << ")differs from that of the bloom filter (" << filter.getNumberOfBins() << ")";
+
+        stop(disMapper.timer);
+        disMapper.stats.loadReads += getValue(disMapper.timer);
+        runDisMapper(disMapper, filter, disOptions);
     }
     else
     {
         start(disMapper.timer);
-        SeqAnBloomFilter<> bf(toCString(disOptions.filterFile));
-
-        disOptions.kmerSize = bf.getKmerSize();
-
-        if(bf.getNumberOfBins() != disOptions.numberOfBins)
-            std::cerr << "[WARNING] Provided number of bins (" << disOptions.numberOfBins << ")differs from that of the bloom filter (" << bf.getNumberOfBins() << ")";
+        // dummy filter in case of nofilter option
+        SeqAnBloomFilter<> filter(64, 3, 20, 1);
 
         stop(disMapper.timer);
         disMapper.stats.loadReads += getValue(disMapper.timer);
-        runDisMapper(disMapper, bf, disOptions);
+        runDisMapper(disMapper, filter, disOptions);
     }
     stop(timer);
     if (disMapper.options.verbose > 0)

@@ -88,6 +88,7 @@ struct Options;
 #include "find_extender.h"
 #include "misc_options.h"
 #include "misc_options_dis.h"
+#include "kdx_filter.h"
 #include "bloom_filter.h"
 #include "mapper_collector.h"
 #include "mapper_classifier.h"
@@ -244,10 +245,14 @@ void setupArgumentParser(ArgumentParser & parser, DisOptions const & disOptions)
     setMaxValue(parser, "number-of-bins", "1024");
     setDefaultValue(parser, "number-of-bins", disOptions.numberOfBins);
 
-    addOption(parser, ArgParseOption("bf", "bloom-filter", "The path to a bloom filter. Default: will look for bloom.bf file inside the indices directory.", ArgParseOption::INPUT_FILE));
-    setValidValues(parser, "bloom-filter", "bf");
+    addOption(parser, ArgParseOption("ft", "filter-type", "type of filter to build",
+                                     ArgParseOption::STRING));
+    setValidValues(parser, "filter-type", disOptions.filterTypeList);
+    setDefaultValue(parser, "filter-type",  disOptions.filterTypeList[disOptions.filterType]);
 
-    addOption(parser, ArgParseOption("nf", "no-filter", "turn off pre filtering reads against bins. Will slow down the progarm."));
+
+    addOption(parser, ArgParseOption("fi", "bloom-filter", "The path to a bloom filter. Default: will look for bloom.filter file inside the indices directory.", ArgParseOption::INPUT_FILE));
+    setValidValues(parser, "bloom-filter", "filter");
 }
 
 // ----------------------------------------------------------------------------
@@ -334,15 +339,16 @@ parseCommandLine(DisOptions & disOptions, ArgumentParser & parser, int argc, cha
     // Parse Distributed mapper options
     getOptionValue(disOptions.numberOfBins, parser, "number-of-bins");
     if (isSet(parser, "number-of-bins")) getOptionValue(disOptions.numberOfBins, parser, "number-of-bins");
-    if (isSet(parser, "no-filter")) disOptions.noFilter = true;
 
     // Parse contigs index prefix.
     getOptionValue(disOptions.filterFile, parser, "bloom-filter");
     if (!isSet(parser, "bloom-filter"))
     {
         disOptions.filterFile = disOptions.IndicesDirectory;
-        append(disOptions.filterFile, "bloom.bf");
+        append(disOptions.filterFile, "bloom.filter");
     }
+
+    getOptionValue(disOptions.filterType, parser, "filter-type", disOptions.filterTypeList);
 
     if (isSet(parser, "verbose")) disOptions.verbose = 1;
     if (isSet(parser, "very-verbose")) disOptions.verbose = 2;

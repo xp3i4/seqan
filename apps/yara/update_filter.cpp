@@ -57,6 +57,7 @@
 #include "bits_matches.h"
 #include "misc_options.h"
 #include "misc_options_dis.h"
+#include "kdx_filter.h"
 #include "bloom_filter.h"
 
 using namespace seqan;
@@ -73,9 +74,15 @@ struct Options
     unsigned                        threadsCount;
     bool                            verbose;
 
+    FilterType      filterType;
+
+    std::vector<std::string> filterTypeList;
+
     Options() :
     threadsCount(1),
-    verbose(false)
+    verbose(false),
+    filterType(BLOOM),
+    filterTypeList({"bloom", "kmer_direct", "none"})
     {}
 };
 
@@ -112,12 +119,17 @@ void setupArgumentParser(ArgumentParser & parser, Options const & options)
     addUsageLine(parser, "[\\fIOPTIONS\\fP] <\\fIBLOOM-FILTER FILE \\fP> <\\fI4.fna\\fP> <\\fI7.fna\\fP>");
 
     addArgument(parser, ArgParseArgument(ArgParseArgument::INPUT_FILE, "BLOOM FILTER"));
-    setValidValues(parser, 0, "bf");
+    setValidValues(parser, 0, "filter");
     setHelpText(parser, 0, "The path of the bloom filter to be updated.");
 
     addArgument(parser, ArgParseArgument(ArgParseArgument::INPUT_FILE, "FASTA FILES", true));
     setValidValues(parser, 1, SeqFileIn::getFileExtensions());
     setHelpText(parser, 1, "The fasta files of the bins to updated. File names should be exactly the same us bin number (0-indexing). e.g. 0.fna");
+
+    addOption(parser, ArgParseOption("ft", "filter-type", "type of filter to build",
+                                     ArgParseOption::STRING));
+    setValidValues(parser, "filter-type", options.filterTypeList);
+    setDefaultValue(parser, "filter-type",  options.filterTypeList[options.filterType]);
 
 
     addOption(parser, ArgParseOption("t", "threads", "Specify the number of threads to use (valid for bloom filter only).", ArgParseOption::INTEGER));
@@ -145,6 +157,8 @@ parseCommandLine(Options & options, ArgumentParser & parser, int argc, char cons
 
     // Parse bloom filter path.
     getArgumentValue(options.filterFile, parser, 0);
+
+    getOptionValue(options.filterType, parser, "filter-type", options.filterTypeList);
 
     if (isSet(parser, "threads")) getOptionValue(options.threadsCount, parser, "threads");
 
@@ -182,7 +196,74 @@ inline bool verifyFnaFiles(std::map<uint32_t,CharString> const & fileList)
     }
     return true;
 }
+// ----------------------------------------------------------------------------
+// Function update_filter()
+// ----------------------------------------------------------------------------
+template <typename TFilter>
+inline void update_filter(Options & options, TFilter & filter)
+{
+    uint32_t noOfBins = filter.getNumberOfBins();
 
+    // clear the bins to updated;
+    std::vector<uint32_t> bins2update = {};
+    typedef std::map<uint32_t,CharString>::iterator mapIter;
+    for(mapIter iter = options.binContigs.begin(); iter != options.binContigs.end(); ++iter)
+    {
+        if(iter->first >= noOfBins)
+        {
+            std::cerr <<"The provided bloom filter has only " << noOfBins <<" Bins.\nRetry after removing " << iter->second << " from arguments!" << std::endl;
+            exit(1);
+        }
+        bins2update.push_back(iter->first);
+    }
+
+    filter.clearBins(bins2update, options.threadsCount);
+
+    Semaphore thread_limiter(options.threadsCount);
+    std::vector<std::future<void>> tasks;
+
+    Timer<double>       timer;
+    Timer<double>       globalTimer;
+    start (timer);
+    start (globalTimer);
+
+    // add the new kmers from the new files
+    //iterate over the maps
+    for(mapIter iter = options.binContigs.begin(); iter != options.binContigs.end(); ++iter)
+    {
+        tasks.emplace_back(std::async([=, &thread_limiter, &filter] {
+            Critical_section _(thread_limiter);
+            Timer<double>       binTimer;
+
+            start (binTimer);
+            filter.addFastaFile(iter->second, iter->first);
+            stop(binTimer);
+
+            if (options.verbose)
+            {
+                mtx.lock();
+                std::cerr <<"[bin " << iter->first << "] updated using " << iter->second << "!\t\t" << binTimer << std::endl;
+                mtx.unlock();
+            }
+        }));
+    }
+    for (auto &&task : tasks)
+    {
+        task.get();
+    }
+    stop(timer);
+    if (options.verbose)
+        std::cerr <<"All given bins are updated!\t\t" << timer << std::endl;
+
+    start(timer);
+    filter.save(toCString(options.filterFile));
+    stop(timer);
+    if (options.verbose)
+        std::cerr <<"Done saving filter (" << filter.size_mb() <<" MB)\t\t" << timer << std::endl;
+    stop(globalTimer);
+    std::cerr <<"\nFinshed in \t\t\t" << globalTimer << std::endl;
+
+}
 // ----------------------------------------------------------------------------
 // Function main()
 // ----------------------------------------------------------------------------
@@ -204,69 +285,19 @@ int main(int argc, char const ** argv)
 
     try
     {
-        SeqAnBloomFilter<> bf(toCString(options.filterFile));
-
-        uint32_t noOfBins = bf.getNumberOfBins();
-
-        // clear the bins to updated;
-        std::vector<uint32_t> bins2update = {};
-        typedef std::map<uint32_t,CharString>::iterator mapIter;
-        for(mapIter iter = options.binContigs.begin(); iter != options.binContigs.end(); ++iter)
+        if (options.filterType == BLOOM)
         {
-            if(iter->first >= noOfBins)
-            {
-                std::cerr <<"The provided bloom filter has only " << noOfBins <<" Bins.\nRetry after removing " << iter->second << " from arguments!" << std::endl;
-                return 1;
-            }
-            bins2update.push_back(iter->first);
+            SeqAnBloomFilter<> filter  (toCString(options.filterFile));
+
+            update_filter(options, filter);
         }
-
-        bf.clearBins(bins2update, options.threadsCount);
-
-        Semaphore thread_limiter(options.threadsCount);
-        std::vector<std::future<void>> tasks;
-
-        Timer<double>       timer;
-        Timer<double>       globalTimer;
-        start (timer);
-        start (globalTimer);
-
-        // add the new kmers from the new files
-        //iterate over the maps
-        for(mapIter iter = options.binContigs.begin(); iter != options.binContigs.end(); ++iter)
+        else if (options.filterType == KMER_DIRECT)
         {
-            tasks.emplace_back(std::async([=, &thread_limiter, &bf] {
-                Critical_section _(thread_limiter);
-                Timer<double>       binTimer;
+            SeqAnKDXFilter<> filter (toCString(options.filterFile));
 
-                start (binTimer);
-                bf.addFastaFile(iter->second, iter->first);
-                stop(binTimer);
-
-                if (options.verbose)
-                {
-                    mtx.lock();
-                    std::cerr <<"[bin " << iter->first << "] updated using " << iter->second << "!\t\t" << binTimer << std::endl;
-                    mtx.unlock();
-                }
-            }));
+            update_filter(options, filter);
         }
-        for (auto &&task : tasks)
-        {
-            task.get();
-        }
-        stop(timer);
-        if (options.verbose)
-            std::cerr <<"All given bins are updated!\t\t" << timer << std::endl;
-
-        start(timer);
-        bf.save(toCString(options.filterFile));
-        stop(timer);
-        if (options.verbose)
-            std::cerr <<"Done saving filter (" << bf.size_mb() <<" MB)\t\t" << timer << std::endl;
-        stop(globalTimer);
-        std::cerr <<"\nFinshed in \t\t\t" << globalTimer << std::endl;
-   }
+    }
     catch (Exception const & e)
     {
         std::cerr << getAppName(parser) << ": " << e.what() << std::endl;
