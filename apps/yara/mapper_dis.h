@@ -846,6 +846,7 @@ inline void spawnDisMapper(DisOptions & disOptions,
     Timer<double> timer;
 
     start(timer);
+    start(disMapper.timer);
 
     if (disOptions.filterType == BLOOM)
     {
@@ -875,7 +876,6 @@ inline void spawnDisMapper(DisOptions & disOptions,
     }
     else
     {
-        start(disMapper.timer);
         // dummy filter in case of nofilter option
         SeqAnBloomFilter<> filter(64, 3, 20, 1);
 
