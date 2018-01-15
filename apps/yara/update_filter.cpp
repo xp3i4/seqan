@@ -70,17 +70,10 @@ struct Options
     CharString                      filterFile;
     std::map<uint32_t, CharString>  binContigs;
 
-    uint32_t                        kmerSize;
-    uint32_t                        numberOfBins;
-    uint32_t                        numberOfHashes;
-
     unsigned                        threadsCount;
     bool                            verbose;
 
     Options() :
-    kmerSize(20),
-    numberOfBins(64),
-    numberOfHashes(4),
     threadsCount(1),
     verbose(false)
     {}
