@@ -72,7 +72,6 @@ struct Options
 
     uint32_t                        kmerSize;
     uint32_t                        numberOfBins;
-    uint64_t                        bloomFilterSize;
     uint32_t                        numberOfHashes;
 
     unsigned                        threadsCount;
@@ -81,7 +80,6 @@ struct Options
     Options() :
     kmerSize(20),
     numberOfBins(64),
-    bloomFilterSize(8589934592), // 1GB
     numberOfHashes(4),
     threadsCount(1),
     verbose(false)
