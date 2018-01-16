@@ -52,6 +52,11 @@ public:
     CharString              filterFile;
     CharString              superOutputFile;
 
+    double                  filterReads     = 0.0;
+    double                  copyReads       = 0.0;
+    double                  copyAlignments  = 0.0;
+    double                  moveCigars      = 0.0;
+
     bool                    skipSamHeader = false;
 
     uint32_t                kmerSize = 20;
@@ -116,6 +121,7 @@ inline void appendStats(Mapper<TSpec, TMainConfig> & mainMapper, Mapper<TSpec, T
 template <typename TSpec, typename TConfig, typename TMainConfig>
 inline void copyMatches(Mapper<TSpec, TMainConfig> & mainMapper, Mapper<TSpec, TConfig> & childMapper, DisOptions & disOptions)
 {
+    start(mainMapper.timer);
     typedef typename MapperTraits<TSpec, TMainConfig>::TMatch             TMatch;
     typedef typename MapperTraits<TSpec, TMainConfig>::TThreading         TThreading;
     typedef typename MapperTraits<TSpec, TMainConfig>::TMatchesAppender   TMatchesAppender;
@@ -139,6 +145,8 @@ inline void copyMatches(Mapper<TSpec, TMainConfig> & mainMapper, Mapper<TSpec, T
         currentMatch.errors        = childMapper.matchesByCoord[i].errors;
         appendValue(appender, currentMatch, Generous(), TThreading());
     }
+    stop(mainMapper.timer);
+    disOptions.copyAlignments += getValue(mainMapper.timer);
 }
 
 // ----------------------------------------------------------------------------
@@ -147,6 +155,7 @@ inline void copyMatches(Mapper<TSpec, TMainConfig> & mainMapper, Mapper<TSpec, T
 template <typename TSpec, typename TConfig, typename TMainConfig>
 inline void copyCigars(Mapper<TSpec, TMainConfig> & mainMapper, Mapper<TSpec, TConfig> & childMapper, DisOptions & disOptions)
 {
+    start(mainMapper.timer);
     typedef typename MapperTraits<TSpec, TConfig>::TMatch             TMatch;
     uint32_t matchCount = length(childMapper.primaryMatches);
     for (uint32_t i = 0; i < matchCount; ++i)
@@ -171,6 +180,8 @@ inline void copyCigars(Mapper<TSpec, TMainConfig> & mainMapper, Mapper<TSpec, TC
             disOptions.cigarSet[origReadId] = childMapper.cigarSet[readId];
         }
     }
+    stop(mainMapper.timer);
+    disOptions.moveCigars += getValue(mainMapper.timer);
 }
 
 // ----------------------------------------------------------------------------
@@ -179,8 +190,10 @@ inline void copyCigars(Mapper<TSpec, TMainConfig> & mainMapper, Mapper<TSpec, TC
 template <typename TSpec, typename TMainConfig>
 inline void transferCigars(Mapper<TSpec, TMainConfig> & mainMapper, DisOptions & disOptions)
 {
+    start(mainMapper.timer);
+
     typedef typename MapperTraits<TSpec, TMainConfig>::TThreading             TThreading;
-    
+
     resize(mainMapper.cigarSet.limits, getReadsCount(mainMapper.reads.seqs)+1, 0);
     for(auto iter = disOptions.cigarSet.begin(); iter != disOptions.cigarSet.end(); ++iter)
     {
@@ -189,6 +202,9 @@ inline void transferCigars(Mapper<TSpec, TMainConfig> & mainMapper, DisOptions &
     }
     partialSum(mainMapper.cigarSet.limits, TThreading());
     assign(mainMapper.cigarSet.positions, prefix(mainMapper.cigarSet.limits, length(mainMapper.cigarSet.limits) - 1));
+
+    stop(mainMapper.timer);
+    disOptions.moveCigars += getValue(mainMapper.timer);
 }
 
 
@@ -307,7 +323,7 @@ inline void clasifyLoadedReads(Mapper<TSpec, TMainConfig>  & mainMapper, TFilter
     }
 
     stop(mainMapper.timer);
-    mainMapper.stats.loadReads += getValue(mainMapper.timer);
+    disOptions.filterReads += getValue(mainMapper.timer);
 
 //    for (uint32_t binNo = 0; binNo < disOptions.numberOfBins; ++binNo)
 //    {
@@ -367,8 +383,7 @@ inline void loadFilteredReads(Mapper<TSpec, TConfig> & me, Mapper<TSpec, TMainCo
         }
     }
     stop(mainMapper.timer);
-    mainMapper.stats.loadReads += getValue(mainMapper.timer);
-
+    disOptions.copyReads += getValue(mainMapper.timer);
     disOptions.filteredReads += getReadsCount(me.reads.seqs);
 }
 
@@ -885,7 +900,17 @@ inline void spawnDisMapper(DisOptions & disOptions,
     }
     stop(timer);
     if (disMapper.options.verbose > 0)
+    {
+        double total = getValue(timer) / 100.0;
+
+        std::cerr << "\nReads filtering time:\t\t" << disOptions.filterReads << " sec" << "\t\t" << disOptions.filterReads / total << " %" << std::endl;
+        std::cerr << "Reads copying time:\t\t" << disOptions.copyReads << " sec" << "\t\t" << disOptions.copyReads / total << " %" << std::endl;
+        std::cerr << "Alignments copying time:\t\t" << disOptions.copyAlignments << " sec" << "\t\t" << disOptions.copyAlignments / total << " %" << std::endl;
+        std::cerr << "Cigars moving time:\t\t" << disOptions.moveCigars << " sec" << "\t\t" << disOptions.moveCigars / total << " %" << std::endl;
+
         printStats(disMapper, timer);
+    }
+
     std::cerr << "Avg reads per bin:\t\t" << (double)disOptions.filteredReads / disOptions.numberOfBins << std::endl;
 
 }

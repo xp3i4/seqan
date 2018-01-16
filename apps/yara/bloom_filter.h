@@ -186,18 +186,28 @@ namespace seqan
                 for (uint8_t batchNo = 0; batchNo < _binIntWidth; ++batchNo)
                 {
                     uint32_t binNo = batchNo * INT_WIDTH;
-                    std::bitset<INT_WIDTH> bitSet(_filterVector.get_int(vecIndices[0], INT_WIDTH));
-                    for(uint8_t i = 1; i < _noOfHashFunc && bitSet.any();  i++)
+
+                    binNo = batchNo * INT_WIDTH;
+                    uint64_t tmp = _filterVector.get_int(vecIndices[0], INT_WIDTH);
+                    for(uint8_t i = 1; i < _noOfHashFunc;  i++)
                     {
-                        bitSet &= _filterVector.get_int(vecIndices[i], INT_WIDTH);
+                        tmp &= _filterVector.get_int(vecIndices[i], INT_WIDTH);
                     }
-                    if(bitSet.any())
+
+                    if(tmp ^ (1ul<<(INT_WIDTH-1)))
                     {
-                        for(uint8_t offset=0; binNo < _noOfBins && offset < INT_WIDTH; ++offset,++binNo)
+                        while (tmp > 0)
                         {
-                            if (bitSet.test(offset))
-                                ++counts[binNo];
+                            uint64_t step = _tzcnt_u64(tmp);
+                            binNo += step;
+                            ++counts[binNo];
+                            ++binNo;
+                            tmp >>= (step+1);
                         }
+                    }
+                    else
+                    {
+                        ++counts[binNo + INT_WIDTH - 1];
                     }
                     vecIndices += INT_WIDTH;
                 }

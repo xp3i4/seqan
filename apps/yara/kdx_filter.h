@@ -37,7 +37,7 @@
 
 namespace seqan
 {
-    template<typename TString = DnaString>
+    template<typename TString = Dna5String>
     class SeqAnKDXFilter
     {
     public:
@@ -151,30 +151,38 @@ namespace seqan
             auto it = begin(text);
             for (uint32_t i = 0; i < possible; ++i)
             {
-                kmerHashes[i] = _blockBitSize * hashNext(kmerShape, it);
+                kmerHashes[i] = hashNext(kmerShape, it);
                 ++it;
             }
 
             for (uint64_t kmerHash : kmerHashes)
             {
-//                for(uint32_t binNo=0; binNo < _noOfBins; ++binNo)
-//                {
-//                    if (_filterVector[kmerHash+binNo])
-//                        ++counts[binNo];
-//                }
+                if (kmerHash >= _noOfHashPos)
+                    continue;
+
+                kmerHash *= _blockBitSize;
+                uint32_t binNo = 0;
                 for (uint8_t batchNo = 0; batchNo < _binIntWidth; ++batchNo)
                 {
-                    uint32_t binNo = batchNo * INT_WIDTH;
+                    binNo = batchNo * INT_WIDTH;
+                    uint64_t tmp = _filterVector.get_int(kmerHash, INT_WIDTH);
 
-                    std::bitset<INT_WIDTH> bitSet(_filterVector.get_int(kmerHash + binNo, INT_WIDTH));
-                    if(bitSet.any())
+                    if(tmp ^ (1ul<<(INT_WIDTH-1)))
                     {
-                        for(uint8_t offset=0; offset < INT_WIDTH; ++offset)
+                        while (tmp > 0)
                         {
-                            if (bitSet.test(offset))
-                                ++counts[binNo + offset];
+                            uint64_t step = _tzcnt_u64(tmp);
+                            binNo += step;
+                            ++counts[binNo];
+                            ++binNo;
+                            tmp >>= (step+1);
                         }
                     }
+                    else
+                    {
+                        ++counts[binNo + INT_WIDTH - 1];
+                    }
+                    kmerHash += INT_WIDTH;
                 }
             }
 
@@ -246,7 +254,10 @@ namespace seqan
 
             for (uint32_t i = 0; i < length(text) - length(kmerShape) + 1; ++i)
             {
+
                 uint64_t kmerHash = hashNext(kmerShape, begin(text) + i);
+                if (kmerHash >= _noOfHashPos)
+                    continue;
                 _filterVector[_blockBitSize * kmerHash + binNo] = 1;
             }
         }
