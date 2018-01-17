@@ -164,24 +164,19 @@ namespace seqan
                 uint32_t binNo = 0;
                 for (uint8_t batchNo = 0; batchNo < _binIntWidth; ++batchNo)
                 {
-                    binNo = batchNo * INT_WIDTH;
+                    binNo = (batchNo + 1) * INT_WIDTH;
                     uint64_t tmp = _filterVector.get_int(kmerHash, INT_WIDTH);
 
-                    if(tmp ^ (1ul<<(INT_WIDTH-1)))
+                    while (tmp > 1)
                     {
-                        while (tmp > 0)
-                        {
-                            uint64_t step = _tzcnt_u64(tmp);
-                            binNo += step;
-                            ++counts[binNo];
-                            ++binNo;
-                            tmp >>= (step+1);
-                        }
+                        uint64_t step = _lzcnt_u64(tmp) + 1;
+                        tmp <<= step;
+                        binNo -= step;
+                        ++counts[binNo];
                     }
-                    else
-                    {
-                        ++counts[binNo + INT_WIDTH - 1];
-                    }
+                    if (tmp == 1)
+                        ++counts[0];
+
                     kmerHash += INT_WIDTH;
                 }
             }
