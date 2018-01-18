@@ -139,15 +139,14 @@ namespace seqan
 
         inline void whichBins(std::vector<bool> & selected, TString const & text, uint8_t const & threshold) const
         {
+            uint8_t possible = length(text) - _kmerSize + 1;
+
+            std::vector<uint8_t> counts(_noOfBins, 0);
+            std::vector<uint64_t> kmerHashes(possible, 0);
+
             TShape kmerShape;
             resize(kmerShape, _kmerSize);
             hashInit(kmerShape, begin(text));
-
-            std::vector<uint8_t> counts(_noOfBins, 0);
-
-            uint8_t possible = length(text) - length(kmerShape) + 1;
-
-            std::vector<uint64_t> kmerHashes(possible, 0);
             auto it = begin(text);
             for (uint32_t i = 0; i < possible; ++i)
             {
@@ -164,19 +163,22 @@ namespace seqan
                 uint32_t binNo = 0;
                 for (uint8_t batchNo = 0; batchNo < _binIntWidth; ++batchNo)
                 {
-                    binNo = (batchNo + 1) * INT_WIDTH;
+                    binNo = batchNo * INT_WIDTH;
                     uint64_t tmp = _filterVector.get_int(kmerHash, INT_WIDTH);
-
-                    while (tmp > 1)
+                    if (tmp ^ (1ULL<<(INT_WIDTH-1)))
                     {
-                        uint64_t step = _lzcnt_u64(tmp) + 1;
-                        tmp <<= step;
-                        binNo -= step;
-                        ++counts[binNo];
+                        while (tmp > 0)
+                        {
+                            uint64_t step = sdsl::bits::lo(tmp) + 1;
+                            tmp >>= step;
+                            binNo += step;
+                            ++counts[binNo];
+                        }
                     }
-                    if (tmp == 1)
-                        ++counts[0];
-
+                    else
+                    {
+                        ++counts[binNo + INT_WIDTH - 1];
+                    }
                     kmerHash += INT_WIDTH;
                 }
             }
