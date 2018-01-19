@@ -196,10 +196,12 @@ namespace seqan
                     {
                         while (tmp > 0)
                         {
-                            uint64_t step = sdsl::bits::lo(tmp) + 1;
-                            tmp >>= step;
+                            uint64_t step = sdsl::bits::lo(tmp);
                             binNo += step;
+                            ++step;
+                            tmp >>= step;
                             ++counts[binNo];
+                            ++binNo;
                         }
                     }
                     else
