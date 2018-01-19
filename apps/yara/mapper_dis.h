@@ -325,10 +325,13 @@ inline void clasifyLoadedReads(Mapper<TSpec, TMainConfig>  & mainMapper, TFilter
     stop(mainMapper.timer);
     disOptions.filterReads += getValue(mainMapper.timer);
 
-//    for (uint32_t binNo = 0; binNo < disOptions.numberOfBins; ++binNo)
-//    {
-//        std::cout << "bin " << binNo << ":" << disOptions.origReadIdMap[binNo].size() << std::endl;
-//    }
+    if (disOptions.verbose > 1)
+    {
+        for (uint32_t binNo = 0; binNo < disOptions.numberOfBins; ++binNo)
+        {
+            std::cerr << "bin " << binNo << "\t" << disOptions.origReadIdMap[binNo].size() << std::endl;
+        }
+    }
 }
 
 
