@@ -180,8 +180,12 @@ namespace seqan
 
             for (uint64_t kmerHash : kmerHashes)
             {
-                std::valarray<uint64_t> vecIndices(kmerHash * _preCalcValues);
-                fillHashValues(vecIndices);
+                std::vector<uint64_t> vecIndices =_preCalcValues;
+                for(uint8_t i = 0; i < _noOfHashFunc ; i++)
+                {
+                    vecIndices[i] *= kmerHash;
+                    getHashValue(vecIndices[i]);
+                }
                 uint32_t binNo = 0;
                 for (uint8_t batchNo = 0; batchNo < _binIntWidth; ++batchNo)
                 {
@@ -208,7 +212,10 @@ namespace seqan
                     {
                         ++counts[binNo + INT_WIDTH - 1];
                     }
-                    vecIndices += INT_WIDTH;
+                    for(uint8_t i = 0; i < _noOfHashFunc ; i++)
+                    {
+                        vecIndices[i] += INT_WIDTH;
+                    }
                 }
             }
 
@@ -246,10 +253,7 @@ namespace seqan
 
             _preCalcValues.resize(_noOfHashFunc);
             for(uint8_t i = 0; i < _noOfHashFunc ; i++)
-            {
-                _preCalcValues[i]= i;
-            }
-            _preCalcValues ^= (_kmerSize * _seedValue);
+                _preCalcValues[i] = i ^  (_kmerSize * _seedValue);
         }
         void _getMetadata()
         {
@@ -281,21 +285,22 @@ namespace seqan
             return 1 == ( (num >> bit) & 1);
         }
 
-        inline void fillHashValues(std::valarray<uint64_t> & vecIndices) const
+
+        inline void getHashValue(uint64_t & vecIndex) const
         {
-            vecIndices ^= vecIndices >> _shiftValue;
-            vecIndices %= _noOfHashPos;
-            vecIndices *= _noOfBins;
+            vecIndex ^= vecIndex >> _shiftValue;
+            vecIndex %= _noOfHashPos;
+            vecIndex *= _noOfBins;
         }
 
         void _insertKmer(uint64_t & kmerHash, uint32_t const & batchOffset)
         {
-            std::valarray<uint64_t> vecIndices(kmerHash * _preCalcValues);
-            fillHashValues(vecIndices);
-            vecIndices += batchOffset;
             for(uint8_t i = 0; i < _noOfHashFunc ; i++)
             {
-                _filterVector[vecIndices[i]] = 1;
+                uint64_t vecIndex = _preCalcValues[i] * kmerHash;
+                getHashValue(vecIndex);
+                vecIndex += batchOffset;
+                _filterVector[vecIndex] = 1;
             }
         }
 
@@ -323,7 +328,7 @@ namespace seqan
         uint64_t                _noOfHashPos;
         sdsl::bit_vector        _filterVector;
 
-        std::valarray<uint64_t>   _preCalcValues;
+        std::vector<uint64_t>   _preCalcValues;
         uint64_t const          _shiftValue = 27;
         uint64_t const          _seedValue = 0x90b45d39fb6da1fa;
     };
