@@ -78,16 +78,12 @@ namespace seqan
             uint64_t batchSize = _noOfHashPos/threadsCount;
             if(batchSize * threadsCount < _noOfHashPos) ++batchSize;
 
-            uint32_t blockSize = INT_WIDTH;
-            if (_noOfBins > INT_WIDTH)
-                blockSize = _noOfBins;
-
             for (uint32_t taskNo = 0; taskNo < threadsCount; ++taskNo)
             {
                 tasks.emplace_back(std::async([=] {
                     for (uint64_t hashBlock=taskNo*batchSize; hashBlock < _noOfHashPos && hashBlock < (taskNo +1) * batchSize; ++hashBlock)
                     {
-                        uint64_t vecPos = hashBlock * blockSize;
+                        uint64_t vecPos = hashBlock * _blockBitSize;
                         for(uint32_t binNo : bins2clear)
                         {
                             _filterVector[vecPos + binNo] = false;
@@ -215,7 +211,7 @@ namespace seqan
         {
             _binIntWidth = std::ceil((float)_noOfBins / INT_WIDTH);
             _blockBitSize = _binIntWidth * INT_WIDTH;
-            _noOfHashPos = (_noOfBits - filterMetadataSize) / (INT_WIDTH * _binIntWidth);
+            _noOfHashPos = (_noOfBits - filterMetadataSize) / _binIntWidth;
         }
         void _getMetadata()
         {
