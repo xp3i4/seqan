@@ -886,7 +886,7 @@ inline void spawnDisMapper(DisOptions & disOptions,
         disOptions.kmerSize = filter.getKmerSize();
 
         if(filter.getNumberOfBins() != disOptions.numberOfBins)
-            std::cerr << "[WARNING] Provided number of bins (" << disOptions.numberOfBins << ")differs from that of the bloom filter (" << filter.getNumberOfBins() << ")";
+            std::cerr << "[WARNING] Provided number of bins (" << disOptions.numberOfBins << ")differs from that of the bloom filter (" << filter.getNumberOfBins() << ")\n";
 
         stop(disMapper.timer);
         disMapper.stats.loadReads += getValue(disMapper.timer);
