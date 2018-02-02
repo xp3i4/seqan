@@ -237,6 +237,20 @@ inline bool verifyFnaDir(CharString const directoryPath, uint32_t const numberOf
     return true;
 }
 
+// ----------------------------------------------------------------------------
+// Function getBinNoFromFile()
+// ----------------------------------------------------------------------------
+bool getBinNoFromFile(uint32_t & binNo, CharString const & currentFile)
+{
+    CharString fileName = getFilename(currentFile);
+    CharString fileNameNoext = trimExtension(fileName);
+    //    std::string _binNo = toCString(fileNameNoext);
+
+    char* p;
+    binNo = std::strtol(toCString(fileNameNoext), &p, 10);
+    return *p == 0;
+}
+
 template<typename T>
 std::ostream& operator<<(std::ostream& s, const std::vector<T>& v) {
     char comma[3] = {'\0', ' ', '\0'};

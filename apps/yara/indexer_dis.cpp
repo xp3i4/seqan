@@ -71,7 +71,7 @@ using namespace seqan;
 
 struct Options
 {
-    CharString      contigsDir;
+    std::map<uint32_t, CharString>  binContigFiles;
     CharString      contigsIndexFile;
 
     uint32_t        numberOfBins;
@@ -132,11 +132,15 @@ void setupArgumentParser(ArgumentParser & parser, Options const & options)
     setDateAndVersion(parser);
     setDescription(parser);
 
-    addUsageLine(parser, "[\\fIOPTIONS\\fP] <\\fIREFERENCE FILES DIR \\fP>");
+    addUsageLine(parser, "[\\fIOPTIONS\\fP] <\\fI0.fna\\fP> <\\fI1.fna\\fP>");
 
-    addArgument(parser, ArgParseArgument(ArgParseArgument::INPUT_PREFIX, "REFERENCE FILE DIR"));
-    //    setValidValues(parser, 0, SeqFileIn::getFileExtensions());
-    setHelpText(parser, 0, "A directory containing reference genome files.");
+//    addArgument(parser, ArgParseArgument(ArgParseArgument::INPUT_PREFIX, "REFERENCE FILE DIR"));
+//    //    setValidValues(parser, 0, SeqFileIn::getFileExtensions());
+//    setHelpText(parser, 0, "A directory containing reference genome files.");
+
+    addArgument(parser, ArgParseArgument(ArgParseArgument::INPUT_FILE, "FASTA FILES", true));
+    setValidValues(parser, 0, SeqFileIn::getFileExtensions());
+    setHelpText(parser, 0, "The fasta files of the bins to updated. File names should be exactly the same us bin number (0-indexing). e.g. 0.fna");
 
     addOption(parser, ArgParseOption("v", "verbose", "Displays verbose output."));
 
@@ -144,13 +148,14 @@ void setupArgumentParser(ArgumentParser & parser, Options const & options)
 
     addOption(parser, ArgParseOption("o", "output-prefix", "Specify a filename prefix for the reference genome index. \
                                      Default: use the filename prefix of the reference genome.", ArgParseOption::OUTPUT_PREFIX));
-
+    setRequired(parser, "output-prefix");
+    
     addOption(parser, ArgParseOption("td", "tmp-dir", "Specify a temporary directory where to construct the index. \
                                      Default: use the output directory.", ArgParseOption::STRING));
-    addOption(parser, ArgParseOption("b", "number-of-bins", "The number of bins (indices) for distributed mapper",
-                                     ArgParseOption::INTEGER));
-    setMinValue(parser, "number-of-bins", "1");
-    setMaxValue(parser, "number-of-bins", "10000");
+//    addOption(parser, ArgParseOption("b", "number-of-bins", "The number of bins (indices) for distributed mapper",
+//                                     ArgParseOption::INTEGER));
+//    setMinValue(parser, "number-of-bins", "1");
+//    setMaxValue(parser, "number-of-bins", "10000");
 
     addOption(parser, ArgParseOption("t", "threads", "Specify the number of threads to use (valid for bloom filter only).", ArgParseOption::INTEGER));
     setMinValue(parser, "threads", "1");
@@ -177,12 +182,29 @@ parseCommandLine(Options & options, ArgumentParser & parser, int argc, char cons
     getOptionValue(options.verbose, parser, "verbose");
 
     // Parse contigs input file.
-    getArgumentValue(options.contigsDir, parser, 0);
+//    getArgumentValue(options.contigsDir, parser, 0);
 
+    // std::map<uint32_t, CharString>  binContigs;
+    // Parse contig input files.
+    uint32_t updateCount = getArgumentValueCount(parser, 0);
+    for (uint32_t i = 0; i < updateCount; ++i)
+    {
+        CharString  currentFile;
+        uint32_t    currentBinNo;
+
+        getArgumentValue(currentFile, parser, 0, i);
+
+        if (getBinNoFromFile(currentBinNo, currentFile))
+            options.binContigFiles[currentBinNo] = currentFile;
+        else
+        {
+            std::cerr << "File: " << currentFile << "\ndoesn't have a valid name\n";
+            exit(1);
+        }
+    }
+    
     // Parse contigs index prefix.
     getOptionValue(options.contigsIndexFile, parser, "output-prefix");
-    if (!isSet(parser, "output-prefix"))
-        options.contigsIndexFile = trimExtension(options.contigsDir);
 
     // Parse and set temp dir.
     CharString tmpDir;
@@ -195,7 +217,7 @@ parseCommandLine(Options & options, ArgumentParser & parser, int argc, char cons
     }
     setEnv("TMPDIR", tmpDir);
 
-    if (isSet(parser, "number-of-bins")) getOptionValue(options.numberOfBins, parser, "number-of-bins");
+//    if (isSet(parser, "number-of-bins")) getOptionValue(options.numberOfBins, parser, "number-of-bins");
     if (isSet(parser, "threads")) getOptionValue(options.threadsCount, parser, "threads");
 
     return ArgumentParser::PARSE_OK;
@@ -215,7 +237,7 @@ void loadContigs(YaraIndexer<TSpec, TConfig> & me)
         mtx.unlock();
     }
 
-    if (!open(me.contigsDir, toCString(me.options.contigsDir)))
+    if (!open(me.contigsDir, toCString(me.options.binContigFiles.at(me.options.currentBinNo) )))
         throw RuntimeError("Error while opening the reference file.");
 
     try
@@ -387,7 +409,8 @@ int main(int argc, char const ** argv)
     if (res != ArgumentParser::PARSE_OK)
         return res == ArgumentParser::PARSE_ERROR;
 
-    std::string comExt = commonExtension(options.contigsDir, options.numberOfBins);
+//    std::string comExt = commonExtension(options.contigsDir, options.numberOfBins);
+    typedef std::map<uint32_t,CharString>::iterator mapIter;
 
     try
     {
@@ -400,8 +423,10 @@ int main(int argc, char const ** argv)
         start (timer);
         start (globalTimer);
 
-        for (uint32_t binNo = 0; binNo < options.numberOfBins; ++binNo)
-        {   
+        // add the new kmers from the new files
+        //iterate over the maps
+        for(mapIter iter = options.binContigFiles.begin(); iter != options.binContigFiles.end(); ++iter)
+        {
             tasks.emplace_back(std::async([=, &thread_limiter] {
                 Critical_section _(thread_limiter);
 
@@ -409,12 +434,9 @@ int main(int argc, char const ** argv)
                 start (binTimer);
 
                 Options binOptions = options;
+                appendFileName(binOptions.contigsIndexFile, options.contigsIndexFile, iter->first);
 
-                appendFileName(binOptions.contigsDir, options.contigsDir, binNo);
-                append(binOptions.contigsDir, comExt);
-                appendFileName(binOptions.contigsIndexFile, options.contigsIndexFile, binNo);
-
-                binOptions.currentBinNo = binNo;
+                binOptions.currentBinNo = iter->first;
 
                 runYaraIndexer(binOptions);
 
@@ -423,7 +445,7 @@ int main(int argc, char const ** argv)
                 if (options.verbose)
                 {
                     mtx.lock();
-                    std::cerr <<"[bin " << binNo << "] Done indexing reference\t\t\t" << binTimer << std::endl;
+                    std::cerr <<"[bin " << iter->first << "] Done indexing reference\t\t\t" << binTimer << std::endl;
                     mtx.unlock();
                 }
 

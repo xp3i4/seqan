@@ -91,20 +91,6 @@ struct Options
 // ==========================================================================
 
 // ----------------------------------------------------------------------------
-// Function getBinNoFromFile()
-// ----------------------------------------------------------------------------
-bool getBinNoFromFile(uint32_t & binNo, CharString const & currentFile)
-{
-    CharString fileName = getFilename(currentFile);
-    CharString fileNameNoext = trimExtension(fileName);
-//    std::string _binNo = toCString(fileNameNoext);
-
-    char* p;
-    binNo = std::strtol(toCString(fileNameNoext), &p, 10);
-    return *p == 0;
-}
-
-// ----------------------------------------------------------------------------
 // Function setupArgumentParser()
 // ----------------------------------------------------------------------------
 
