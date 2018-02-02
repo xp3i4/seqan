@@ -239,11 +239,11 @@ void setupArgumentParser(ArgumentParser & parser, DisOptions const & disOptions)
 
     // Setup Distributed mapper disOptions.
     addSection(parser, "Distributed mapper disOptions");
-    addOption(parser, ArgParseOption("b", "number-of-bins", "The number of bins (indices) for distributed mapper",
-                                     ArgParseOption::INTEGER));
-    setMinValue(parser, "number-of-bins", "1");
-    setMaxValue(parser, "number-of-bins", "1024");
-    setDefaultValue(parser, "number-of-bins", disOptions.numberOfBins);
+//    addOption(parser, ArgParseOption("b", "number-of-bins", "The number of bins (indices) for distributed mapper",
+//                                     ArgParseOption::INTEGER));
+//    setMinValue(parser, "number-of-bins", "1");
+//    setMaxValue(parser, "number-of-bins", "1024");
+//    setDefaultValue(parser, "number-of-bins", disOptions.numberOfBins);
 
     addOption(parser, ArgParseOption("ft", "filter-type", "type of filter to build",
                                      ArgParseOption::STRING));
@@ -336,9 +336,9 @@ parseCommandLine(DisOptions & disOptions, ArgumentParser & parser, int argc, cha
     getOptionValue(disOptions.threadsCount, parser, "threads");
     getOptionValue(disOptions.readsCount, parser, "reads-batch");
 
-    // Parse Distributed mapper options
-    getOptionValue(disOptions.numberOfBins, parser, "number-of-bins");
-    if (isSet(parser, "number-of-bins")) getOptionValue(disOptions.numberOfBins, parser, "number-of-bins");
+//    // Parse Distributed mapper options
+//    getOptionValue(disOptions.numberOfBins, parser, "number-of-bins");
+//    if (isSet(parser, "number-of-bins")) getOptionValue(disOptions.numberOfBins, parser, "number-of-bins");
 
     // Parse contigs index prefix.
     getOptionValue(disOptions.filterFile, parser, "bloom-filter");
@@ -477,6 +477,51 @@ void configureDisMapper(DisOptions & disOptions)
 }
 
 // ----------------------------------------------------------------------------
+// Function checkReadFiles()
+// ----------------------------------------------------------------------------
+//
+bool checkReadFiles(DisOptions const &  disOptions)
+{
+    // check if read file(s) exist(s)
+    SeqFileIn seqFile;
+    if (!open(seqFile, toCString(disOptions.readsFile.i1)))
+    {
+        std::cerr << "Unable to open read file "<< toCString(disOptions.readsFile.i1) <<"!\n";
+        return false;
+    }
+    close(seqFile);
+    if (!disOptions.singleEnd && !open(seqFile, toCString(disOptions.readsFile.i2)))
+    {
+        std::cerr << "Unable to open read file "<< toCString(disOptions.readsFile.i2) <<"!\n";
+        return false;
+    }
+    close(seqFile);
+    return true;
+}
+
+// ----------------------------------------------------------------------------
+// Function readFilterMetadata()
+// ----------------------------------------------------------------------------
+//
+bool readFilterMetadata(DisOptions &  disOptions)
+{
+    std::ifstream  in(toCString(disOptions.filterFile), std::ios::in | std::ios::binary);
+    uint64_t x = filterMetadataSize/8; //bits -> bytes
+
+    sdsl::int_vector<64>  metadataVec(filterMetadataSize/64, 0); //bits -> uint64_t
+    in.seekg(-x, in.end); // seek from end of file
+
+    uint64_t* p  = &(metadataVec[0]);
+    in.read((char*)p, x * sizeof(uint64_t));
+
+//    std::cout << metadataVec << std::endl;
+    disOptions.numberOfBins = metadataVec[0];
+    disOptions.kmerSize = metadataVec[2];
+
+    return true;
+}
+
+// ----------------------------------------------------------------------------
 // Function main()
 // ----------------------------------------------------------------------------
 //
@@ -491,7 +536,13 @@ int main(int argc, char const ** argv)
     if (res != ArgumentParser::PARSE_OK)
         return res == ArgumentParser::PARSE_ERROR;
 
+    if (!readFilterMetadata(disOptions))
+        return 1;
+
     if (!verifyIndicesDir(disOptions.IndicesDirectory, disOptions.numberOfBins))
+        return 1;
+
+    if (!checkReadFiles(disOptions))
         return 1;
 
     try

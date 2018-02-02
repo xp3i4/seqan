@@ -52,6 +52,7 @@ public:
     CharString              filterFile;
     CharString              superOutputFile;
 
+    double                  loadFilter      = 0.0;
     double                  filterReads     = 0.0;
     double                  copyReads       = 0.0;
     double                  copyAlignments  = 0.0;
@@ -872,11 +873,11 @@ inline void spawnDisMapper(DisOptions & disOptions,
 
         disOptions.kmerSize = filter.getKmerSize();
 
-        if(filter.getNumberOfBins() != disOptions.numberOfBins)
-            std::cerr << "[WARNING] Provided number of bins (" << disOptions.numberOfBins << ")differs from that of the bloom filter (" << filter.getNumberOfBins() << ")";
+//        if(filter.getNumberOfBins() != disOptions.numberOfBins)
+//            std::cerr << "[WARNING] Provided number of bins (" << disOptions.numberOfBins << ")differs from that of the bloom filter (" << filter.getNumberOfBins() << ")";
 
         stop(disMapper.timer);
-        disMapper.stats.loadReads += getValue(disMapper.timer);
+        disOptions.loadFilter += getValue(disMapper.timer);
         runDisMapper(disMapper, filter, disOptions);
     }
     else if (disOptions.filterType == KMER_DIRECT)
@@ -885,11 +886,11 @@ inline void spawnDisMapper(DisOptions & disOptions,
 
         disOptions.kmerSize = filter.getKmerSize();
 
-        if(filter.getNumberOfBins() != disOptions.numberOfBins)
-            std::cerr << "[WARNING] Provided number of bins (" << disOptions.numberOfBins << ")differs from that of the bloom filter (" << filter.getNumberOfBins() << ")\n";
+//        if(filter.getNumberOfBins() != disOptions.numberOfBins)
+//            std::cerr << "[WARNING] Provided number of bins (" << disOptions.numberOfBins << ")differs from that of the bloom filter (" << filter.getNumberOfBins() << ")\n";
 
         stop(disMapper.timer);
-        disMapper.stats.loadReads += getValue(disMapper.timer);
+        disOptions.loadFilter += getValue(disMapper.timer);
         runDisMapper(disMapper, filter, disOptions);
     }
     else
@@ -898,7 +899,7 @@ inline void spawnDisMapper(DisOptions & disOptions,
         SeqAnBloomFilter<> filter(64, 3, 20, 1);
 
         stop(disMapper.timer);
-        disMapper.stats.loadReads += getValue(disMapper.timer);
+        disOptions.loadFilter += getValue(disMapper.timer);
         runDisMapper(disMapper, filter, disOptions);
     }
     stop(timer);
@@ -906,7 +907,8 @@ inline void spawnDisMapper(DisOptions & disOptions,
     {
         double total = getValue(timer) / 100.0;
 
-        std::cerr << "\nReads filtering time:\t\t" << disOptions.filterReads << " sec" << "\t\t" << disOptions.filterReads / total << " %" << std::endl;
+        std::cerr << "\nFilter loading time:\t\t" << disOptions.loadFilter << " sec" << "\t\t" << disOptions.loadFilter / total << " %" << std::endl;
+        std::cerr << "Reads filtering time:\t\t" << disOptions.filterReads << " sec" << "\t\t" << disOptions.filterReads / total << " %" << std::endl;
         std::cerr << "Reads copying time:\t\t" << disOptions.copyReads << " sec" << "\t\t" << disOptions.copyReads / total << " %" << std::endl;
         std::cerr << "Alignments copying time:\t" << disOptions.copyAlignments << " sec" << "\t\t" << disOptions.copyAlignments / total << " %" << std::endl;
         std::cerr << "Cigars moving time:\t\t" << disOptions.moveCigars << " sec" << "\t\t" << disOptions.moveCigars / total << " %" << std::endl;

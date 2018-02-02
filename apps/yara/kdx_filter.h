@@ -220,7 +220,7 @@ namespace seqan
             //-------------------------------------------------------------------
             _noOfBits = _filterVector.bit_size();
 
-            uint64_t metadataStart = _noOfBits - (filterMetadataSize+1);
+            uint64_t metadataStart = _noOfBits - filterMetadataSize;
             _noOfBins = _filterVector.get_int(metadataStart);
             _kmerSize = _filterVector.get_int(metadataStart+128);
         }
@@ -230,7 +230,7 @@ namespace seqan
             // -------------------------------------------------------------------
             // |              bf              | n_bins | n_hash_func | kmer_size |
             // -------------------------------------------------------------------
-            uint64_t metadataStart = _noOfBits - (filterMetadataSize+1);
+            uint64_t metadataStart = _noOfBits - filterMetadataSize;
 
             _filterVector.set_int(metadataStart, _noOfBins);
             _filterVector.set_int(metadataStart + 128, _kmerSize);
