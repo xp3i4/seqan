@@ -811,6 +811,21 @@ inline void finalizeMainMapper(Mapper<TSpec, TMainConfig> & mainMapper, DisOptio
     clearReads(mainMapper);
 }
 
+// ----------------------------------------------------------------------------
+// Function sortedBins()
+// ----------------------------------------------------------------------------
+std::vector<uint32_t> sortedBins(DisOptions const & disOptions)
+{
+
+    std::vector<uint32_t> sortedBinIndex(disOptions.numberOfBins);
+    iota(sortedBinIndex.begin(), sortedBinIndex.end(), 0);
+
+    // sort indexes based on comparing values in v
+    std::sort(sortedBinIndex.begin(), sortedBinIndex.end(),
+         [&disOptions](size_t i1, size_t i2) {return disOptions.origReadIdMap[i1].size() > disOptions.origReadIdMap[i2].size();});
+
+    return sortedBinIndex;
+}
 
 // ----------------------------------------------------------------------------
 // Function runDisMapper()
@@ -832,7 +847,7 @@ inline void runDisMapper(Mapper<TSpec, TMainConfig> & mainMapper, TFilter const 
 
         prepairMainMapper(mainMapper, filter, disOptions);
 
-        for (uint32_t i=0; i < disOptions.numberOfBins; ++i)
+        for (auto i: sortedBins(disOptions))
         {
             disOptions.currentBinNo = i;
             Options options = mainMapper.options;
