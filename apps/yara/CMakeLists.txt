@@ -221,7 +221,7 @@ endif (NOT SEQAN_PREFIX_SHARE_DOC)
 
 # Install yara in ${PREFIX}/bin directory
 install (TARGETS yara_indexer yara_indexer_dis yara_build_filter yara_update_filter yara_mapper yara_mapper_dis 
-         DESTINATION bin)
+         DESTINATION ${CMAKE_INSTALL_BINDIR})
 
 # Install non-binary files for the package to "." for app builds and
 # ${PREFIX}/share/doc/yara for SeqAn release builds.
