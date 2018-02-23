@@ -99,7 +99,7 @@ inline void addKmer(KmerFilter<TValue, TSpec> & me, TString const & kmer, TInt &
 template<typename TValue, typename TSpec, typename TInt1, typename TInt2>
 inline void clearBins(KmerFilter<TValue, TSpec> &  me, std::vector<TInt1> & bins, TInt2&& threads)
 {
-    me.clearBins(bins, threads);
+    me.clearBins(bins, static_cast<uint64_t>(threads));
 }
 
 template<typename TValue, typename TSpec, typename TInt>
@@ -112,8 +112,8 @@ inline void addFastaFile(KmerFilter<TValue, TSpec> &  me, const char * fastaFile
     if (!open(seqFileIn, fastaFile))
     {
         CharString msg = "Unable to open contigs file: ";
-        append(msg, fastaFile);
-        //throw toCstring(msg); TODO
+        append(msg, CharString(fastaFile));
+        throw toCString(msg);
     }
     while(!atEnd(seqFileIn))
     {
@@ -157,7 +157,7 @@ inline void getMetadata(KmerFilter<TValue, TSpec> &  me)
     typedef typename Value<KmerFilter<TValue, TSpec> >::Type THValue;
 
     //-------------------------------------------------------------------
-    //|              bf              | n_bins | n_hash_func | kmer_size |
+    //| n_bins | n_hash_func | kmer_size |              bf              |
     //-------------------------------------------------------------------
     me.noOfBits = me.filterVector.bit_size();
 
@@ -172,7 +172,7 @@ inline void setMetadata(KmerFilter<TValue, TSpec> &  me)
     typedef typename Value<KmerFilter<TValue, TSpec> >::Type THValue;
 
     //-------------------------------------------------------------------
-    //|              bf              | n_bins | n_hash_func | kmer_size |
+    //| n_bins | n_hash_func | kmer_size |              bf              |
     //-------------------------------------------------------------------
 
     THValue metadataStart = me.noOfBits - me.filterMetadataSize;

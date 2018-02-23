@@ -17,7 +17,7 @@ int main()
     uint64_t t{1};
     std::cout << "Testing ctors" << '\n';
     KmerFilter<Dna, DirectAddressing> ctor_empty ();
-    KmerFilter<Dna, DirectAddressing> ctor_param (10, 3, 4352);
+    KmerFilter<Dna, DirectAddressing> ctor_param (10, 3);
     KmerFilter<Dna, DirectAddressing> ctor_insta (ctor_param);
     KmerFilter<Dna, DirectAddressing> ctor_assig;
     KmerFilter<Dna, DirectAddressing> from_file;
@@ -36,10 +36,11 @@ int main()
     CharString file9("../test/9.fasta.gz");
 
     addFastaFile(ctor_param, toCString(file0), 0);
+    addFastaFile(ctor_param, toCString(file0), 1);
     addFastaFile(ctor_param, toCString(file1), t);
-    addFastaFile(ctor_param, toCString(file2), 2);
-    addFastaFile(ctor_param, toCString(file3), 3);
-    addFastaFile(ctor_insta, toCString(file4), 0);
+    addFastaFile(ctor_param, toCString(file2), 1);
+    addFastaFile(ctor_param, toCString(file3), 1);
+    addFastaFile(ctor_insta, toCString(file4), 4);
     addFastaFile(ctor_insta, toCString(file5), 5);
     addFastaFile(ctor_insta, toCString(file6), 6);
     addFastaFile(ctor_assig, toCString(file7), 7);
@@ -59,6 +60,14 @@ int main()
     CharString store3("ctor_assig.dat");
     store(ctor_assig, toCString(store3));
     retrieve(from_file, toCString(store3));
+
+    std::cout << "Testing whichBins" << '\n';
+    std::vector<bool> which = whichBins(ctor_param, DnaString("AAA"), 1);
+    for (uint64_t i = 0; i < which.size(); ++i)
+    {
+        if (which[i])
+            std::cout << "Found in bin " << i << '\n';
+    }
 
     std::cout << "Testing clearBins" << '\n';
     // Check if any elements are set in the filters.
@@ -137,8 +146,6 @@ int main()
         }
     }
     assert(ctor_insta_any == false);
-
-    (void) whichBins(ctor_param, DnaString("AAA"), 1);
 
     return 0;
 }

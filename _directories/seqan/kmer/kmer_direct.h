@@ -55,31 +55,19 @@ public:
     sdsl::bit_vector                    filterVector;
 
     static const uint32_t               filterMetadataSize{256};
-    static const uint8_t                INT_WIDTH{0x40};
 
     typedef Shape<TValue, SimpleShape>  TShape;
 
     KmerFilter():
         noOfBins(0),
-        kmerSize(0),
-        noOfBits(0),
-        filterVector(sdsl::bit_vector(0, 0)) {}
+        kmerSize(0)
+        {}
 
-    KmerFilter(THValue n_bins, THValue kmer_size, THValue vec_size):
+    KmerFilter(THValue n_bins, THValue kmer_size):
         noOfBins(n_bins),
-        kmerSize(kmer_size),
-        noOfBits(vec_size),
-        filterVector(sdsl::bit_vector(vec_size, 0))
+        kmerSize(kmer_size)
     {
-
-        //static_assert( ipow(ValueSize<TValue>::VALUE, kmerSize) > vec_size, "Vector size too small, need at least bits.");
         init();
-        std::cout << noOfBins << '\n';
-        std::cout << kmerSize << '\n';
-        std::cout << noOfBits << '\n';
-        std::cout << binIntWidth << '\n';
-        std::cout << blockBitSize << '\n';
-        std::cout << noOfHashPos << '\n';
     }
 
     KmerFilter(KmerFilter<TValue, DirectAddressing> const & other)
@@ -92,12 +80,12 @@ public:
         noOfBins = other.noOfBins;
         kmerSize = other.kmerSize;
         noOfBits = other.noOfBits;
+        noOfHashPos = other.noOfHashPos;
         filterVector = other.filterVector;
-        init();
         return *this;
     }
 
-    constexpr THValue ipow(THValue base, THValue exp)
+    THValue ipow(THValue base, THValue exp)
     {
         THValue result = 1;
         while (exp)
@@ -123,7 +111,7 @@ public:
             tasks.emplace_back(std::async([=] {
                 for (uint64_t hashBlock=taskNo*batchSize; hashBlock < noOfHashPos && hashBlock < (taskNo +1) * batchSize; ++hashBlock)
                 {
-                    uint64_t vecPos = hashBlock * blockBitSize;
+                    uint64_t vecPos = hashBlock * noOfBins;
                     if (vecPos >= noOfHashPos)
                         break;
                     for(uint32_t binNo : bins)
@@ -159,32 +147,29 @@ public:
 
         for (uint64_t kmerHash : kmerHashes)
         {
-            if (kmerHash >= noOfHashPos)
-                continue;
+            // Move to first bit representing the hash kmerHash for bin 0, the next bit for bin 1, and so on
+            kmerHash *= noOfBins;
 
-            kmerHash *= blockBitSize;
-            uint32_t binNo = 0;
-            for (uint8_t batchNo = 0; batchNo < binIntWidth; ++batchNo)
+            // get_int(idx, len) returns the integer value of the binary string of length len starting at position idx. I.e. len+idx-1|_______|idx, Vector is right to left.
+            uint64_t tmp = filterVector.get_int(kmerHash, noOfBins);
+
+            uint64_t binNo = 0;
+
+            // As long as any bit is set
+            while (tmp > 0)
             {
-                binNo = batchNo * INT_WIDTH;
-                uint64_t tmp = filterVector.get_int(kmerHash, INT_WIDTH);
-                if (tmp ^ (1ULL<<(INT_WIDTH-1)))
-                {
-                    while (tmp > 0)
-                    {
-                        uint64_t step = sdsl::bits::lo(tmp);
-                        binNo += step;
-                        ++step;
-                        tmp >>= step;
-                        ++counts[binNo];
-                        ++binNo;
-                    }
-                }
-                else
-                {
-                    ++counts[binNo + INT_WIDTH - 1];
-                }
-                kmerHash += INT_WIDTH;
+                // sdsl::bits::lo calculates the position of the rightmost 1-bit in the 64bit integer x if it exists.
+                // For example, for 8 = 1000 it would return 3
+                uint64_t step = sdsl::bits::lo(tmp);
+                // Adjust our bins
+                binNo += step;
+                // Remove up to next 1
+                ++step;
+                tmp >>= step;
+                // Count
+                ++counts[binNo];
+                // ++binNo because step is 0-based, i.e. if we had a hit in the next iteration we would otherwise count it for binNo=+ 0
+                ++binNo;
             }
         }
 
@@ -198,7 +183,6 @@ public:
     template<typename TString, typename TInt>
     inline void addKmer(TString const & text, TInt && binNo)
     {
-
         TShape kmerShape;
         resize(kmerShape, kmerSize);
         hashInit(kmerShape, begin(text));
@@ -207,24 +191,16 @@ public:
         {
 
             uint64_t kmerHash = hashNext(kmerShape, begin(text) + i);
-            if (blockBitSize * kmerHash + binNo >= noOfHashPos)
-            {
-                //String<TValue> debug;
-                //debug = infix(text, begin(text) + i, begin(text) + i + 3);
-                //std::cout << debug << '\n';
-                //std::cout << kmerHash << '\n';
-                std::cout << "Filter to small" << '\n';
-                continue;
-            }
-            filterVector[blockBitSize * kmerHash + binNo] = 1;
+            filterVector[noOfBins * kmerHash + binNo] = 1;
         }
     }
 
     inline void init()
     {
-        binIntWidth = std::ceil((float)noOfBins / INT_WIDTH);
-        blockBitSize = binIntWidth * INT_WIDTH;
-        noOfHashPos = (noOfBits - filterMetadataSize) / binIntWidth;
+        noOfBits = noOfBins * ipow(ValueSize<TValue>::VALUE, kmerSize) + filterMetadataSize;
+        std::cout << "Direct Addressing will need " << noOfBits << " bits." << '\n';
+        filterVector = sdsl::bit_vector(noOfBits, 0);
+        noOfHashPos = noOfBits - filterMetadataSize;
     }
 };
 }
