@@ -157,12 +157,13 @@ inline void getMetadata(KmerFilter<TValue, TSpec> &  me)
     typedef typename Value<KmerFilter<TValue, TSpec> >::Type THValue;
 
     //-------------------------------------------------------------------
-    //| n_bins | n_hash_func | kmer_size |              bf              |
+    //| kmer_size | n_hash_func | n_bins |              bf              |
     //-------------------------------------------------------------------
     me.noOfBits = me.filterVector.bit_size();
 
     THValue metadataStart = me.noOfBits - me.filterMetadataSize;
     me.noOfBins = me.filterVector.get_int(metadataStart);
+    me.noOfHashFunc = me.filterVector.get_int(metadataStart+64);
     me.kmerSize = me.filterVector.get_int(metadataStart+128);
 }
 
@@ -172,12 +173,13 @@ inline void setMetadata(KmerFilter<TValue, TSpec> &  me)
     typedef typename Value<KmerFilter<TValue, TSpec> >::Type THValue;
 
     //-------------------------------------------------------------------
-    //| n_bins | n_hash_func | kmer_size |              bf              |
+    //| kmer_size | n_hash_func | n_bins |              bf              |
     //-------------------------------------------------------------------
 
     THValue metadataStart = me.noOfBits - me.filterMetadataSize;
 
     me.filterVector.set_int(metadataStart, me.noOfBins);
+    me.filterVector.set_int(metadataStart + 64, me.noOfHashFunc);
     me.filterVector.set_int(metadataStart+128, me.kmerSize);
 }
 

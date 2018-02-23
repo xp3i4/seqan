@@ -52,6 +52,7 @@ public:
     sdsl::bit_vector                    filterVector;
 
     static const uint32_t               filterMetadataSize{256};
+    static const THValue                noOfHashFunc{1};
 
     typedef Shape<TValue, SimpleShape>  TShape;
 
