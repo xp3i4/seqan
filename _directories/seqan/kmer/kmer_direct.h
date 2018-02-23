@@ -47,9 +47,6 @@ public:
     THValue    noOfBins;
     THValue    kmerSize;
     THValue    noOfBits;
-
-    THValue    binIntWidth;
-    THValue    blockBitSize;
     THValue    noOfHashPos;
 
     sdsl::bit_vector                    filterVector;
@@ -103,17 +100,26 @@ public:
     {
         std::vector<std::future<void>> tasks;
 
-        uint64_t batchSize = noOfHashPos/threads;
-        if(batchSize * threads < noOfHashPos) ++batchSize;
+        // We have so many blocks
+        uint64_t noBlock = noOfHashPos / noOfBins;
+        // That we want to distribute to so many threads
+        uint64_t batchSize = noBlock / threads;
+        if(batchSize * threads < noBlock) ++batchSize;
 
         for (uint32_t taskNo = 0; taskNo < threads; ++taskNo)
         {
+            // hashBlock is the number of the block the thread will work on. Each block contains binNo bits that
+            // represent the individual bins. Each thread has to work on batchSize blocks. We can get the position in
+            // our filterVector by multiplying the hashBlock with noOfBins. Then we just need to add the respective
+            // binNo. We have to make sure that the vecPos we generate is not out of bounds, only the case in the last
+            // thread if the blocks could not be evenly distributed, and that we do not clear a bin that is assigned to
+            // another thread.
             tasks.emplace_back(std::async([=] {
-                for (uint64_t hashBlock=taskNo*batchSize; hashBlock < noOfHashPos && hashBlock < (taskNo +1) * batchSize; ++hashBlock)
+                for (uint64_t hashBlock=taskNo*batchSize;
+                    hashBlock * noOfBins < noOfHashPos && hashBlock < (taskNo +1) * batchSize;
+                    ++hashBlock)
                 {
                     uint64_t vecPos = hashBlock * noOfBins;
-                    if (vecPos >= noOfHashPos)
-                        break;
                     for(uint32_t binNo : bins)
                     {
                         filterVector[vecPos + binNo] = false;
@@ -147,10 +153,11 @@ public:
 
         for (uint64_t kmerHash : kmerHashes)
         {
-            // Move to first bit representing the hash kmerHash for bin 0, the next bit for bin 1, and so on
+            // Move to first bit representing the hash kmerHash for bin 0, the next bit would be for bin 1, and so on
             kmerHash *= noOfBins;
 
-            // get_int(idx, len) returns the integer value of the binary string of length len starting at position idx. I.e. len+idx-1|_______|idx, Vector is right to left.
+            // get_int(idx, len) returns the integer value of the binary string of length len starting at position idx.
+            // I.e. len+idx-1|_______|idx, Vector is right to left.
             uint64_t tmp = filterVector.get_int(kmerHash, noOfBins);
 
             uint64_t binNo = 0;
@@ -168,7 +175,8 @@ public:
                 tmp >>= step;
                 // Count
                 ++counts[binNo];
-                // ++binNo because step is 0-based, i.e. if we had a hit in the next iteration we would otherwise count it for binNo=+ 0
+                // ++binNo because step is 0-based, e.g., if we had a hit with the next bit we would otherwise count it
+                // for binNo=+ 0
                 ++binNo;
             }
         }
@@ -189,7 +197,6 @@ public:
 
         for (uint64_t i = 0; i < length(text) - length(kmerShape) + 1; ++i)
         {
-
             uint64_t kmerHash = hashNext(kmerShape, begin(text) + i);
             filterVector[noOfBins * kmerHash + binNo] = 1;
         }

@@ -14,39 +14,43 @@ using namespace seqan;
 int main()
 {
     //SeqAnBloomFilter<> filter (10, 1, 12, 16777216);
-    uint64_t t{1};
+    uint64_t threads{137};
+    uint64_t noBins{10};
+    uint64_t kmerSize{3};
+
+    // ==========================================================================
+    // Test constructors
+    // ==========================================================================
     std::cout << "Testing ctors" << '\n';
+
     KmerFilter<Dna, DirectAddressing> ctor_empty ();
-    KmerFilter<Dna, DirectAddressing> ctor_param (10, 3);
+    KmerFilter<Dna, DirectAddressing> ctor_param (noBins, kmerSize);
     KmerFilter<Dna, DirectAddressing> ctor_insta (ctor_param);
     KmerFilter<Dna, DirectAddressing> ctor_assig;
     KmerFilter<Dna, DirectAddressing> from_file;
     ctor_assig = ctor_insta;
 
+    // ==========================================================================
+    // Test addKmer()
+    // ==========================================================================
     std::cout << "Testing addKmer" << '\n';
-    CharString file0("../test/0.fasta.gz");
-    CharString file1("../test/1.fasta.gz");
-    CharString file2("../test/2.fasta.gz");
-    CharString file3("../test/3.fasta.gz");
-    CharString file4("../test/4.fasta.gz");
-    CharString file5("../test/5.fasta.gz");
-    CharString file6("../test/6.fasta.gz");
-    CharString file7("../test/7.fasta.gz");
-    CharString file8("../test/8.fasta.gz");
-    CharString file9("../test/9.fasta.gz");
 
-    addFastaFile(ctor_param, toCString(file0), 0);
-    addFastaFile(ctor_param, toCString(file0), 1);
-    addFastaFile(ctor_param, toCString(file1), t);
-    addFastaFile(ctor_param, toCString(file2), 1);
-    addFastaFile(ctor_param, toCString(file3), 1);
-    addFastaFile(ctor_insta, toCString(file4), 4);
-    addFastaFile(ctor_insta, toCString(file5), 5);
-    addFastaFile(ctor_insta, toCString(file6), 6);
-    addFastaFile(ctor_assig, toCString(file7), 7);
-    addFastaFile(ctor_assig, toCString(file8), 8);
-    addFastaFile(ctor_assig, toCString(file9), 9);
+    for (uint64_t i = 0; i < 10; ++i)
+    {
+        CharString fasta("../test/");
+        append(fasta, CharString(std::to_string(i)));
+        append(fasta, CharString(".fasta.gz"));
+        if (i % 2)
+            addFastaFile(ctor_param, toCString(fasta), i);
+        else
+            addFastaFile(ctor_insta, toCString(fasta), i);
+        if ( i==1 || i==7)
+            addFastaFile(ctor_assig, toCString(fasta), i);
+    }
 
+    // ==========================================================================
+    // Test storing and retrieving
+    // ==========================================================================
     std::cout << "Testing store/retrieve" << '\n';
 
     CharString store1("ctor_param.dat");
@@ -61,15 +65,56 @@ int main()
     store(ctor_assig, toCString(store3));
     retrieve(from_file, toCString(store3));
 
+    // ==========================================================================
+    // Test whichBins()
+    // ==========================================================================
     std::cout << "Testing whichBins" << '\n';
+
+    std::vector<uint64_t> ctor_param_set;
+    std::vector<uint64_t> ctor_insta_set;
+    std::vector<uint64_t> ctor_assig_set;
+
     std::vector<bool> which = whichBins(ctor_param, DnaString("AAA"), 1);
     for (uint64_t i = 0; i < which.size(); ++i)
     {
-        if (which[i])
-            std::cout << "Found in bin " << i << '\n';
+        if (i % 2)
+        {
+            assert(which[i]);
+            ctor_param_set.push_back(i);
+        }
+        else
+            assert(!which[i]);
     }
 
+    which = whichBins(ctor_insta, DnaString("AAA"), 1);
+    for (uint64_t i = 0; i < which.size(); ++i)
+    {
+        if (!(i % 2))
+        {
+            assert(which[i]);
+            ctor_insta_set.push_back(i);
+        }
+        else
+            assert(!which[i]);
+    }
+
+    which = whichBins(ctor_assig, DnaString("AAA"), 1);
+    for (uint64_t i = 0; i < which.size(); ++i)
+    {
+        if ( i==1 || i==7)
+        {
+            assert(which[i]);
+            ctor_assig_set.push_back(i);
+        }
+        else
+            assert(!which[i]);
+    }
+
+    // ==========================================================================
+    // Test clearBins()
+    // ==========================================================================
     std::cout << "Testing clearBins" << '\n';
+
     // Check if any elements are set in the filters.
     bool ctor_param_any = false;
     for (uint64_t i = 0; i < ctor_param.noOfHashPos; ++i)
@@ -105,13 +150,9 @@ int main()
     assert(ctor_insta_any == true);
 
     // Reset the filter vectors.
-    std::vector<uint64_t> bins;
-    bins.resize(ctor_param.noOfBins, 0);
-    for (unsigned i = 0; i < ctor_param.noOfBins; ++i)
-        bins[i] = i;
-    clearBins(ctor_param, bins, 1);
-    clearBins(ctor_insta, bins, t);
-    clearBins(ctor_assig, bins, 1);
+    clearBins(ctor_param, ctor_param_set, threads);
+    clearBins(ctor_insta, ctor_insta_set, threads);
+    clearBins(ctor_assig, ctor_assig_set, threads);
 
     // Check if filter Vectors are empty.
     ctor_param_any = false;
