@@ -103,7 +103,7 @@ inline void clearBins(KmerFilter<TValue, TSpec> &  me, std::vector<TInt1> & bins
 }
 
 template<typename TValue, typename TSpec, typename TInt>
-inline void addFastaFile(KmerFilter<TValue, TSpec> &  me, const char * fastaFile, TInt&& binNo)
+inline void addFastaFile(KmerFilter<TValue, TSpec> &  me, const char * fastaFile, TInt && binNo)
 {
     CharString id;
     String<TValue> seq;
@@ -203,28 +203,8 @@ inline bool retrieve(KmerFilter<TValue, TSpec> &  me, const char * fileName)
         exit(1);
     }
     getMetadata(me);
-    init(me);
+    me.init();
     return true;
-}
-
-template<typename TValue>
-inline void init(KmerFilter<TValue, InterleavedBloomFilter> & me)
-{
-    me.binIntWidth = std::ceil((float)me.noOfBins / me.INT_WIDTH);
-    me.blockBitSize = me.binIntWidth * me.INT_WIDTH;
-    me.noOfHashPos = (me.noOfBits - me.filterMetadataSize) / me.blockBitSize;
-
-    me.preCalcValues.resize(me.noOfHashFunc);
-    for(typename Value<KmerFilter<TValue, InterleavedBloomFilter> >::Type i = 0; i < me.noOfHashFunc ; i++)
-        me.preCalcValues[i] = i ^  (me.kmerSize * me.seedValue);
-}
-
-template<typename TValue, typename TSpec>
-inline void init(KmerFilter<TValue, TSpec> & me)
-{
-    me.binIntWidth = std::ceil((float)me.noOfBins / me.INT_WIDTH);
-    me.blockBitSize = me.binIntWidth * me.INT_WIDTH;
-    me.noOfHashPos = (me.noOfBits - me.filterMetadataSize) / me.binIntWidth;
 }
 
 template<typename TValue, typename TSpec, typename TInt1, typename TInt2>

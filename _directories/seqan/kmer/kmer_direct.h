@@ -71,13 +71,15 @@ public:
         noOfBits(vec_size),
         filterVector(sdsl::bit_vector(vec_size, 0))
     {
-            init(*this);
-            std::cout << noOfBins << '\n';
-            std::cout << kmerSize << '\n';
-            std::cout << noOfBits << '\n';
-            std::cout << binIntWidth << '\n';
-            std::cout << blockBitSize << '\n';
-            std::cout << noOfHashPos << '\n';
+
+        //static_assert( ipow(ValueSize<TValue>::VALUE, kmerSize) > vec_size, "Vector size too small, need at least bits.");
+        init();
+        std::cout << noOfBins << '\n';
+        std::cout << kmerSize << '\n';
+        std::cout << noOfBits << '\n';
+        std::cout << binIntWidth << '\n';
+        std::cout << blockBitSize << '\n';
+        std::cout << noOfHashPos << '\n';
     }
 
     KmerFilter(KmerFilter<TValue, DirectAddressing> const & other)
@@ -91,8 +93,21 @@ public:
         kmerSize = other.kmerSize;
         noOfBits = other.noOfBits;
         filterVector = other.filterVector;
-        init(*this);
+        init();
         return *this;
+    }
+
+    constexpr THValue ipow(THValue base, THValue exp)
+    {
+        THValue result = 1;
+        while (exp)
+        {
+            if (exp & 1)
+                result *= base;
+            exp >>= 1;
+            base *= base;
+        }
+        return result;
     }
 
     template<typename TInt>
@@ -203,6 +218,13 @@ public:
             }
             filterVector[blockBitSize * kmerHash + binNo] = 1;
         }
+    }
+
+    inline void init()
+    {
+        binIntWidth = std::ceil((float)noOfBins / INT_WIDTH);
+        blockBitSize = binIntWidth * INT_WIDTH;
+        noOfHashPos = (noOfBits - filterMetadataSize) / binIntWidth;
     }
 };
 }

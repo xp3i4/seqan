@@ -16,10 +16,11 @@ int main()
     //SeqAnBloomFilter<> filter (10, 1, 12, 16777216);
     uint64_t t{1};
     std::cout << "Testing ctors" << '\n';
-    KmerFilter<Dna, InterleavedBloomFilter> ctor_empty ();
-    KmerFilter<Dna, InterleavedBloomFilter> ctor_param (10, 1, 3, 4352);
-    KmerFilter<Dna, InterleavedBloomFilter> ctor_insta (ctor_param);
-    KmerFilter<Dna, InterleavedBloomFilter> ctor_assig;
+    KmerFilter<Dna, DirectAddressing> ctor_empty ();
+    KmerFilter<Dna, DirectAddressing> ctor_param (10, 3, 4352);
+    KmerFilter<Dna, DirectAddressing> ctor_insta (ctor_param);
+    KmerFilter<Dna, DirectAddressing> ctor_assig;
+    KmerFilter<Dna, DirectAddressing> from_file;
     ctor_assig = ctor_insta;
 
     std::cout << "Testing addKmer" << '\n';
@@ -46,7 +47,6 @@ int main()
     addFastaFile(ctor_assig, toCString(file9), 9);
 
     std::cout << "Testing store/retrieve" << '\n';
-    KmerFilter<Dna, InterleavedBloomFilter> from_file;
 
     CharString store1("ctor_param.dat");
     store(ctor_param, toCString(store1));

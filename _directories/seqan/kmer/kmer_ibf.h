@@ -78,7 +78,7 @@ public:
         noOfBits(vec_size),
         filterVector(sdsl::bit_vector(vec_size, 0))
     {
-            init(*this);
+            init();
     }
 
     KmerFilter(KmerFilter<TValue, InterleavedBloomFilter> const & other)
@@ -93,7 +93,7 @@ public:
         kmerSize = other.kmerSize;
         noOfBits = other.noOfBits;
         filterVector = other.filterVector;
-        init(*this);
+        init();
         return *this;
     }
 
@@ -225,6 +225,17 @@ public:
                 filterVector[vecIndex] = 1;
             }
         }
+    }
+
+    inline void init()
+    {
+        binIntWidth = std::ceil((float)noOfBins / INT_WIDTH);
+        blockBitSize = binIntWidth * INT_WIDTH;
+        noOfHashPos = (noOfBits - filterMetadataSize) / blockBitSize;
+
+        preCalcValues.resize(noOfHashFunc);
+        for(uint64_t i = 0; i < noOfHashFunc ; i++)
+            preCalcValues[i] = i ^  (kmerSize * seedValue);
     }
 };
 }
