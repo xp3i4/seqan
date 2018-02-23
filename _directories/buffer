@@ -1,0 +1,12 @@
+cmake \
+-DCMAKE_CXX_FLAGS="-std=c++14 -Wuninitialized -W -Wall -Wstrict-aliasing -pedantic -Wno-long-long -Wno-variadic-macros -Wunused -msse4.2"\
+-DSEQAN_INCLUDE_PATH="<to/this/git/seqan/include>"\
+-DSDSL_INCLUDE_DIRS="</to/sdslgit/sdsl-lite/include/>"
+-DCMAKE_CXX_COMPILER="</usr/local/bin/g++-7>"\
+-DCMAKE_PREFIX_PATH="<to/this/git/seqan/util/cmake>"\
+-NDEBUG\
+-DCMAKE_BUILD_TYPE=Debug\
+..
+
+
+# Run from _directories/cmake-debug or similar
