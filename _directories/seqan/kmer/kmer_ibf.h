@@ -48,10 +48,7 @@ public:
     THValue    noOfHashFunc;
     THValue    kmerSize;
     THValue    noOfBits;
-
-    THValue    binIntWidth;
-    THValue    blockBitSize;
-    THValue    noOfHashPos;
+    THValue    noOfBlocks;
 
     std::vector<THValue>   preCalcValues;
     THValue const          shiftValue = 27;
@@ -60,7 +57,6 @@ public:
     sdsl::bit_vector                    filterVector;
 
     static const uint32_t               filterMetadataSize{256};
-    static const uint8_t                INT_WIDTH{0x40};
 
     typedef Shape<TValue, SimpleShape>  TShape;
 
@@ -102,17 +98,24 @@ public:
     {
         std::vector<std::future<void>> tasks;
 
-        uint64_t batchSize = noOfHashPos/threads;
-        if(batchSize * threads < noOfHashPos) ++batchSize;
+        // We have so many blocks that we want to distribute to so many threads
+        uint64_t batchSize = noOfBlocks / threads;
+        if(batchSize * threads < noOfBlocks) ++batchSize;
 
         for (uint32_t taskNo = 0; taskNo < threads; ++taskNo)
         {
+            // hashBlock is the number of the block the thread will work on. Each block contains binNo bits that
+            // represent the individual bins. Each thread has to work on batchSize blocks. We can get the position in
+            // our filterVector by multiplying the hashBlock with noOfBins. Then we just need to add the respective
+            // binNo. We have to make sure that the vecPos we generate is not out of bounds, only the case in the last
+            // thread if the blocks could not be evenly distributed, and that we do not clear a bin that is assigned to
+            // another thread.
             tasks.emplace_back(std::async([=] {
-                for (uint64_t hashBlock=taskNo*batchSize; hashBlock < noOfHashPos && hashBlock < (taskNo +1) * batchSize; ++hashBlock)
+                for (uint64_t hashBlock=taskNo*batchSize;
+                    hashBlock < noOfBlocks && hashBlock < (taskNo +1) * batchSize;
+                    ++hashBlock)
                 {
-                    uint64_t vecPos = hashBlock * blockBitSize;
-                    if (vecPos >= noOfHashPos)
-                        break;
+                    uint64_t vecPos = hashBlock * noOfBins;
                     for(uint32_t binNo : bins)
                     {
                         filterVector[vecPos + binNo] = false;
@@ -152,37 +155,32 @@ public:
                 vecIndices[i] *= kmerHash;
                 getHashValue(vecIndices[i]);
             }
-            uint32_t binNo = 0;
-            for (uint8_t batchNo = 0; batchNo < binIntWidth; ++batchNo)
+
+            // Move to first bit representing the hash kmerHash for bin 0, the next bit would be for bin 1, and so on
+            kmerHash *= noOfBins;
+
+            // get_int(idx, len) returns the integer value of the binary string of length len starting at position idx.
+            // I.e. len+idx-1|_______|idx, Vector is right to left.
+            uint64_t tmp = filterVector.get_int(kmerHash, noOfBins);
+
+            uint64_t binNo = 0;
+
+            // As long as any bit is set
+            while (tmp > 0)
             {
-                binNo = batchNo * INT_WIDTH;
-                uint64_t tmp = filterVector.get_int(kmerHash, INT_WIDTH);
-                for(uint8_t i = 1; i < noOfHashFunc;  i++)
-                {
-                    tmp &= filterVector.get_int(vecIndices[i], INT_WIDTH);
-                }
-
-                if (tmp ^ (1ULL<<(INT_WIDTH-1)))
-                {
-                    while (tmp > 0)
-                    {
-                        uint64_t step = sdsl::bits::lo(tmp);
-                        binNo += step;
-                        ++step;
-                        tmp >>= step;
-                        ++counts[binNo];
-                        ++binNo;
-                    }
-                }
-                else
-                {
-                    ++counts[binNo + INT_WIDTH - 1];
-                }
-
-                for(uint8_t i = 0; i < noOfHashFunc ; i++)
-                {
-                    vecIndices[i] += INT_WIDTH;
-                }
+                // sdsl::bits::lo calculates the position of the rightmost 1-bit in the 64bit integer x if it exists.
+                // For example, for 8 = 1000 it would return 3
+                uint64_t step = sdsl::bits::lo(tmp);
+                // Adjust our bins
+                binNo += step;
+                // Remove up to next 1
+                ++step;
+                tmp >>= step;
+                // Count
+                ++counts[binNo];
+                // ++binNo because step is 0-based, e.g., if we had a hit with the next bit we would otherwise count it
+                // for binNo=+ 0
+                ++binNo;
             }
         }
 
@@ -195,12 +193,12 @@ public:
 
     inline void getHashValue(uint64_t & vecIndex) const
     {
+        // We do something
         vecIndex ^= vecIndex >> shiftValue;
-        //std::cout << "vecIndex1=" << vecIndex << '\n';
-        vecIndex %= noOfHashPos;
-        //std::cout << "vecIndex2=" << vecIndex << '\n';
-        vecIndex *= blockBitSize;
-        //std::cout << "vecIndex3=" << vecIndex << '\n';
+        // Bring it back into our vector range (noOfBlocks = possible hash values)
+        vecIndex %= noOfBlocks;
+        // Since each block needs binNo bits, we multiply to get the correct location
+        vecIndex *= noOfBins;
     }
 
     template<typename TString, typename TInt>
@@ -214,12 +212,10 @@ public:
         for (uint64_t i = 0; i < length(text) - length(kmerShape) + 1; ++i)
         {
             uint64_t kmerHash = hashNext(kmerShape, begin(text) + i);
-            //std::cout << "kmerHash=" << kmerHash << '\n';
 
             for(uint8_t i = 0; i < noOfHashFunc ; i++)
             {
                 uint64_t vecIndex = preCalcValues[i] * kmerHash;
-                //std::cout << "vecIndex=" << vecIndex << '\n';
                 getHashValue(vecIndex);
                 vecIndex += binNo;
                 filterVector[vecIndex] = 1;
@@ -229,9 +225,7 @@ public:
 
     inline void init()
     {
-        binIntWidth = std::ceil((float)noOfBins / INT_WIDTH);
-        blockBitSize = binIntWidth * INT_WIDTH;
-        noOfHashPos = (noOfBits - filterMetadataSize) / blockBitSize;
+        noOfBlocks = (noOfBits - filterMetadataSize) / noOfBins;
 
         preCalcValues.resize(noOfHashFunc);
         for(uint64_t i = 0; i < noOfHashFunc ; i++)

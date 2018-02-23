@@ -17,17 +17,19 @@ int main()
     uint64_t threads{3};
     uint64_t noBins{10};
     uint64_t kmerSize{3};
+    uint64_t hashFunc{3};
+    uint64_t bits{11829};
 
     // ==========================================================================
     // Test constructors
     // ==========================================================================
     std::cout << "Testing ctors" << '\n';
 
-    KmerFilter<Dna, DirectAddressing> ctor_empty ();
-    KmerFilter<Dna, DirectAddressing> ctor_param (noBins, kmerSize);
-    KmerFilter<Dna, DirectAddressing> ctor_insta (ctor_param);
-    KmerFilter<Dna, DirectAddressing> ctor_assig;
-    KmerFilter<Dna, DirectAddressing> from_file;
+    KmerFilter<Dna, InterleavedBloomFilter> ctor_empty ();
+    KmerFilter<Dna, InterleavedBloomFilter> ctor_param (noBins, hashFunc, kmerSize, bits);
+    KmerFilter<Dna, InterleavedBloomFilter> ctor_insta (ctor_param);
+    KmerFilter<Dna, InterleavedBloomFilter> ctor_assig;
+    KmerFilter<Dna, InterleavedBloomFilter> from_file;
     ctor_assig = ctor_insta;
 
     // ==========================================================================
