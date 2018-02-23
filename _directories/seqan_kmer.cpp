@@ -14,7 +14,7 @@ using namespace seqan;
 int main()
 {
     //SeqAnBloomFilter<> filter (10, 1, 12, 16777216);
-    uint64_t threads{137};
+    uint64_t threads{3};
     uint64_t noBins{10};
     uint64_t kmerSize{3};
 
