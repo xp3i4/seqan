@@ -117,7 +117,7 @@ int main()
 
     // Check if any elements are set in the filters.
     bool ctor_param_any = false;
-    for (uint64_t i = 0; i < ctor_param.noOfHashPos; ++i)
+    for (uint64_t i = 0; i < ctor_param.noOfBlocks * ctor_param.noOfBins; ++i)
     {
         if (ctor_param.filterVector[i])
         {
@@ -128,7 +128,7 @@ int main()
     assert(ctor_param_any == true);
 
     bool ctor_assig_any = false;
-    for (uint64_t i = 0; i < ctor_assig.noOfHashPos; ++i)
+    for (uint64_t i = 0; i < ctor_assig.noOfBlocks * ctor_assig.noOfBins; ++i)
     {
         if (ctor_assig.filterVector[i])
         {
@@ -139,7 +139,7 @@ int main()
     assert(ctor_assig_any == true);
 
     bool ctor_insta_any = false;
-    for (uint64_t i = 0; i < ctor_insta.noOfHashPos; ++i)
+    for (uint64_t i = 0; i < ctor_insta.noOfBlocks * ctor_insta.noOfBins; ++i)
     {
         if (ctor_insta.filterVector[i])
         {
@@ -156,7 +156,7 @@ int main()
 
     // Check if filter Vectors are empty.
     ctor_param_any = false;
-    for (uint64_t i = 0; i < ctor_param.noOfHashPos; ++i)
+    for (uint64_t i = 0; i < ctor_param.noOfBlocks * ctor_param.noOfBins; ++i)
     {
         if (ctor_param.filterVector[i])
         {
@@ -167,7 +167,7 @@ int main()
     assert(ctor_param_any == false);
 
     ctor_assig_any = false;
-    for (uint64_t i = 0; i < ctor_assig.noOfHashPos; ++i)
+    for (uint64_t i = 0; i < ctor_assig.noOfBlocks * ctor_assig.noOfBins; ++i)
     {
         if (ctor_assig.filterVector[i])
         {
@@ -178,7 +178,7 @@ int main()
     assert(ctor_assig_any == false);
 
     ctor_insta_any = false;
-    for (uint64_t i = 0; i < ctor_insta.noOfHashPos; ++i)
+    for (uint64_t i = 0; i < ctor_insta.noOfBlocks * ctor_insta.noOfBins; ++i)
     {
         if (ctor_insta.filterVector[i])
         {

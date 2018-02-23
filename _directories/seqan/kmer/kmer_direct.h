@@ -47,7 +47,7 @@ public:
     THValue    noOfBins;
     THValue    kmerSize;
     THValue    noOfBits;
-    THValue    noOfHashPos;
+    THValue    noOfBlocks;
 
     sdsl::bit_vector                    filterVector;
 
@@ -77,7 +77,7 @@ public:
         noOfBins = other.noOfBins;
         kmerSize = other.kmerSize;
         noOfBits = other.noOfBits;
-        noOfHashPos = other.noOfHashPos;
+        noOfBlocks = other.noOfBlocks;
         filterVector = other.filterVector;
         return *this;
     }
@@ -100,11 +100,9 @@ public:
     {
         std::vector<std::future<void>> tasks;
 
-        // We have so many blocks
-        uint64_t noBlock = noOfHashPos / noOfBins;
-        // That we want to distribute to so many threads
-        uint64_t batchSize = noBlock / threads;
-        if(batchSize * threads < noBlock) ++batchSize;
+        // We have so many blocks that we want to distribute to so many threads
+        uint64_t batchSize = noOfBlocks / threads;
+        if(batchSize * threads < noOfBlocks) ++batchSize;
 
         for (uint32_t taskNo = 0; taskNo < threads; ++taskNo)
         {
@@ -116,7 +114,7 @@ public:
             // another thread.
             tasks.emplace_back(std::async([=] {
                 for (uint64_t hashBlock=taskNo*batchSize;
-                    hashBlock * noOfBins < noOfHashPos && hashBlock < (taskNo +1) * batchSize;
+                    hashBlock < noOfBlocks && hashBlock < (taskNo +1) * batchSize;
                     ++hashBlock)
                 {
                     uint64_t vecPos = hashBlock * noOfBins;
@@ -204,10 +202,10 @@ public:
 
     inline void init()
     {
-        noOfBits = noOfBins * ipow(ValueSize<TValue>::VALUE, kmerSize) + filterMetadataSize;
+        noOfBlocks = ipow(ValueSize<TValue>::VALUE, kmerSize);
+        noOfBits = noOfBins * noOfBlocks + filterMetadataSize;
         std::cout << "Direct Addressing will need " << noOfBits << " bits." << '\n';
         filterVector = sdsl::bit_vector(noOfBits, 0);
-        noOfHashPos = noOfBits - filterMetadataSize;
     }
 };
 }
