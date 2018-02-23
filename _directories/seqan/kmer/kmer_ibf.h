@@ -35,9 +35,8 @@
 // ==========================================================================
 
 // --------------------------------------------------------------------------
-// Class KmerFilter using Interleaved Bloom Filter
+// Class KmerFilter using an interleaved bloom filter
 // --------------------------------------------------------------------------
-
 namespace seqan{
 
 template<typename TValue>
@@ -54,14 +53,14 @@ public:
     THValue    blockBitSize;
     THValue    noOfHashPos;
 
+    std::vector<THValue>   preCalcValues;
+    THValue const          shiftValue = 27;
+    THValue const          seedValue = 0x90b45d39fb6da1fa;
+
     sdsl::bit_vector                    filterVector;
 
     static const uint32_t               filterMetadataSize{256};
     static const uint8_t                INT_WIDTH{0x40};
-
-    std::vector<THValue>                preCalcValues;
-    THValue const                       shiftValue{27};
-    THValue const                       seedValue{0x90b45d39fb6da1fa};
 
     typedef Shape<TValue, SimpleShape>  TShape;
 
@@ -80,22 +79,14 @@ public:
         filterVector(sdsl::bit_vector(vec_size, 0))
     {
             init(*this);
-            seed();
-            std::cout << noOfBins << '\n';
-            std::cout << noOfHashFunc << '\n';
-            std::cout << kmerSize << '\n';
-            std::cout << noOfBits << '\n';
-            std::cout << binIntWidth << '\n';
-            std::cout << blockBitSize << '\n';
-            std::cout << noOfHashPos << '\n';
     }
 
-    KmerFilter(KmerFilter<TValue, DirectAddressing> const & other)
+    KmerFilter(KmerFilter<TValue, InterleavedBloomFilter> const & other)
     {
         *this = other;
     }
 
-    KmerFilter<TValue, DirectAddressing> & operator=(KmerFilter<TValue, DirectAddressing> const & other)
+    KmerFilter<TValue, InterleavedBloomFilter> & operator=(KmerFilter<TValue, InterleavedBloomFilter> const & other)
     {
         noOfBins = other.noOfBins;
         noOfHashFunc = other.noOfHashFunc;
@@ -103,18 +94,11 @@ public:
         noOfBits = other.noOfBits;
         filterVector = other.filterVector;
         init(*this);
-        seed();
         return *this;
     }
 
-    inline void seed()
-    {
-        preCalcValues.resize(noOfHashFunc);
-        for(uint8_t i = 0; i < noOfHashFunc ; i++)
-            preCalcValues[i] = i ^  (kmerSize * seedValue);
-    }
-
-    void clearBins(std::vector<TValue> & bins, THValue & threads)
+    template<typename TInt>
+    void clearBins(std::vector<THValue> & bins, TInt&& threads)
     {
         std::vector<std::future<void>> tasks;
 
@@ -127,6 +111,8 @@ public:
                 for (uint64_t hashBlock=taskNo*batchSize; hashBlock < noOfHashPos && hashBlock < (taskNo +1) * batchSize; ++hashBlock)
                 {
                     uint64_t vecPos = hashBlock * blockBitSize;
+                    if (vecPos >= noOfHashPos)
+                        break;
                     for(uint32_t binNo : bins)
                     {
                         filterVector[vecPos + binNo] = false;
@@ -140,8 +126,8 @@ public:
         }
     }
 
-    template<typename TString>
-    inline void whichBins(std::vector<bool> & selected, TString const & text, THValue const & threshold) const
+    template<typename TString, typename TInt>
+    inline void whichBins(std::vector<bool> & selected, TString const & text, TInt && threshold) const
     {
         uint8_t possible = length(text) - kmerSize + 1;
 
@@ -170,10 +156,10 @@ public:
             for (uint8_t batchNo = 0; batchNo < binIntWidth; ++batchNo)
             {
                 binNo = batchNo * INT_WIDTH;
-                uint64_t tmp = filterVector.get_int(vecIndices[0], INT_WIDTH);
+                uint64_t tmp = filterVector.get_int(kmerHash, INT_WIDTH);
                 for(uint8_t i = 1; i < noOfHashFunc;  i++)
                 {
-                    tmp &= _filterVector.get_int(vecIndices[i], INT_WIDTH);
+                    tmp &= filterVector.get_int(vecIndices[i], INT_WIDTH);
                 }
 
                 if (tmp ^ (1ULL<<(INT_WIDTH-1)))
@@ -192,6 +178,7 @@ public:
                 {
                     ++counts[binNo + INT_WIDTH - 1];
                 }
+
                 for(uint8_t i = 0; i < noOfHashFunc ; i++)
                 {
                     vecIndices[i] += INT_WIDTH;
@@ -206,28 +193,37 @@ public:
         }
     }
 
-    inline void insertKmer(THValue & kmerHash, THValue const & batchOffset)
+    inline void getHashValue(uint64_t & vecIndex) const
     {
-        for(uint8_t i = 0; i < noOfHashFunc ; i++)
-        {
-            uint64_t vecIndex = preCalcValues[i] * kmerHash;
-            getHashValue(vecIndex);
-            vecIndex += batchOffset;
-            filterVector[vecIndex] = 1;
-        }
+        vecIndex ^= vecIndex >> shiftValue;
+        //std::cout << "vecIndex1=" << vecIndex << '\n';
+        vecIndex %= noOfHashPos;
+        //std::cout << "vecIndex2=" << vecIndex << '\n';
+        vecIndex *= blockBitSize;
+        //std::cout << "vecIndex3=" << vecIndex << '\n';
     }
 
-    template<typename TString>
-    inline void addKmer(TString const & text, THValue const & binNo)
+    template<typename TString, typename TInt>
+    inline void addKmer(TString const & text, TInt && binNo)
     {
+
         TShape kmerShape;
         resize(kmerShape, kmerSize);
         hashInit(kmerShape, begin(text));
 
-        for (uint32_t i = 0; i < length(text) - length(kmerShape) + 1; ++i)
+        for (uint64_t i = 0; i < length(text) - length(kmerShape) + 1; ++i)
         {
             uint64_t kmerHash = hashNext(kmerShape, begin(text) + i);
-            insertKmer(kmerHash, binNo);
+            //std::cout << "kmerHash=" << kmerHash << '\n';
+
+            for(uint8_t i = 0; i < noOfHashFunc ; i++)
+            {
+                uint64_t vecIndex = preCalcValues[i] * kmerHash;
+                //std::cout << "vecIndex=" << vecIndex << '\n';
+                getHashValue(vecIndex);
+                vecIndex += binNo;
+                filterVector[vecIndex] = 1;
+            }
         }
     }
 };

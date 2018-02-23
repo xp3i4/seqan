@@ -207,6 +207,18 @@ inline bool retrieve(KmerFilter<TValue, TSpec> &  me, const char * fileName)
     return true;
 }
 
+template<typename TValue>
+inline void init(KmerFilter<TValue, InterleavedBloomFilter> & me)
+{
+    me.binIntWidth = std::ceil((float)me.noOfBins / me.INT_WIDTH);
+    me.blockBitSize = me.binIntWidth * me.INT_WIDTH;
+    me.noOfHashPos = (me.noOfBits - me.filterMetadataSize) / me.blockBitSize;
+
+    me.preCalcValues.resize(me.noOfHashFunc);
+    for(typename Value<KmerFilter<TValue, InterleavedBloomFilter> >::Type i = 0; i < me.noOfHashFunc ; i++)
+        me.preCalcValues[i] = i ^  (me.kmerSize * me.seedValue);
+}
+
 template<typename TValue, typename TSpec>
 inline void init(KmerFilter<TValue, TSpec> & me)
 {

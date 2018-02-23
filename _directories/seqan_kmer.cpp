@@ -7,22 +7,20 @@ static const uint8_t INT_WIDTH = 0x40;
 
 #include "seqan/kmer/kmer_base.h"
 #include "seqan/kmer/kmer_direct.h"
+#include "seqan/kmer/kmer_ibf.h"
 
 using namespace seqan;
 
 int main()
 {
     //SeqAnBloomFilter<> filter (10, 1, 12, 16777216);
+    uint64_t t{1};
     std::cout << "Testing ctors" << '\n';
-    KmerFilter<Dna, DirectAddressing> ctor_empty ();
-    KmerFilter<Dna, DirectAddressing> ctor_param (10, 3, 4352);
-    KmerFilter<Dna, DirectAddressing> ctor_insta (ctor_param);
-    KmerFilter<Dna, DirectAddressing> ctor_assig;
+    KmerFilter<Dna, InterleavedBloomFilter> ctor_empty ();
+    KmerFilter<Dna, InterleavedBloomFilter> ctor_param (10, 1, 3, 4352);
+    KmerFilter<Dna, InterleavedBloomFilter> ctor_insta (ctor_param);
+    KmerFilter<Dna, InterleavedBloomFilter> ctor_assig;
     ctor_assig = ctor_insta;
-
-    Shape<Dna, UngappedShape<3> > kmerShape;
-    DnaString text = "AAAAAA";
-    std::cout << hash(kmerShape, begin(text));
 
     std::cout << "Testing addKmer" << '\n';
     CharString file0("../test/0.fasta.gz");
@@ -37,7 +35,7 @@ int main()
     CharString file9("../test/9.fasta.gz");
 
     addFastaFile(ctor_param, toCString(file0), 0);
-    addFastaFile(ctor_param, toCString(file1), 1);
+    addFastaFile(ctor_param, toCString(file1), t);
     addFastaFile(ctor_param, toCString(file2), 2);
     addFastaFile(ctor_param, toCString(file3), 3);
     addFastaFile(ctor_insta, toCString(file4), 0);
@@ -48,7 +46,7 @@ int main()
     addFastaFile(ctor_assig, toCString(file9), 9);
 
     std::cout << "Testing store/retrieve" << '\n';
-    KmerFilter<Dna, DirectAddressing> from_file;
+    KmerFilter<Dna, InterleavedBloomFilter> from_file;
 
     CharString store1("ctor_param.dat");
     store(ctor_param, toCString(store1));
@@ -98,7 +96,6 @@ int main()
     assert(ctor_insta_any == true);
 
     // Reset the filter vectors.
-    uint64_t t{1};
     std::vector<uint64_t> bins;
     bins.resize(ctor_param.noOfBins, 0);
     for (unsigned i = 0; i < ctor_param.noOfBins; ++i)
