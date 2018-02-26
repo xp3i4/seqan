@@ -130,7 +130,7 @@ public:
     }
 
     template<typename TString>
-    void whichBins(std::vector<uint64_t> & counts, TString const & text)
+    void whichBins(std::vector<uint64_t> & counts, TString const & text) const
     {
         uint8_t possible = length(text) - kmerSize + 1;
 

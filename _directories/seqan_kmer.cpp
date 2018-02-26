@@ -36,8 +36,10 @@ int main()
     KmerFilter<Dna, DirectAddressing> ctor_insta (ctor_param);
     KmerFilter<Dna, DirectAddressing> ctor_assig;
     KmerFilter<Dna, DirectAddressing> from_file;
-    ctor_assig = ctor_insta;
 */
+
+    ctor_assig = ctor_insta;
+
     // ==========================================================================
     // Test addKmer()
     // ==========================================================================
