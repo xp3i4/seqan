@@ -125,10 +125,24 @@ inline void addFastaFile(KmerFilter<TValue, TSpec> &  me, const char * fastaFile
     close(seqFileIn);
 }
 
+template<typename TValue, typename TSpec>
+inline void whichBins(KmerFilter<TValue, TSpec> &  me, std::vector<uint64_t> & counts, String<TValue> const & text)
+{
+    me.whichBins(counts, text);
+}
+
+template<typename TValue, typename TSpec>
+inline std::vector<uint64_t> whichBins(KmerFilter<TValue, TSpec> &  me, String<TValue> const & text)
+{
+    std::vector<uint64_t> counts(me.noOfBins, 0);
+    whichBins(me, counts, text);
+    return counts;
+}
+
 template<typename TValue, typename TSpec, typename TInt>
 inline void whichBins(KmerFilter<TValue, TSpec> &  me, std::vector<bool> & selected, String<TValue> const & text, TInt threshold)
 {
-    me.whichBins(selected, text, threshold);
+    me.whichBins(selected, text, static_cast<uint64_t>(threshold));
 }
 
 template<typename TValue, typename TSpec, typename TInt>

@@ -129,12 +129,11 @@ public:
         }
     }
 
-    template<typename TString, typename TInt>
-    inline void whichBins(std::vector<bool> & selected, TString const & text, TInt && threshold) const
+    template<typename TString>
+    void whichBins(std::vector<uint64_t> & counts, TString const & text)
     {
         uint8_t possible = length(text) - kmerSize + 1;
 
-        std::vector<uint8_t> counts(noOfBins, 0);
         std::vector<uint64_t> kmerHashes(possible, 0);
 
         TShape kmerShape;
@@ -183,7 +182,13 @@ public:
                 ++binNo;
             }
         }
+    }
 
+    template<typename TString, typename TInt>
+    inline void whichBins(std::vector<bool> & selected, TString const & text, TInt && threshold)
+    {
+        std::vector<uint64_t> counts(noOfBins, 0);
+        whichBins(counts, text);
         for(uint32_t binNo=0; binNo < noOfBins; ++binNo)
         {
             if(counts[binNo] >= threshold)

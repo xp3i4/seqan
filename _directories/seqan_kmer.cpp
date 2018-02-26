@@ -30,8 +30,14 @@ int main()
     KmerFilter<Dna, InterleavedBloomFilter> ctor_insta (ctor_param);
     KmerFilter<Dna, InterleavedBloomFilter> ctor_assig;
     KmerFilter<Dna, InterleavedBloomFilter> from_file;
+/*
+    KmerFilter<Dna, DirectAddressing> ctor_empty ();
+    KmerFilter<Dna, DirectAddressing> ctor_param (noBins, kmerSize);
+    KmerFilter<Dna, DirectAddressing> ctor_insta (ctor_param);
+    KmerFilter<Dna, DirectAddressing> ctor_assig;
+    KmerFilter<Dna, DirectAddressing> from_file;
     ctor_assig = ctor_insta;
-
+*/
     // ==========================================================================
     // Test addKmer()
     // ==========================================================================
@@ -77,6 +83,7 @@ int main()
     std::vector<uint64_t> ctor_assig_set;
 
     std::vector<bool> which = whichBins(ctor_param, DnaString("AAA"), 1);
+    (void) whichBins(ctor_param, DnaString("AAA"));
     for (uint64_t i = 0; i < which.size(); ++i)
     {
         if (i % 2)
@@ -89,6 +96,7 @@ int main()
     }
 
     which = whichBins(ctor_insta, DnaString("AAA"), 1);
+    (void) whichBins(ctor_insta, DnaString("AAA"));
     for (uint64_t i = 0; i < which.size(); ++i)
     {
         if (!(i % 2))
@@ -101,6 +109,7 @@ int main()
     }
 
     which = whichBins(ctor_assig, DnaString("AAA"), 1);
+    (void) whichBins(ctor_assig, DnaString("AAA"));
     for (uint64_t i = 0; i < which.size(); ++i)
     {
         if ( i==1 || i==7)
