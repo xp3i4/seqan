@@ -180,7 +180,7 @@ public:
     }
 
     template<typename TString, typename TInt>
-    inline void whichBins(std::vector<bool> & selected, TString const & text, TInt && threshold)
+    inline void whichBins(std::vector<bool> & selected, TString const & text, TInt && threshold) const
     {
         std::vector<uint64_t> counts(noOfBins, 0);
         whichBins(counts, text);
