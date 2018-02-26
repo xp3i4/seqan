@@ -25,20 +25,33 @@ int main()
     // ==========================================================================
     std::cout << "Testing ctors" << '\n';
 
-    KmerFilter<Dna, InterleavedBloomFilter> ctor_empty ();
-    KmerFilter<Dna, InterleavedBloomFilter> ctor_param (noBins, hashFunc, kmerSize, bits);
-    KmerFilter<Dna, InterleavedBloomFilter> ctor_insta (ctor_param);
-    KmerFilter<Dna, InterleavedBloomFilter> ctor_assig;
-    KmerFilter<Dna, InterleavedBloomFilter> from_file;
-/*
-    KmerFilter<Dna, DirectAddressing> ctor_empty ();
-    KmerFilter<Dna, DirectAddressing> ctor_param (noBins, kmerSize);
-    KmerFilter<Dna, DirectAddressing> ctor_insta (ctor_param);
-    KmerFilter<Dna, DirectAddressing> ctor_assig;
-    KmerFilter<Dna, DirectAddressing> from_file;
-*/
+    //typedef InterleavedBloomFilter TSpec;
+    typedef DirectAddressing       TSpec;
 
-    ctor_assig = ctor_insta;
+    // Empty default constructor
+    KmerFilter<Dna, TSpec> ctor_empty;
+    // Default constructor
+    // KmerFilter<Dna, TSpec> ctor_default (noBins, hashFunc, kmerSize, bits);
+    /*
+    KmerFilter<Dna, TSpec> ctor_default (noBins, hashFunc, kmerSize, bits);
+    KmerFilter<Dna, TSpec> ctor_default_helper1 (noBins, hashFunc, kmerSize, bits);
+    KmerFilter<Dna, TSpec> ctor_default_helper2 (noBins, hashFunc, kmerSize, bits);
+    */
+
+    KmerFilter<Dna, TSpec> ctor_default (noBins, kmerSize);
+    KmerFilter<Dna, TSpec> ctor_default_helper1 (noBins, kmerSize);
+    KmerFilter<Dna, TSpec> ctor_default_helper2 (noBins, kmerSize);
+
+    // Copy constructor
+    KmerFilter<Dna, TSpec> ctor_copy (ctor_default);
+    // Copy assignment
+    KmerFilter<Dna, TSpec> assignment_copy;
+    assignment_copy = ctor_default;
+    // Move constructor
+    KmerFilter<Dna, TSpec> ctor_move(std::move(ctor_default_helper1));
+    // Move assignment
+    KmerFilter<Dna, TSpec> assignment_move;
+    assignment_move = std::move(ctor_default_helper2);
 
     // ==========================================================================
     // Test addKmer()
@@ -51,11 +64,14 @@ int main()
         append(fasta, CharString(std::to_string(i)));
         append(fasta, CharString(".fasta.gz"));
         if (i % 2)
-            addFastaFile(ctor_param, toCString(fasta), i);
-        else
-            addFastaFile(ctor_insta, toCString(fasta), i);
-        if ( i==1 || i==7)
-            addFastaFile(ctor_assig, toCString(fasta), i);
+            addFastaFile(ctor_default, toCString(fasta), i);
+        if (i == 0)
+        {
+            addFastaFile(ctor_copy, toCString(fasta), i);
+            addFastaFile(assignment_copy, toCString(fasta), i);
+            addFastaFile(ctor_move, toCString(fasta), i);
+            addFastaFile(assignment_move, toCString(fasta), i);
+        }
     }
 
     // ==========================================================================
@@ -63,61 +79,25 @@ int main()
     // ==========================================================================
     std::cout << "Testing store/retrieve" << '\n';
 
-    CharString store1("ctor_param.dat");
-    store(ctor_param, toCString(store1));
-    retrieve(from_file, toCString(store1));
-
-    CharString store2("ctor_insta.dat");
-    store(ctor_insta, toCString(store2));
-    retrieve(from_file, toCString(store2));
-
-    CharString store3("ctor_assig.dat");
-    store(ctor_assig, toCString(store3));
-    retrieve(from_file, toCString(store3));
+    CharString store1("file.dat");
+    store(ctor_default, toCString(store1));
+    retrieve(ctor_empty, toCString(store1));
 
     // ==========================================================================
     // Test whichBins()
     // ==========================================================================
     std::cout << "Testing whichBins" << '\n';
 
-    std::vector<uint64_t> ctor_param_set;
-    std::vector<uint64_t> ctor_insta_set;
-    std::vector<uint64_t> ctor_assig_set;
+    std::vector<uint64_t> ctor_default_set;
 
-    std::vector<bool> which = whichBins(ctor_param, DnaString("AAA"), 1);
-    (void) whichBins(ctor_param, DnaString("AAA"));
+    std::vector<bool> which = whichBins(ctor_default, DnaString("AAA"), 1);
+    (void) whichBins(ctor_default, DnaString("AAA"));
     for (uint64_t i = 0; i < which.size(); ++i)
     {
         if (i % 2)
         {
             assert(which[i]);
-            ctor_param_set.push_back(i);
-        }
-        else
-            assert(!which[i]);
-    }
-
-    which = whichBins(ctor_insta, DnaString("AAA"), 1);
-    (void) whichBins(ctor_insta, DnaString("AAA"));
-    for (uint64_t i = 0; i < which.size(); ++i)
-    {
-        if (!(i % 2))
-        {
-            assert(which[i]);
-            ctor_insta_set.push_back(i);
-        }
-        else
-            assert(!which[i]);
-    }
-
-    which = whichBins(ctor_assig, DnaString("AAA"), 1);
-    (void) whichBins(ctor_assig, DnaString("AAA"));
-    for (uint64_t i = 0; i < which.size(); ++i)
-    {
-        if ( i==1 || i==7)
-        {
-            assert(which[i]);
-            ctor_assig_set.push_back(i);
+            ctor_default_set.push_back(i);
         }
         else
             assert(!which[i]);
@@ -129,77 +109,31 @@ int main()
     std::cout << "Testing clearBins" << '\n';
 
     // Check if any elements are set in the filters.
-    bool ctor_param_any = false;
-    for (uint64_t i = 0; i < ctor_param.noOfBlocks * ctor_param.noOfBins; ++i)
+    bool ctor_default_any = false;
+    for (uint64_t i = 0; i < ctor_default.noOfBlocks * ctor_default.noOfBins; ++i)
     {
-        if (ctor_param.filterVector[i])
+        if (ctor_default.filterVector[i])
         {
-            ctor_param_any = true;
+            ctor_default_any = true;
             break;
         }
     }
-    assert(ctor_param_any == true);
-
-    bool ctor_assig_any = false;
-    for (uint64_t i = 0; i < ctor_assig.noOfBlocks * ctor_assig.noOfBins; ++i)
-    {
-        if (ctor_assig.filterVector[i])
-        {
-            ctor_assig_any = true;
-            break;
-        }
-    }
-    assert(ctor_assig_any == true);
-
-    bool ctor_insta_any = false;
-    for (uint64_t i = 0; i < ctor_insta.noOfBlocks * ctor_insta.noOfBins; ++i)
-    {
-        if (ctor_insta.filterVector[i])
-        {
-            ctor_insta_any = true;
-            break;
-        }
-    }
-    assert(ctor_insta_any == true);
+    assert(ctor_default_any == true);
 
     // Reset the filter vectors.
-    clearBins(ctor_param, ctor_param_set, threads);
-    clearBins(ctor_insta, ctor_insta_set, threads);
-    clearBins(ctor_assig, ctor_assig_set, threads);
+    clearBins(ctor_default, ctor_default_set, threads);
 
     // Check if filter Vectors are empty.
-    ctor_param_any = false;
-    for (uint64_t i = 0; i < ctor_param.noOfBlocks * ctor_param.noOfBins; ++i)
+    ctor_default_any = false;
+    for (uint64_t i = 0; i < ctor_default.noOfBlocks * ctor_default.noOfBins; ++i)
     {
-        if (ctor_param.filterVector[i])
+        if (ctor_default.filterVector[i])
         {
-            ctor_param_any = true;
+            ctor_default_any = true;
             break;
         }
     }
-    assert(ctor_param_any == false);
-
-    ctor_assig_any = false;
-    for (uint64_t i = 0; i < ctor_assig.noOfBlocks * ctor_assig.noOfBins; ++i)
-    {
-        if (ctor_assig.filterVector[i])
-        {
-            ctor_assig_any = true;
-            break;
-        }
-    }
-    assert(ctor_assig_any == false);
-
-    ctor_insta_any = false;
-    for (uint64_t i = 0; i < ctor_insta.noOfBlocks * ctor_insta.noOfBins; ++i)
-    {
-        if (ctor_insta.filterVector[i])
-        {
-            ctor_insta_any = true;
-            break;
-        }
-    }
-    assert(ctor_insta_any == false);
+    assert(ctor_default_any == false);
 
     return 0;
 }

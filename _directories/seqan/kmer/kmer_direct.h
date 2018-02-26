@@ -52,15 +52,17 @@ public:
     sdsl::bit_vector                    filterVector;
 
     static const uint32_t               filterMetadataSize{256};
-    THValue                noOfHashFunc{1};
+    THValue                             noOfHashFunc{1};
 
     typedef Shape<TValue, SimpleShape>  TShape;
 
+    // Default constructor
     KmerFilter():
         noOfBins(0),
         kmerSize(0)
         {}
 
+    // Default constructor
     KmerFilter(THValue n_bins, THValue kmer_size):
         noOfBins(n_bins),
         kmerSize(kmer_size)
@@ -68,11 +70,13 @@ public:
         init();
     }
 
+    // Copy constructor
     KmerFilter(KmerFilter<TValue, DirectAddressing> const & other)
     {
         *this = other;
     }
 
+    // Copy assignment
     KmerFilter<TValue, DirectAddressing> & operator=(KmerFilter<TValue, DirectAddressing> const & other)
     {
         noOfBins = other.noOfBins;
@@ -82,6 +86,26 @@ public:
         filterVector = other.filterVector;
         return *this;
     }
+
+    // Move constrcutor
+    KmerFilter(KmerFilter<TValue, DirectAddressing> && other)
+    {
+        *this = std::move(other);
+    }
+
+    // Move assignment
+    KmerFilter<TValue, DirectAddressing> & operator=(KmerFilter<TValue, DirectAddressing> && other)
+    {
+        noOfBins = std::move(other.noOfBins);
+        kmerSize = std::move(other.kmerSize);
+        noOfBits = std::move(other.noOfBits);
+        noOfBlocks = std::move(other.noOfBlocks);
+        filterVector = std::move(other.filterVector);
+        return *this;
+    }
+
+    // Destructor
+    ~KmerFilter<TValue, DirectAddressing>() = default;
 
     THValue ipow(THValue base, THValue exp)
     {
@@ -97,7 +121,7 @@ public:
     }
 
     template<typename TInt>
-    void clearBins(std::vector<THValue> & bins, TInt&& threads)
+    void clearBins(std::vector<THValue> const & bins, TInt&& threads)
     {
         std::vector<std::future<void>> tasks;
 

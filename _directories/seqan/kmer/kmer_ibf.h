@@ -51,8 +51,8 @@ public:
     THValue    noOfBlocks;
 
     std::vector<THValue>   preCalcValues;
-    THValue const          shiftValue = 27;
-    THValue const          seedValue = 0x90b45d39fb6da1fa;
+    static const THValue   shiftValue = 27;
+    static const THValue   seedValue = 0x90b45d39fb6da1fa;
 
     sdsl::bit_vector                    filterVector;
 
@@ -60,6 +60,7 @@ public:
 
     typedef Shape<TValue, SimpleShape>  TShape;
 
+    // Default constructor
     KmerFilter():
         noOfBins(0),
         noOfHashFunc(0),
@@ -67,6 +68,7 @@ public:
         noOfBits(0),
         filterVector(sdsl::bit_vector(0, 0)) {}
 
+    // Default constructor
     KmerFilter(THValue n_bins, THValue n_hash_func, THValue kmer_size, THValue vec_size):
         noOfBins(n_bins),
         noOfHashFunc(n_hash_func),
@@ -77,11 +79,13 @@ public:
             init();
     }
 
+    // Copy constructor
     KmerFilter(KmerFilter<TValue, InterleavedBloomFilter> const & other)
     {
         *this = other;
     }
 
+    // Copy assignment
     KmerFilter<TValue, InterleavedBloomFilter> & operator=(KmerFilter<TValue, InterleavedBloomFilter> const & other)
     {
         noOfBins = other.noOfBins;
@@ -93,8 +97,29 @@ public:
         return *this;
     }
 
+    // Move constrcutor
+    KmerFilter(KmerFilter<TValue, InterleavedBloomFilter> && other)
+    {
+        *this = std::move(other);
+    }
+
+    // Move assignment
+    KmerFilter<TValue, InterleavedBloomFilter> & operator=(KmerFilter<TValue, InterleavedBloomFilter> && other)
+    {
+        noOfBins = std::move(other.noOfBins);
+        noOfHashFunc = std::move(other.noOfHashFunc);
+        kmerSize = std::move(other.kmerSize);
+        noOfBits = std::move(other.noOfBits);
+        filterVector = std::move(other.filterVector);
+        init();
+        return *this;
+    }
+
+    // Destructor
+    ~KmerFilter<TValue, InterleavedBloomFilter>() = default;
+
     template<typename TInt>
-    void clearBins(std::vector<THValue> & bins, TInt&& threads)
+    void clearBins(std::vector<THValue> const & bins, TInt&& threads)
     {
         std::vector<std::future<void>> tasks;
 
