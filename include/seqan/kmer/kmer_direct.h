@@ -235,7 +235,7 @@ public:
     {
         noOfBlocks = ipow(ValueSize<TValue>::VALUE, kmerSize);
         noOfBits = noOfBins * noOfBlocks + filterMetadataSize;
-        std::cout << "Direct Addressing will need " << noOfBits << " bits." << '\n';
+        // std::cout << "Direct Addressing will need " << noOfBits << " bits." << '\n';
         filterVector = sdsl::bit_vector(noOfBits, 0);
     }
 };
