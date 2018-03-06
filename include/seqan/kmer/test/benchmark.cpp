@@ -47,16 +47,25 @@ using namespace seqan;
 
 int main()
 {
+    // parameters
+    uint64_t const noOfRepeats{10};
+    uint64_t const noOfKmers{1000000};
+    uint64_t const k{12};
+    uint64_t const noOfBins{32};
+    uint64_t const noOfHashes{3};
+    uint64_t const noOfBits{16777472};
+
+
     std::mt19937 rng;
     StringSet<DnaString> input;
     std::vector<int64_t> ibfTime;
     std::vector<int64_t> sbfTime;
     std::vector<int64_t> daTime;
-    reserve(input, 1000000);
-    for (uint32_t seqNo = 0; seqNo < 1000000; ++seqNo)
+    reserve(input, noOfKmers);
+    for (uint32_t seqNo = 0; seqNo < noOfKmers; ++seqNo)
     {
         DnaString tmp;
-        for (uint16_t i = 0; i < 12; ++i)
+        for (uint16_t i = 0; i < k; ++i)
         {
             appendValue(tmp, Dna(rng() % 4));
         }
@@ -66,32 +75,32 @@ int main()
     std::cout << "====================================================================\n"
               << "====================== Benchmarking addKmer() ======================\n"
               << "====================================================================\n";
-    for (uint16_t r = 0; r < 10; r++)
+    for (uint64_t r = 0; r < noOfRepeats; r++)
     {
-        KmerFilter<Dna, InterleavedBloomFilter> ibf (32, 3, 12, 16777472);
-        SeqAnBloomFilter<DnaString> sbf (32, 3, 12, 16777472);
-        KmerFilter<Dna, DirectAddressing> da (32, 12);
+        KmerFilter<Dna, InterleavedBloomFilter> ibf (noOfBins, noOfHashes, k, noOfBits);
+        SeqAnBloomFilter<DnaString> sbf (noOfBins, noOfHashes, k, noOfBits);
+        KmerFilter<Dna, DirectAddressing> da (noOfBins, k);
 
         auto start = std::chrono::high_resolution_clock::now();
-        for(uint32_t i = 0; i < 1000000; ++i)
+        for(uint64_t i = 0; i < noOfKmers; ++i)
         {
-            ibf.addKmer(input[i], i % 32);
+            ibf.addKmer(input[i], i % noOfBins);
         }
         auto elapsed = std::chrono::high_resolution_clock::now() - start;
         ibfTime.push_back(std::chrono::duration_cast<std::chrono::milliseconds>(elapsed).count());
 
         start = std::chrono::high_resolution_clock::now();
-        for(uint32_t i = 0; i < 1000000; ++i)
+        for(uint64_t i = 0; i < noOfKmers; ++i)
         {
-            sbf.addKmers(input[i], i % 32);
+            sbf.addKmers(input[i], i % noOfBins);
         }
         elapsed = std::chrono::high_resolution_clock::now() - start;
         sbfTime.push_back(std::chrono::duration_cast<std::chrono::milliseconds>(elapsed).count());
 
         start = std::chrono::high_resolution_clock::now();
-        for(uint32_t i = 0; i < 1000000; ++i)
+        for(uint64_t i = 0; i < noOfKmers; ++i)
         {
-            da.addKmer(input[i], i % 32);
+            da.addKmer(input[i], i % noOfBins);
         }
         elapsed = std::chrono::high_resolution_clock::now() - start;
         daTime.push_back(std::chrono::duration_cast<std::chrono::milliseconds>(elapsed).count());
@@ -117,21 +126,21 @@ int main()
               << "===================== Benchmarking whichBins() =====================\n"
               << "====================================================================\n";
 
-    KmerFilter<Dna, InterleavedBloomFilter> ibf (32, 3, 12, 16777472);
-    SeqAnBloomFilter<DnaString> sbf (32, 3, 12, 16777472);
-    KmerFilter<Dna, DirectAddressing> da (32, 12);
+    KmerFilter<Dna, InterleavedBloomFilter> ibf (noOfBins, noOfHashes, k, noOfBits);
+    SeqAnBloomFilter<DnaString> sbf (noOfBins, noOfHashes, k, noOfBits);
+    KmerFilter<Dna, DirectAddressing> da (noOfBins, k);
 
-    for(uint32_t i = 0; i < 1000000; ++i)
+    for(uint64_t i = 0; i < noOfKmers; ++i)
     {
-      ibf.addKmer(input[i], i % 32);
-      sbf.addKmers(input[i], i % 32);
-      da.addKmer(input[i], i % 32);
+      ibf.addKmer(input[i], i % noOfBins);
+      sbf.addKmers(input[i], i % noOfBins);
+      da.addKmer(input[i], i % noOfBins);
     }
 
-    for (uint16_t r = 0; r < 10; r++)
+    for (uint64_t r = 0; r < noOfRepeats; r++)
     {
         auto start = std::chrono::high_resolution_clock::now();
-        for(uint32_t i = 0; i < 1000000; ++i)
+        for(uint64_t i = 0; i < noOfKmers; ++i)
         {
             (void) whichBins(ibf, input[i], 1);
         }
@@ -139,7 +148,7 @@ int main()
         ibfTime.push_back(std::chrono::duration_cast<std::chrono::milliseconds>(elapsed).count());
 
         start = std::chrono::high_resolution_clock::now();
-        for(uint32_t i = 0; i < 1000000; ++i)
+        for(uint64_t i = 0; i < noOfKmers; ++i)
         {
             (void) sbf.whichBins(input[i], 1);
         }
@@ -147,7 +156,7 @@ int main()
         sbfTime.push_back(std::chrono::duration_cast<std::chrono::milliseconds>(elapsed).count());
 
         start = std::chrono::high_resolution_clock::now();
-        for(uint32_t i = 0; i < 1000000; ++i)
+        for(uint64_t i = 0; i < noOfKmers; ++i)
         {
             (void) whichBins(da, input[i], 1);
         }
