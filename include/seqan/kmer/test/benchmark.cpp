@@ -48,12 +48,12 @@ using namespace seqan;
 int main()
 {
     // parameters
-    uint64_t const noOfRepeats{10};
-    uint64_t const noOfKmers{1000000};
-    uint64_t const k{12};
-    uint64_t const noOfBins{32};
-    uint64_t const noOfHashes{3};
-    uint64_t const noOfBits{16777472};
+    uint64_t noOfRepeats{10};
+    uint64_t noOfKmers{1000000};
+    uint64_t k{12};
+    uint64_t noOfBins{32};
+    uint64_t noOfHashes{3};
+    uint64_t noOfBits{16777472};
 
 
     std::mt19937 rng;
