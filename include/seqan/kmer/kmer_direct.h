@@ -185,22 +185,31 @@ public:
 
             uint64_t binNo = 0;
 
-            // As long as any bit is set
-            while (tmp > 0)
+            // Magic thingie that prevents segfault
+            // TODO Learn more about magic thingie
+            if (tmp ^ (1ULL<<(noOfBins-1)))
             {
-                // sdsl::bits::lo calculates the position of the rightmost 1-bit in the 64bit integer x if it exists.
-                // For example, for 8 = 1000 it would return 3
-                uint64_t step = sdsl::bits::lo(tmp);
-                // Adjust our bins
-                binNo += step;
-                // Remove up to next 1
-                ++step;
-                tmp >>= step;
-                // Count
-                ++counts[binNo];
-                // ++binNo because step is 0-based, e.g., if we had a hit with the next bit we would otherwise count it
-                // for binNo=+ 0
-                ++binNo;
+                // As long as any bit is set
+                while (tmp > 0)
+                {
+                    // sdsl::bits::lo calculates the position of the rightmost 1-bit in the 64bit integer x if it exists.
+                    // For example, for 8 = 1000 it would return 3
+                    uint64_t step = sdsl::bits::lo(tmp);
+                    // Adjust our bins
+                    binNo += step;
+                    // Remove up to next 1
+                    ++step;
+                    tmp >>= step;
+                    // Count
+                    ++counts[binNo];
+                    // ++binNo because step is 0-based, e.g., if we had a hit with the next bit we would otherwise count it
+                    // for binNo=+ 0
+                    ++binNo;
+                }
+            }
+            else
+            {
+                ++counts[binNo + noOfBins - 1];
             }
         }
     }
