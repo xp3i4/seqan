@@ -48,12 +48,12 @@ using namespace seqan;
 int main()
 {
     // parameters
-    uint64_t noOfRepeats{10};
-    uint64_t noOfKmers{1000000};
-    uint64_t k{12};
-    uint64_t noOfBins{32};
-    uint64_t noOfHashes{3};
-    uint64_t noOfBits{16777472};
+    uint64_t const noOfRepeats{10};
+    uint64_t const noOfKmers{1000000};
+    uint64_t const k{12};
+    uint64_t const noOfBins{32};
+    uint64_t const noOfHashes{3};
+    uint64_t const noOfBits{16777472};
 
 
     std::mt19937 rng;
@@ -62,10 +62,10 @@ int main()
     std::vector<int64_t> sbfTime;
     std::vector<int64_t> daTime;
     reserve(input, noOfKmers);
-    for (uint32_t seqNo = 0; seqNo < noOfKmers; ++seqNo)
+    for (uint64_t seqNo = 0; seqNo < noOfKmers; ++seqNo)
     {
         DnaString tmp;
-        for (uint16_t i = 0; i < k; ++i)
+        for (uint64_t i = 0; i < k; ++i)
         {
             appendValue(tmp, Dna(rng() % 4));
         }
@@ -137,7 +137,7 @@ int main()
       da.addKmer(input[i], i % noOfBins);
     }
 
-    for (uint64_t r = 0; r < noOfRepeats; r++)
+    for (uint64_t r = 0; r < noOfRepeats; ++r)
     {
         auto start = std::chrono::high_resolution_clock::now();
         for(uint64_t i = 0; i < noOfKmers; ++i)
