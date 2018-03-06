@@ -29,14 +29,15 @@
 // DAMAGE.
 //
 // ==========================================================================
-// Author: Enrico Seiler <enrico.seiler@fu-berlin.de>
-// ==========================================================================
-// kmer lib
+// Author:  Temesgen H. Dadi <temesgen.dadi@fu-berlin.de>
+//          Enrico Seiler <enrico.seiler@fu-berlin.de>
 // ==========================================================================
 
-//#ifndef SEQAN_INCLUDE_SEQAN_KMER_KMER_BASE_H_
-//#define SEQAN_INCLUDE_SEQAN_KMER_KMER_BASE_H_
+#ifndef INCLUDE_SEQAN_KMER_KMER_BASE_H_
+#define INCLUDE_SEQAN_KMER_KMER_BASE_H_
+
 #include <sdsl/bit_vectors.hpp>
+#include <seqan/seq_io.h>
 #include <valarray>
 #include <algorithm>
 #include <future>
@@ -231,4 +232,4 @@ inline bool isBitSet(KmerFilter<TValue, TSpec> &  me, TInt1&& num, TInt2&& bit)
 
 }  // namespace seqan
 
-//#endif  // INCLUDE_SEQAN_BASIC_ITERATOR_BASE_H_
+#endif  // INCLUDE_SEQAN_KMER_KMER_BASE_H_

@@ -29,16 +29,17 @@
 // DAMAGE.
 //
 // ==========================================================================
-// Author: Enrico Seiler <enrico.seiler@fu-berlin.de>
+// Author:  Temesgen H. Dadi <temesgen.dadi@fu-berlin.de>
+//          Enrico Seiler <enrico.seiler@fu-berlin.de>
 // ==========================================================================
-// kmer lib
+// Header for the k-mer directories module.
 // ==========================================================================
 
 #ifndef INCLUDE_SEQAN_KMER_H_
 #define INCLUDE_SEQAN_KMER_H_
 
-#include <seqan/seq_io.h>
-
 #include <seqan/kmer/kmer_base.h>
+#include <seqan/kmer/kmer_direct.h>
+#include <seqan/kmer/kmer_ibf.h>
 
 #endif

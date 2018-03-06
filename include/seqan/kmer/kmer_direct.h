@@ -29,10 +29,12 @@
 // DAMAGE.
 //
 // ==========================================================================
-// Author: Enrico Seiler <enrico.seiler@fu-berlin.de>
+// Author:  Temesgen H. Dadi <temesgen.dadi@fu-berlin.de>
+//          Enrico Seiler <enrico.seiler@fu-berlin.de>
 // ==========================================================================
-// kmer lib
-// ==========================================================================
+
+#ifndef INCLUDE_SEQAN_KMER_KMER_DIRECT_H_
+#define INCLUDE_SEQAN_KMER_KMER_DIRECT_H_
 
 // --------------------------------------------------------------------------
 // Class KmerFilter using direct addressing
@@ -238,3 +240,5 @@ public:
     }
 };
 }
+
+#endif  // INCLUDE_SEQAN_KMER_KMER_DIRECT_H_

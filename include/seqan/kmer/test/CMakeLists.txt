@@ -75,9 +75,7 @@ add_definitions (-DSEQAN_APP_VERSION="${SEQAN_APP_VERSION}")
 set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${SEQAN_CXX_FLAGS}")
 
 # Update the list of file names below if you add source files to your application.
-add_executable( seqan_kmer seqan_kmer.cpp
-                bloom_filter.h
-                kdx_filter.h)
+add_executable( seqan_kmer seqan_kmer.cpp)
 
 # Add dependencies found by find_package (SeqAn).
 target_link_libraries (seqan_kmer ${SEQAN_LIBRARIES})
