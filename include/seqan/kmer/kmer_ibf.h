@@ -179,15 +179,19 @@ public:
             for(uint8_t i = 0; i < noOfHashFunc ; i++)
             {
                 vecIndices[i] *= kmerHash;
+                // Move to first bit representing the hash kmerHash for bin 0,
+                // the next bit would be for bin 1, and so on
                 getHashValue(vecIndices[i]);
             }
 
-            // Move to first bit representing the hash kmerHash for bin 0, the next bit would be for bin 1, and so on
-            kmerHash *= noOfBins;
-
             // get_int(idx, len) returns the integer value of the binary string of length len starting at position idx.
             // I.e. len+idx-1|_______|idx, Vector is right to left.
-            uint64_t tmp = filterVector.get_int(kmerHash, noOfBins);
+            uint64_t tmp = filterVector.get_int(vecIndices[0], noOfBins);
+
+            for(uint8_t i = 1; i < noOfHashFunc;  i++)
+            {
+                tmp &= filterVector.get_int(vecIndices[i], noOfBins);
+            }
 
             uint64_t binNo = 0;
 
