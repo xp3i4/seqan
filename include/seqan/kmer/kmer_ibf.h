@@ -58,6 +58,7 @@ namespace seqan{
  * CharString file("sequence.fasta");
  * KmerFilter<Dna, InterleavedBloomFilter> ibf (10, 3, 20, 16777472);
  * addFastaFile(ibf, toCString(file));
+ * ```
  *
  */
 template<typename TValue>
@@ -268,8 +269,7 @@ public:
                         tmp >>= step;
                         // Count
                         ++counts[binNo];
-                        // ++binNo because step is 0-based, e.g., if we had a hit with the next bit we would otherwise count it
-                        // for binNo=+ 0
+                        // ++binNo because step is 0-based, e.g., if we had a hit with the next bit we would otherwise count it for binNo=+ 0
                         ++binNo;
                     }
                 }
@@ -287,7 +287,7 @@ public:
     }
 
     /*!
-     * \brief Tests for occurences in each bin given a text and count threshold.
+     * \brief Tests for occurence in each bin given a text and count threshold.
      * \param selected Vector to be filled with booleans signalling occurence.
      * \param text Text to count occurences for.
      * \param threshold Minimal count (>=) of containing k-mers to report bin as containing text.
