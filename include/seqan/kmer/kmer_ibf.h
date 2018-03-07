@@ -51,10 +51,13 @@ public:
     THValue    kmerSize;
     THValue    noOfBits;
     THValue    noOfBlocks;
+    THValue    binWidth;
+    THValue    blockBitSize;
 
     std::vector<THValue>   preCalcValues;
     static const THValue   shiftValue = 27;
     static const THValue   seedValue = 0x90b45d39fb6da1fa;
+    static const THValue   intSize = 0x40; // Longest bit size we have available: 64 bit
 
     sdsl::bit_vector                    filterVector;
 
@@ -142,7 +145,7 @@ public:
                     hashBlock < noOfBlocks && hashBlock < (taskNo +1) * batchSize;
                     ++hashBlock)
                 {
-                    uint64_t vecPos = hashBlock * noOfBins;
+                    uint64_t vecPos = hashBlock * blockBitSize;
                     for(uint32_t binNo : bins)
                     {
                         filterVector[vecPos + binNo] = false;
@@ -176,7 +179,7 @@ public:
         for (uint64_t kmerHash : kmerHashes)
         {
             std::vector<uint64_t> vecIndices = preCalcValues;
-            for(uint8_t i = 0; i < noOfHashFunc ; i++)
+            for(uint8_t i = 0; i < noOfHashFunc ; ++i)
             {
                 vecIndices[i] *= kmerHash;
                 // Move to first bit representing the hash kmerHash for bin 0,
@@ -184,43 +187,51 @@ public:
                 getHashValue(vecIndices[i]);
             }
 
-            // get_int(idx, len) returns the integer value of the binary string of length len starting at position idx.
-            // I.e. len+idx-1|_______|idx, Vector is right to left.
-            uint64_t tmp = filterVector.get_int(vecIndices[0], noOfBins);
-
-            for(uint8_t i = 1; i < noOfHashFunc;  i++)
-            {
-                tmp &= filterVector.get_int(vecIndices[i], noOfBins);
-            }
-
             uint64_t binNo = 0;
-
-            // Magic thingie that prevents segfault
-            // TODO Learn more about magic thingie
-            if (tmp ^ (1ULL<<(noOfBins-1)))
+            for (uint64_t batchNo = 0; batchNo < binWidth; ++batchNo)
             {
-                // As long as any bit is set
-                while (tmp > 0)
+                binNo = batchNo * intSize;
+                // get_int(idx, len) returns the integer value of the binary string of length len starting
+                // at position idx, i.e. len+idx-1|_______|idx, Vector is right to left.
+                uint64_t tmp = filterVector.get_int(vecIndices[0], intSize);
+
+                for(uint8_t i = 1; i < noOfHashFunc;  ++i)
                 {
-                    // sdsl::bits::lo calculates the position of the rightmost 1-bit in the 64bit integer x if it exists.
-                    // For example, for 8 = 1000 it would return 3
-                    uint64_t step = sdsl::bits::lo(tmp);
-                    // Adjust our bins
-                    binNo += step;
-                    // Remove up to next 1
-                    ++step;
-                    tmp >>= step;
-                    // Count
-                    ++counts[binNo];
-                    // ++binNo because step is 0-based, e.g., if we had a hit with the next bit we would otherwise count it
-                    // for binNo=+ 0
-                    ++binNo;
+                    tmp &= filterVector.get_int(vecIndices[i], intSize);
+                }
+
+                // Behaviour for a bit shift with >= maximal size is undefined, i.e. shifting a 64 bit integer by 64
+                // positions is not defined and hence we need a special case for this.
+                if (tmp ^ (1ULL<<(intSize-1)))
+                {
+                    // As long as any bit is set
+                    while (tmp > 0)
+                    {
+                        // sdsl::bits::lo calculates the position of the rightmost 1-bit in the 64bit integer x if it exists.
+                        // For example, for 8 = 1000 it would return 3
+                        uint64_t step = sdsl::bits::lo(tmp);
+                        // Adjust our bins
+                        binNo += step;
+                        // Remove up to next 1
+                        ++step;
+                        tmp >>= step;
+                        // Count
+                        ++counts[binNo];
+                        // ++binNo because step is 0-based, e.g., if we had a hit with the next bit we would otherwise count it
+                        // for binNo=+ 0
+                        ++binNo;
+                    }
+                }
+                else
+                {
+                    ++counts[binNo + intSize - 1];
+                }
+                for (uint64_t i = 0; i < noOfHashFunc; ++i)
+                {
+                    vecIndices[i] += intSize;
                 }
             }
-            else
-            {
-                ++counts[binNo + noOfBins - 1];
-            }
+
         }
     }
 
@@ -242,8 +253,8 @@ public:
         vecIndex ^= vecIndex >> shiftValue;
         // Bring it back into our vector range (noOfBlocks = possible hash values)
         vecIndex %= noOfBlocks;
-        // Since each block needs binNo bits, we multiply to get the correct location
-        vecIndex *= noOfBins;
+        // Since each block needs blockBitSize bits, we multiply to get the correct location
+        vecIndex *= blockBitSize;
     }
 
     template<typename TString, typename TInt>
@@ -270,7 +281,12 @@ public:
 
     inline void init()
     {
-        noOfBlocks = (noOfBits - filterMetadataSize) / noOfBins;
+        // How many blocks of 64 bit do we need to represent our noOfBins
+        binWidth = std::ceil((float)noOfBins / intSize);
+        // How big is then a block (multiple of 64 bit)
+        blockBitSize = binWidth * intSize;
+        // How many hashfunctions can we represent
+        noOfBlocks = (noOfBits - filterMetadataSize) / blockBitSize;
 
         preCalcValues.resize(noOfHashFunc);
         for(uint64_t i = 0; i < noOfHashFunc ; i++)
