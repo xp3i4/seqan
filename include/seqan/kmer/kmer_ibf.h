@@ -80,7 +80,7 @@ public:
     //!\brief The number of 64 bit blocks needed to represent the number of bins.
     THValue    binWidth;
     //!\brief Bits we need to represent noBins bits. Multiple of intSize.
-    THValue    binBitSize;
+    THValue    blockBitSize;
 
     //!\brief Randomized values for hash functions.
     std::vector<THValue>   preCalcValues;
@@ -193,7 +193,7 @@ public:
                     hashBlock < noOfBlocks && hashBlock < (taskNo +1) * batchSize;
                     ++hashBlock)
                 {
-                    uint64_t vecPos = hashBlock * binBitSize;
+                    uint64_t vecPos = hashBlock * blockBitSize;
                     for(uint32_t binNo : bins)
                     {
                         filterVector[vecPos + binNo] = false;
@@ -314,8 +314,8 @@ public:
         hash ^= hash >> shiftValue;
         // Bring it back into our vector range (noOfBlocks = possible hash values)
         hash %= noOfBlocks;
-        // Since each block needs binBitSize bits, we multiply to get the correct location
-        hash *= binBitSize;
+        // Since each block needs blockBitSize bits, we multiply to get the correct location
+        hash *= blockBitSize;
     }
 
     /*!
@@ -351,9 +351,9 @@ public:
         // How many blocks of 64 bit do we need to represent our noOfBins
         binWidth = std::ceil((float)noOfBins / intSize);
         // How big is then a block (multiple of 64 bit)
-        binBitSize = binWidth * intSize;
+        blockBitSize = binWidth * intSize;
         // How many hash values can we represent
-        noOfBlocks = (noOfBits - filterMetadataSize) / binBitSize;
+        noOfBlocks = (noOfBits - filterMetadataSize) / blockBitSize;
 
         preCalcValues.resize(noOfHashFunc);
         for(uint64_t i = 0; i < noOfHashFunc ; i++)

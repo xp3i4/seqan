@@ -77,7 +77,7 @@ public:
     //!\brief The number of 64 bit blocks needed to represent the number of bins.
     THValue    binWidth;
     //!\brief Bits we need to represent noBins bits. Multiple of intSize.
-    THValue    binBitSize;
+    THValue    blockBitSize;
 
     //!\brief The bit vector storing the bloom filters.
     sdsl::bit_vector                    filterVector;
@@ -196,7 +196,7 @@ public:
                     hashBlock < noOfBlocks && hashBlock < (taskNo +1) * batchSize;
                     ++hashBlock)
                 {
-                    uint64_t vecPos = hashBlock * binBitSize;
+                    uint64_t vecPos = hashBlock * blockBitSize;
                     for(uint32_t binNo : bins)
                     {
                         filterVector[vecPos + binNo] = false;
@@ -234,7 +234,7 @@ public:
         for (uint64_t kmerHash : kmerHashes)
         {
             // Move to first bit representing the hash kmerHash for bin 0, the next bit would be for bin 1, and so on
-            kmerHash *= binBitSize;
+            kmerHash *= blockBitSize;
 
             uint64_t binNo = 0;
             for (uint64_t batchNo = 0; batchNo < binWidth; ++batchNo)
@@ -310,7 +310,7 @@ public:
         for (uint64_t i = 0; i < length(text) - length(kmerShape) + 1; ++i)
         {
             uint64_t kmerHash = hashNext(kmerShape, begin(text) + i);
-            filterVector[binBitSize * kmerHash + binNo] = 1;
+            filterVector[blockBitSize * kmerHash + binNo] = 1;
         }
     }
 
@@ -320,11 +320,11 @@ public:
         // How many blocks of 64 bit do we need to represent our noOfBins
         binWidth = std::ceil((float)noOfBins / intSize);
         // How big is then a block (multiple of 64 bit)
-        binBitSize = binWidth * intSize;
+        blockBitSize = binWidth * intSize;
         // How many hash values must we represent
         noOfBlocks = ipow(ValueSize<TValue>::VALUE, kmerSize);
         // Size of the bit vector
-        noOfBits = noOfBlocks * binBitSize + filterMetadataSize;
+        noOfBits = noOfBlocks * blockBitSize + filterMetadataSize;
         filterVector = sdsl::bit_vector(noOfBits, 0);
     }
 };
