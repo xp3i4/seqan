@@ -56,9 +56,11 @@ namespace seqan {
 // Tag k-mer Filter Tags
 // --------------------------------------------------------------------------
 
+//!\brief A tag for the IBF.
 struct InterleavedBloomFilter_;
 typedef Tag<InterleavedBloomFilter_> InterleavedBloomFilter;
 
+//!\brief A tag for direct addressing.
 struct DirectAddressing_;
 typedef Tag<DirectAddressing_> DirectAddressing;
 
@@ -66,6 +68,7 @@ typedef Tag<DirectAddressing_> DirectAddressing;
 // Class KmerFilter
 // --------------------------------------------------------------------------
 
+//!\brief The KmerFilter class.
 template<typename TValue = Dna, typename TSpec = DirectAddressing>
 class KmerFilter;
 
@@ -73,6 +76,7 @@ class KmerFilter;
 // Metafunctions
 // ==========================================================================
 
+//!\brief Type definition for variables.
 template<typename TValue, typename TSpec>
 struct Value<KmerFilter<TValue, TSpec> >
 {
@@ -91,18 +95,36 @@ struct Value<KmerFilter<TValue, TSpec> >
 // Function functionName()
 // --------------------------------------------------------------------------
 
+/*!
+ * \brief Adds a k-mer to a bin in a given filter.
+ * \param me The KmerFilter instance.
+ * \param kmer The k-mer to be added.
+ * \param binNo The bin to add the k-mer to.
+ */
 template<typename TValue, typename TSpec, typename TString, typename TInt>
 inline void addKmer(KmerFilter<TValue, TSpec> & me, TString const & kmer, TInt && binNo)
 {
     me.addKmer(kmer, binNo);
 }
 
+/*!
+ * \brief Sets the vectors for given bins to 0.
+ * \param me The KmerFilter instance.
+ * \param bins A vector containing the bin numbers.
+ * \param threads The number of threads to use.
+ */
 template<typename TValue, typename TSpec, typename TInt1, typename TInt2>
 inline void clearBins(KmerFilter<TValue, TSpec> &  me, std::vector<TInt1> & bins, TInt2&& threads)
 {
     me.clearBins(bins, static_cast<uint64_t>(threads));
 }
 
+/*!
+ * \brief Adds all k-mers from a fasta file to a bin of a given KmerFilter.
+ * \param me The KmerFilter instance.
+ * \param kmer The fasta file to process.
+ * \param binNo The bin to add the k-mers to.
+ */
 template<typename TValue, typename TSpec, typename TInt>
 inline void addFastaFile(KmerFilter<TValue, TSpec> &  me, const char * fastaFile, TInt && binNo)
 {
@@ -126,12 +148,24 @@ inline void addFastaFile(KmerFilter<TValue, TSpec> &  me, const char * fastaFile
     close(seqFileIn);
 }
 
+/*!
+ * \brief Calculates the k-mer counts of a given text.
+ * \param me The KmerFilter instance.
+ * \param counts Vector of length binNo to save counts to.
+ * \param text A single text to count all contained k-mers for.
+ */
 template<typename TValue, typename TSpec>
 inline void whichBins(KmerFilter<TValue, TSpec> &  me, std::vector<uint64_t> & counts, String<TValue> const & text)
 {
     me.whichBins(counts, text);
 }
 
+/*!
+ * \brief Returns the k-mer counts of a given text.
+ * \param me The KmerFilter instance.
+ * \param text A single text to count all contained k-mers for.
+ * \returns std::vector<uint64_t> of size binNo containing counts.
+ */
 template<typename TValue, typename TSpec>
 inline std::vector<uint64_t> whichBins(KmerFilter<TValue, TSpec> &  me, String<TValue> const & text)
 {
@@ -140,12 +174,26 @@ inline std::vector<uint64_t> whichBins(KmerFilter<TValue, TSpec> &  me, String<T
     return counts;
 }
 
+/*!
+ * \brief Checks for which bins the counts of all k-mers in a text exceed a threshold.
+ * \param me The KmerFilter instance.
+ * \param selected Vector of length binNo to save true/false to.
+ * \param text A single text to count all contained k-mers for.
+ * \param threshold The minimal number of occurences to return true for the bin.
+ */
 template<typename TValue, typename TSpec, typename TInt>
 inline void whichBins(KmerFilter<TValue, TSpec> &  me, std::vector<bool> & selected, String<TValue> const & text, TInt threshold)
 {
     me.whichBins(selected, text, static_cast<uint64_t>(threshold));
 }
 
+/*!
+ * \brief Returns for which bins the counts of all k-mers in a text exceed a threshold.
+ * \param me The KmerFilter instance.
+ * \param text A single text to count all contained k-mers for.
+ * \param threshold The minimal number of occurences to return true for the bin.
+ * \returns std::vector<bool> of size binNo indicating whether the text is in the bin.
+ */
 template<typename TValue, typename TSpec, typename TInt>
 inline std::vector<bool> whichBins(KmerFilter<TValue, TSpec> &  me, String<TValue> const & text, TInt && threshold)
 {
@@ -154,18 +202,32 @@ inline std::vector<bool> whichBins(KmerFilter<TValue, TSpec> &  me, String<TValu
     return selected;
 }
 
+/*!
+ * \brief Returns the number of bins.
+ * \param me The KmerFilter instance.
+ * \returns Value<KmerFilter<TValue, TSpec> >::Type Number of bins.
+ */
 template<typename TValue, typename TSpec>
 inline typename Value<KmerFilter<TValue, TSpec> >::Type getNumberOfBins(KmerFilter<TValue, TSpec> &  me)
 {
     return me.noBins;
 }
 
+/*!
+ * \brief Returns the k-mer size.
+ * \param me The KmerFilter instance.
+ * \returns Value<KmerFilter<TValue, TSpec> >::Type k-mer size.
+ */
 template<typename TValue, typename TSpec>
 inline typename Value<KmerFilter<TValue, TSpec> >::Type getKmerSize(KmerFilter<TValue, TSpec> &  me)
 {
     return me.kmerSize;
 }
 
+/*!
+ * \brief Reads the metadata.
+ * \param me The KmerFilter instance.
+ */
 template<typename TValue, typename TSpec>
 inline void getMetadata(KmerFilter<TValue, TSpec> &  me)
 {
@@ -182,6 +244,10 @@ inline void getMetadata(KmerFilter<TValue, TSpec> &  me)
     me.kmerSize = me.filterVector.get_int(metadataStart+128);
 }
 
+/*!
+ * \brief Writes the metadata.
+ * \param me The KmerFilter instance.
+ */
 template<typename TValue, typename TSpec>
 inline void setMetadata(KmerFilter<TValue, TSpec> &  me)
 {
@@ -198,12 +264,23 @@ inline void setMetadata(KmerFilter<TValue, TSpec> &  me)
     me.filterVector.set_int(metadataStart+128, me.kmerSize);
 }
 
+/*!
+ * \brief Returns the of the filter vector in MB.
+ * \param me The KmerFilter instance.
+ * \returns double filter vector size in MB.
+ */
 template<typename TValue, typename TSpec, typename THValue>
 inline double size(KmerFilter<TValue, TSpec> &  me)
 {
     return sdsl::size_in_mega_bytes(me.filterVector);
 }
 
+/*!
+ * \brief Writes the filter vector to a file.
+ * \param me The KmerFilter instance.
+ * \param fileName Name of the file to write to.
+ * \returns bool Indicates if the operation was successful.
+ */
 template<typename TValue, typename TSpec>
 inline bool store(KmerFilter<TValue, TSpec> &  me, const char * fileName)
 {
@@ -211,6 +288,12 @@ inline bool store(KmerFilter<TValue, TSpec> &  me, const char * fileName)
     return sdsl::store_to_file(me.filterVector, fileName);
 }
 
+/*!
+ * \brief Loads the filter vector from a file.
+ * \param me The KmerFilter instance.
+ * \param fileName Name of the file to read from.
+ * \returns bool Indicates if the operation was successful.
+ */
 template<typename TValue, typename TSpec>
 inline bool retrieve(KmerFilter<TValue, TSpec> &  me, const char * fileName)
 {
@@ -224,6 +307,13 @@ inline bool retrieve(KmerFilter<TValue, TSpec> &  me, const char * fileName)
     return true;
 }
 
+/*!
+ * \brief Indicates whether a bit is set in an integer.
+ * \param me The KmerFilter instance.
+ * \param num Integer to check.
+ * \param bit bit position to check.
+ * \returns bool Indicates if the bit is set.
+ */
 template<typename TValue, typename TSpec, typename TInt1, typename TInt2>
 inline bool isBitSet(KmerFilter<TValue, TSpec> &  me, TInt1&& num, TInt2&& bit)
 {
