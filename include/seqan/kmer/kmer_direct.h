@@ -185,8 +185,8 @@ public:
 
             uint64_t binNo = 0;
 
-            // Magic thingie that prevents segfault
-            // TODO Learn more about magic thingie
+            // Behaviour for a bit shift with >= maximal size is undefined, i.e. shifting a 64 bit integer by 64
+            // positions is not defined and hence we need a special case for this.
             if (tmp ^ (1ULL<<(noOfBins-1)))
             {
                 // As long as any bit is set
