@@ -61,6 +61,18 @@ static void addKmer_IBF(benchmark::State& state)
 }
 
 template <typename TAlphabet>
+static void whichBins_IBF(benchmark::State& state)
+{
+    KmerFilter<TAlphabet, InterleavedBloomFilter> ibf (state.range(0), state.range(3), state.range(1), state.range(2));
+    std::mt19937 RandomNumber;
+    String<TAlphabet> kmer("");
+    for (uint8_t i = 0; i < state.range(1); ++i)
+        appendValue(kmer, TAlphabet(RandomNumber() % ValueSize<TAlphabet>::VALUE));
+    for (auto _ : state)
+        whichBins(ibf, kmer, 0);
+}
+
+template <typename TAlphabet>
 static void addKmer_DA(benchmark::State& state)
 {
     KmerFilter<TAlphabet, DirectAddressing> da (state.range(0), state.range(1));
@@ -72,6 +84,18 @@ static void addKmer_DA(benchmark::State& state)
         addKmer(da, kmer, 0);
 }
 
+template <typename TAlphabet>
+static void whichBins_DA(benchmark::State& state)
+{
+    KmerFilter<TAlphabet, DirectAddressing> da (state.range(0), state.range(1));
+    std::mt19937 RandomNumber;
+    String<TAlphabet> kmer("");
+    for (uint8_t i = 0; i < state.range(1); ++i)
+        appendValue(kmer, TAlphabet(RandomNumber() % ValueSize<TAlphabet>::VALUE));
+    for (auto _ : state)
+        whichBins(da, kmer, 0);
+}
+
 static void IBFArguments(benchmark::internal::Benchmark* b)
 {
     for (int32_t binNo = 1; binNo <= 8192; binNo *= 2)
@@ -80,7 +104,7 @@ static void IBFArguments(benchmark::internal::Benchmark* b)
             continue;
         for (int32_t k = 20; k <= 20; ++k)
         {
-            for (int32_t bits = 1<<16; bits <= 1<<20; bits <<= 1 )
+            for (int32_t bits = 1<<16; bits <= 1<<21; bits <<= 1 )
             {
                 for (int32_t hashNo = 3; hashNo < 4; ++hashNo)
                 {
@@ -102,13 +126,13 @@ static void DAArguments(benchmark::internal::Benchmark* b)
     }
 }
 
-
-
 // 1<<16 = 65536
 
 // 0=bins 1=k 2=bits 3=noOfHashes
 
 BENCHMARK_TEMPLATE(addKmer_IBF, Dna)->Apply(IBFArguments);
 BENCHMARK_TEMPLATE(addKmer_DA, Dna)->Apply(DAArguments);
+BENCHMARK_TEMPLATE(whichBins_IBF, Dna)->Apply(IBFArguments);
+BENCHMARK_TEMPLATE(whichBins_DA, Dna)->Apply(DAArguments);
 
 BENCHMARK_MAIN();
